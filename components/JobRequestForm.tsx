@@ -42,38 +42,22 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     l.toLowerCase().includes(destQuery.toLowerCase())
   );
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  /* 
+     HANDLE FORM SUBMISSION (Enter Key)
+     - Step 1 & 2: Enter -> Next Step
+     - Step 3: Enter -> NOTHING (Force user to click Save button)
+  */
+  const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Prevent accidental submission on Step 1 or 2 (e.g. by hitting Enter)
     if (step < 3) {
       if (step === 1 && isStep1Valid) nextStep();
       else if (step === 2 && isStep2Valid) nextStep();
-      return;
     }
+    // If step === 3, do nothing on Enter. User must click key.
+  };
 
-    // Confirm before proceeding if on the final step
-    if (step === 3) {
-      const result = await Swal.fire({
-        title: 'Confirm Request? / ยืนยันข้อมูล?',
-        text: 'Are you sure all information is correct? / โปรดตรวจสอบความถูกต้องของข้อมูลก่อนกดยืนยัน',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Yes, Save / ใช่, บันทึกข้อมูล',
-        cancelButtonText: 'Review Again / ตรวจทานอีกครั้ง',
-        confirmButtonColor: '#2563eb',
-        cancelButtonColor: '#64748b',
-        backdrop: false, // Don't block the view with a dark overlay
-        position: 'center', // Keep center but small and without backdrop
-        width: '400px',
-        customClass: {
-          popup: 'rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border border-slate-100',
-          confirmButton: 'rounded-xl px-8 py-3 font-bold uppercase tracking-widest text-xs',
-          cancelButton: 'rounded-xl px-8 py-3 font-bold uppercase tracking-widest text-xs'
-        }
-      });
-      if (!result.isConfirmed) return;
-    }
+  const handleSave = async () => {
+    // No need to check step < 3 here as this is bound to the save button
 
     if (isSubmitting) return;
 
@@ -175,7 +159,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       </div>
 
       <div className="bg-white rounded-3xl p-8 md:p-12 shadow-2xl shadow-slate-200/50 border border-slate-100">
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={onFormSubmit} className="space-y-8">
 
           {step === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -351,6 +335,8 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
 
             return (
               <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+                {/* Save button moved back to footer as requested */}
+
                 {/* Smart Pricing Insight Tool */}
                 <div className={`p-6 rounded-[2rem] border-2 transition-all duration-500 ${hasPricing ? 'bg-emerald-50 border-emerald-100 shadow-lg shadow-emerald-100' : 'bg-rose-50 border-rose-100 shadow-lg shadow-rose-100'}`}>
                   <div className="flex items-center justify-between mb-4">
@@ -545,14 +531,15 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
               </button>
             ) : (
               <button
-                type="submit"
+                type="button"
+                onClick={handleSave}
                 disabled={isSubmitting}
                 className={`flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 rounded-2xl font-black shadow-xl shadow-blue-200 hover:shadow-blue-300 transform hover:-translate-y-1 transition-all uppercase tracking-widest text-sm ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
                 {isSubmitting ? (
                   <>Processing... / กำลังบันทึก <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div></>
                 ) : (
-                  <>Create Request / บันทึกข้อมูล <ClipboardCheck size={20} /></>
+                  <>Confirm & Save / ยืนยันข้อมูล <ClipboardCheck size={20} /></>
                 )}
               </button>
             )}
