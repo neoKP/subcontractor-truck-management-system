@@ -13,10 +13,13 @@ interface JobBoardProps {
   user: { id: string; name: string; role: UserRole };
   onUpdateJob: (job: Job, logs?: AuditLog[]) => void;
   onDeleteJob?: (jobId: string) => void;
+
   priceMatrix: PriceMatrix[];
+  logs: AuditLog[];
+  logsLoaded: boolean;
 }
 
-const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatrix, onDeleteJob }) => {
+const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatrix, onDeleteJob, logs, logsLoaded }) => {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showDispatcherModal, setShowDispatcherModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -823,6 +826,8 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
           onSave={onUpdateJob}
           user={user}
           priceMatrix={priceMatrix}
+          logs={logs}
+          logsLoaded={logsLoaded}
         />
       )}
 

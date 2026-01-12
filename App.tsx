@@ -42,6 +42,7 @@ const App: React.FC = () => {
   const [logSearch, setLogSearch] = useState('');
   const [logPage, setLogPage] = useState(1);
   const logsPerPage = 15;
+  const [logsLoaded, setLogsLoaded] = useState(false);
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
   const closeSidebar = () => setSidebarOpen(false);
@@ -64,6 +65,7 @@ const App: React.FC = () => {
       if (data) {
         setLogs(Object.values(data));
       }
+      setLogsLoaded(true);
     });
 
     // Listen for Pricing
@@ -225,6 +227,8 @@ const App: React.FC = () => {
               onUpdateJob={updateJob}
               onDeleteJob={deleteJob}
               priceMatrix={priceMatrix}
+              logs={logs}
+              logsLoaded={logsLoaded}
             />
           )}
 

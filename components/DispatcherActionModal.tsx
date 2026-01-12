@@ -10,9 +10,11 @@ interface DispatcherActionModalProps {
   onSave: (job: Job, logs?: AuditLog[]) => void;
   user: { id: string; name: string; role: UserRole };
   priceMatrix: PriceMatrix[];
+  logs: AuditLog[];
+  logsLoaded: boolean;
 }
 
-const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onClose, onSave, user, priceMatrix }) => {
+const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onClose, onSave, user, priceMatrix, logs, logsLoaded }) => {
   const [editData, setEditData] = useState({
     subcontractor: job.subcontractor || '',
     truckType: job.truckType,
@@ -71,8 +73,50 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     }
   }, [editData.subcontractor, editData.truckType, sessionPriceKeys, job.origin, job.destination, priceMatrix]);
 
-  const handleSaveAttempt = () => {
+  const handleSaveAttempt = async () => {
     if (isSubmitting) return;
+
+    // 🔒 1. Loading Guard System
+    if (!logsLoaded) {
+      if (typeof (window as any).Swal !== 'undefined') {
+        (window as any).Swal.fire({
+          title: 'System Loading / กำลังโหลดข้อมูล',
+          text: 'ระบบกำลังโหลดข้อมูลประวัติ กรุณารอสักครู่แล้วลองใหม่ (System is loading history data, please wait...)',
+          icon: 'warning',
+          confirmButtonColor: '#2563eb',
+          customClass: { popup: 'rounded-[2rem]' }
+        });
+      }
+      return;
+    }
+
+    // 🔒 2. Double-Deduction Alert System
+    // Check if this job was updated recently (within 1 minute)
+    if (logs && logs.length > 0) {
+      const recentLog = logs.find(l =>
+        l.jobId === job.id &&
+        (new Date().getTime() - new Date(l.timestamp).getTime() < 60000) // 1 minute window
+      );
+
+      if (recentLog) {
+        const result = await (window as any).Swal.fire({
+          title: '⚠️ Double-Action Warning',
+          html: `ระบบพบว่ามีการบันทึกข้อมูลสำหรับใบงาน <b>#${job.id}</b> เมื่อสักครู่นี้...<br/><br/>(โดย: ${recentLog.userName})<br/><br/>คุณแน่ใจหรือไม่ว่าต้องการบันทึกซ้ำ?`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#f59e0b',
+          cancelButtonColor: '#64748b',
+          confirmButtonText: 'ยืนยันบันทึกซ้ำ (Confirm)',
+          cancelButtonText: 'ยกเลิก (Cancel)',
+          customClass: { popup: 'rounded-[2rem]' },
+          footer: '<span class="text-xs text-slate-400">Double-Entry Protection System Active</span>'
+        });
+
+        if (!result.isConfirmed) {
+          return;
+        }
+      }
+    }
 
     const matrixPrice = calculatePriceLive(job.origin, job.destination, editData.truckType, editData.subcontractor);
     const hasChanged =
