@@ -99,7 +99,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                                         <option value="">-- SELECT DEMO USER --</option>
                                         {USERS_DB.map(user => (
                                             <option key={user.id} value={user.username}>
-                                                {user.username} ({user.name} - {USER_ROLE_LABELS[user.role]})
+                                                {user.name}
                                             </option>
                                         ))}
                                     </select>
