@@ -271,55 +271,63 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label htmlFor="price-origin" className="text-xs font-bold text-slate-500 uppercase">Origin (ต้นทาง)</label>
-                  <select
+                  <input
+                    list="origin-list"
                     id="price-origin"
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                     value={formData.origin}
                     onChange={e => setFormData({ ...formData, origin: e.target.value })}
-                    title="Select Origin"
-                  >
-                    <option value="">-- เลือกต้นทาง --</option>
-                    {MASTER_DATA.locations.map((l, idx) => <option key={`${l}-${idx}`} value={l}>{l}</option>)}
-                  </select>
+                    placeholder="เลือกหรือพิมพ์ต้นทาง..."
+                    autoComplete="off"
+                  />
+                  <datalist id="origin-list">
+                    {MASTER_DATA.locations.map((l, idx) => <option key={`${l}-${idx}`} value={l} />)}
+                  </datalist>
                 </div>
                 <div className="space-y-1">
                   <label htmlFor="price-dest" className="text-xs font-bold text-slate-500 uppercase">Destination (ปลายทาง)</label>
-                  <select
+                  <input
+                    list="dest-list"
                     id="price-dest"
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                     value={formData.destination}
                     onChange={e => setFormData({ ...formData, destination: e.target.value })}
-                    title="Select Destination"
-                  >
-                    <option value="">-- เลือกปลายทาง --</option>
-                    {MASTER_DATA.locations.map((l, idx) => <option key={`${l}-${idx}`} value={l}>{l}</option>)}
-                  </select>
+                    placeholder="เลือกหรือพิมพ์ปลายทาง..."
+                    autoComplete="off"
+                  />
+                  <datalist id="dest-list">
+                    {MASTER_DATA.locations.map((l, idx) => <option key={`${l}-${idx}`} value={l} />)}
+                  </datalist>
                 </div>
                 <div className="space-y-1">
                   <label htmlFor="price-sub" className="text-xs font-bold text-slate-500 uppercase">Subcontractor</label>
-                  <select
+                  <input
+                    list="sub-list"
                     id="price-sub"
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                     value={formData.subcontractor}
                     onChange={e => setFormData({ ...formData, subcontractor: e.target.value })}
-                    title="Select Subcontractor"
-                  >
-                    <option value="">-- เลือกบริษัท --</option>
-                    {MASTER_DATA.subcontractors.map((s, idx) => <option key={`${s}-${idx}`} value={s}>{s}</option>)}
-                  </select>
+                    placeholder="เลือกหรือพิมพ์ชื่อบริษัท..."
+                    autoComplete="off"
+                  />
+                  <datalist id="sub-list">
+                    {MASTER_DATA.subcontractors.map((s, idx) => <option key={`${s}-${idx}`} value={s} />)}
+                  </datalist>
                 </div>
                 <div className="space-y-1">
                   <label htmlFor="price-truck" className="text-xs font-bold text-slate-500 uppercase">Truck Type</label>
-                  <select
+                  <input
+                    list="truck-list"
                     id="price-truck"
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                     value={formData.truckType}
                     onChange={e => setFormData({ ...formData, truckType: e.target.value })}
-                    title="Select Truck Type"
-                  >
-                    <option value="">-- เลือกประเภทรถ --</option>
-                    {MASTER_DATA.truckTypes.map((t, idx) => <option key={`${t}-${idx}`} value={t}>{t}</option>)}
-                  </select>
+                    placeholder="เลือกหรือพิมพ์ประเภทรถ..."
+                    autoComplete="off"
+                  />
+                  <datalist id="truck-list">
+                    {MASTER_DATA.truckTypes.map((t, idx) => <option key={`${t}-${idx}`} value={t} />)}
+                  </datalist>
                 </div>
                 <div className="space-y-1">
                   <label htmlFor="price-base" className="text-xs font-bold text-slate-500 uppercase">Base Price (฿)</label>
