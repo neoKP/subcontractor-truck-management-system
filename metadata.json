@@ -1,0 +1,7 @@
+{
+  "name": "Subcontractor Truck Management System",
+  "description": "An enhanced logistics management system for booking officers and dispatchers with audit controls, pricing logic, and job confirmation workflows.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

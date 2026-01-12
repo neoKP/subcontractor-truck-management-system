@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Truck Management - Realtime Sync</title>
+
+    <!-- Dependencies via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/lucide-react"></script>
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;900&family=JetBrains+Mono:wght@500;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #0f172a;
+            --accent: #2563eb;
+            --glass: rgba(255, 255, 255, 0.7);
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            min-height: 100vh;
+            color: #1e293b;
+        }
+
+        .glass {
+            background: var(--glass);
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .hover-lift {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .hover-lift:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        @keyframes status-pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .animate-status {
+            animation: status-pulse 2s infinite ease-in-out;
+        }
+
+        .gradient-text {
+            background: linear-gradient(90deg, #1e293b, #2563eb);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .custom-loader {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #2563eb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <!-- Firebase SDK setup in HTML as requested -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
+        import { getDatabase, ref, onValue, set, push, update, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        // Firebase Configuration provided by user
+        const firebaseConfig = {
+            apiKey: "AIzaSyB26x49UrzPAyb14FtpBdrnRkQs_P2omTM",
+            authDomain: "subtruckmanagementsystem.firebaseapp.com",
+            databaseURL: "https://subtruckmanagementsystem-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "subtruckmanagementsystem",
+            storageBucket: "subtruckmanagementsystem.firebasestorage.app",
+            messagingSenderId: "29507252506",
+            appId: "1:29507252506:web:59befd19557a3e8488bca3",
+            measurementId: "G-DX2FD06P1V"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getDatabase(app);
+
+        // Expose to window for React to use
+        window.FirebaseDB = {
+            db, ref, onValue, set, push, update, remove
+        };
+
+        console.log("Firebase initialized successfully via CDN");
+    </script>
+
+    <!-- Application Logic -->
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        const {
+            Truck, MapPin, ClipboardCheck, ArrowRight, ArrowLeft,
+            Zap, Search, Info, AlertTriangle, ShieldCheck, X,
+            Calendar, Package, Hash, Lock, CheckCircle, Edit3,
+            Filter, Printer, LayoutDashboard, Receipt
+        } = lucide;
+
+        // Constants - Syncable Master Data
+        const INITIAL_MASTER_DATA = {
+            locations: [
+                'ซีโน่ คลองส่งน้ำ', 'เมืองกำแพงเพชร', 'เมืองเชียงราย', 'เมืองเชียงใหม่', 'เมืองนครสวรรค์',
+                'เมืองพิจิตร', 'เมืองพิษณุโลก', 'เมืองลำปาง', 'นิคมสมุทรสาคร', 'แม่สอด', 'แม่สาย เชียงราย',
+                'รามอินทรา', 'ศาลายา', 'โบทาเร่ ลาดกระบัง', 'DC1 โพธาราม', 'DC2 ฉะเชิงเทรา', 'DC3 บางวัว',
+                'DC4 ขอนแก่น', 'เมืองขอนแก่น', 'โคราช', 'ด่านคลองใหญ่', 'ด่านอรัญประเทศ', 'นครนายก',
+                'นครปฐม', 'บางปะกง', 'ปราณบุรี', 'ฝั่งกรุง', 'ฝั่งธนบุรี', 'ปทุมธานี', 'พระนครศรีอยุธยา',
+                'พัทยา', 'เพชรบุรี', 'เมืองจันทบุรี', 'เมืองฉะเชิงเทรา', 'เมืองชลบุรี', 'เมืองตราด',
+                'เมืองปราจีนบุรี', 'เมืองระยอง', 'เมืองสระแก้ว', 'ราชบุรี', 'เมืองลพบุรี', 'ศรีราชา',
+                'สมุทรปราการ', 'สมุทรสงคราม', 'สมุทรสาคร', 'เมืองสระบุรี', 'สัตหีบ', 'เมืองสิงห์บุรี',
+                'สุพรรณบุรี', 'หนองคาย', 'หัวหิน', 'เมืองอ่างทอง', 'เมืองอุดรธานี',
+                'ศูนย์กระจายสินค้า แม็คโคร วังน้อย (CDC)', 'ศูนย์กระจายสินค้า แม็คโคร มหาชัย',
+                'สตาร์แคนเนอรี่', 'นีโอคอร์ปอเรท คลอง13 / ไทยเทพรส', 'คลอง13', 'น้ำมันพืชไทย',
+                'เพนส์', 'สหพัฒน์ศรีราชา', 'ยำยำ', 'น้ำมันพืชไทย', 'ปทุมธานี (เอสบีอินเตอร์ หรือ นีโอคอร์ปอเรท)',
+                'โอสถสภา หัวหมาก', 'โอสถสภา อยุธยา', 'น้ำตาลนครเพชร กำแพงเพชร', 'อำพลฟู้ดส์ / เทพผดุงพร'
+            ],
+            truckTypes: ['4w', '6w', '6w พ่วง', '10w', '10w พ่วง', '12w', '18w'],
+            subcontractors: [
+                'KNN', 'PTK', 'YSK', 'คอมม่าพลัส', 'จิระศักดิ์', 'ธนโชค (คุณตุ่น)', 'บ้านขาวโลจิสติกส์',
+                'เบญจวรรณ ขนส่ง', 'ประกายเพชรขนส่ง', 'พยัคฆ์ขนส่ง', 'รถร่วม deliveree',
+                'รถร่วม อดุลย์ ลำปาง', 'รถร่วมคุณบุ๋ม', 'ลานนาไทย', 'วิวัฒน์ทราน', 'ศรีทรัพย์ขนส่ง', 'โอเคนะ'
+            ],
+            reasons: [
+                'รถเสีย / อุบัติเหตุ',
+                'Subcontractor ทิ้งงาน / ไม่เข้างาน',
+                'ลูกค้าแจ้งเปลี่ยนประเภทรถ',
+                'เปลี่ยนทะเบียน (คนขับคนเดิม)',
+                'ปรับแก้ราคา (Price Negotiation)',
+                'อื่นๆ (ระบุเอง)'
+            ]
+        };
+
+        const INITIAL_PRICE_MATRIX = [
+            { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองกำแพงเพชร', subcontractor: 'KNN', truckType: '6w', basePrice: 9600 },
+            { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองเชียงราย', subcontractor: 'KNN', truckType: '6w', basePrice: 18860 },
+            { origin: 'โบทาเร่ ลาดกระบัง', destination: 'DC1 โพธาราม', subcontractor: 'PTK', truckType: '4w', basePrice: 2070 },
+            { origin: 'โบทาเร่ ลาดกระบัง', destination: 'ด่านคลองใหญ่', subcontractor: 'PTK', truckType: '4w', basePrice: 4050 },
+            { origin: 'โบทาเร่ ลาดกระบัง', destination: 'สมุทรสาคร', subcontractor: 'PTK', truckType: '4w', basePrice: 1710 }
+        ];
+
+        // --- COMPONENTS ---
+
+        const LoginPage = ({ onLogin }) => {
+            const [selectedUser, setSelectedUser] = useState('001');
+            const users = {
+                '001': { name: 'Dispatcher 001', role: 'DISPATCHER' },
+                '002': { name: 'Booking Officer 001', role: 'BOOKING_OFFICER' },
+                '003': { name: 'Admin Manager', role: 'ADMIN' }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-6">
+                    <div className="glass w-full max-w-md p-10 rounded-[3rem] shadow-2xl border border-white">
+                        <div className="text-center mb-10">
+                            <div className="w-20 h-20 bg-blue-600 rounded-3xl mx-auto flex items-center justify-center text-white mb-6 shadow-xl shadow-blue-200">
+                                <Truck size={40} />
+                            </div>
+                            <h1 className="text-3xl font-black text-slate-900 mb-2">Truck Management</h1>
+                            <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Real-Time Enterprise Hub</p>
+                        </div>
+                        <div className="space-y-4">
+                            {Object.entries(users).map(([id, user]) => (
+                                <button
+                                    key={id}
+                                    onClick={() => onLogin({ id, ...user })}
+                                    className="w-full p-6 text-left rounded-3xl border border-slate-100 bg-white/50 hover:bg-white hover:border-blue-400 hover:shadow-xl transition-all group"
+                                >
+                                    <p className="text-lg font-black text-slate-800 tracking-tight">{user.name}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-blue-500">{user.role}</p>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AuditTrail = ({ logs }) => {
+            return (
+                <div className="glass rounded-[2rem] overflow-hidden border border-white">
+                    <div className="p-8 border-b border-slate-200/50 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <ShieldCheck className="text-blue-600" size={24} />
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight">System Audit Trail</h2>
+                        </div>
+                        <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Live Activity</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-slate-50/50 text-slate-500 uppercase text-[10px] font-black tracking-widest">
+                                <tr>
+                                    <th className="px-8 py-5">Timeline</th>
+                                    <th className="px-8 py-5">Action Summary / รายละเอียด</th>
+                                    <th className="px-8 py-5">Reason / หมายเหตุ</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {logs.length === 0 ? (
+                                    <tr><td colSpan="3" className="px-8 py-20 text-center text-slate-400 italic">No sync records found...</td></tr>
+                                ) : (
+                                    logs.slice().reverse().map(log => (
+                                        <tr key={log.id} className="hover:bg-blue-50/20 transition-colors">
+                                            <td className="px-8 py-6">
+                                                <div className="text-xs font-black text-slate-800">{log.timestamp.split(',')[1]}</div>
+                                                <div className="text-[10px] font-bold text-slate-400 uppercase">{log.timestamp.split(',')[0]}</div>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-[10px] font-black bg-slate-900 text-white px-1.5 py-0.5 rounded w-fit uppercase">#{log.jobId}</span>
+                                                    <p className="text-sm font-bold text-slate-700">
+                                                        {log.field.includes('Cost') || log.field.includes('Price') ? (
+                                                            <>เปลี่ยนราคา จาก <span className="text-rose-400 line-through">฿{Number(log.oldValue).toLocaleString()}</span> → <span className="text-emerald-600">฿{Number(log.newValue).toLocaleString()}</span></>
+                                                        ) : (
+                                                            <>แก้ไข {log.field} จาก "{log.oldValue}" เป็น "{log.newValue}"</>
+                                                        )}
+                                                        <span className="text-blue-600 ml-1">โดย {log.userName}</span>
+                                                    </p>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <div className="text-xs font-bold text-slate-500 italic bg-white/50 p-2 rounded-lg border border-slate-100">
+                                                    {log.reason}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [jobs, setJobs] = useState([]);
+            const [logs, setLogs] = useState([]);
+            const [priceMatrix, setPriceMatrix] = useState([]);
+            const [activeTab, setActiveTab] = useState('board');
+            const [initialized, setInitialized] = useState(false);
+
+            // Sync with Firebase
+            useEffect(() => {
+                if (!window.FirebaseDB) return;
+                const { db, ref, onValue, set } = window.FirebaseDB;
+
+                // Listen for Jobs
+                const jobsRef = ref(db, 'jobs');
+                const unsubscribeJobs = onValue(jobsRef, (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        setJobs(Object.values(data));
+                    }
+                });
+
+                // Listen for Logs
+                const logsRef = ref(db, 'logs');
+                const unsubscribeLogs = onValue(logsRef, (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        setLogs(Object.values(data));
+                    }
+                });
+
+                // Listen for Price Matrix & Initialize if empty
+                const pricingRef = ref(db, 'priceMatrix');
+                const unsubscribePricing = onValue(pricingRef, (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        setPriceMatrix(Object.values(data));
+                    } else {
+                        // Seed initial pricing if DB is fresh
+                        set(pricingRef, INITIAL_PRICE_MATRIX);
+                    }
+                    setInitialized(true);
+                });
+
+                return () => {
+                    unsubscribeJobs();
+                    unsubscribeLogs();
+                    unsubscribePricing();
+                };
+            }, []);
+
+            const saveJob = (job, newLogs = []) => {
+                const { db, ref, set, push } = window.FirebaseDB;
+
+                // Update or Create Job
+                set(ref(db, `jobs/${job.id}`), job);
+
+                // Add Logs
+                newLogs.forEach(log => {
+                    set(ref(db, `logs/${log.id}`), log);
+                });
+            };
+
+            const createNewRequest = (formData) => {
+                const id = `JRS-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+                const newJob = {
+                    ...formData,
+                    id,
+                    status: 'NEW_REQUEST',
+                    dateOfService: new Date().toISOString().split('T')[0]
+                };
+                saveJob(newJob);
+                setActiveTab('board');
+                Swal.fire({
+                    title: 'Syncing Request!',
+                    text: `Job ${id} has been published to the cloud.`,
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false,
+                    customClass: { popup: 'rounded-[2rem]' }
+                });
+            };
+
+            if (!user) return <LoginPage onLogin={setUser} />;
+            if (!initialized) return (
+                <div className="h-screen flex items-center justify-center flex-col gap-4">
+                    <div className="custom-loader"></div>
+                    <p className="font-black text-slate-400 uppercase tracking-widest text-xs">Connecting to Cloud Pipeline...</p>
+                </div>
+            );
+
+            return (
+                <div className="flex h-screen overflow-hidden">
+                    {/* Sidebar */}
+                    <div className="w-24 bg-slate-900 flex flex-col items-center py-10 gap-10 shrink-0">
+                        <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white">
+                            <Truck size={24} />
+                        </div>
+                        <div className="flex flex-col gap-8 flex-1">
+                            <button onClick={() => setActiveTab('board')} className={`p-4 rounded-2xl transition-all ${activeTab === 'board' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-white'}`}>
+                                <LayoutDashboard size={24} />
+                            </button>
+                            {user.role === 'BOOKING_OFFICER' && (
+                                <button onClick={() => setActiveTab('create')} className={`p-4 rounded-2xl transition-all ${activeTab === 'create' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-white'}`}>
+                                    <X size={24} className="rotate-45" />
+                                </button>
+                            )}
+                            <button onClick={() => setActiveTab('logs')} className={`p-4 rounded-2xl transition-all ${activeTab === 'logs' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-white'}`}>
+                                <ShieldCheck size={24} />
+                            </button>
+                        </div>
+                        <button onClick={() => setUser(null)} className="p-4 text-rose-500"><X size={24} /></button>
+                    </div>
+
+                    {/* Main Content */}
+                    <main className="flex-1 overflow-y-auto p-10 scrollbar-hide">
+                        <header className="flex justify-between items-end mb-12">
+                            <div>
+                                <h1 className="text-4xl font-black text-slate-900 tracking-tight">
+                                    {activeTab === 'board' ? 'Cloud Dashboard' : activeTab === 'logs' ? 'Security Audit' : 'Fleet Request'}
+                                </h1>
+                                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2">Connected: {user.name} ({user.role})</p>
+                            </div>
+                            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 text-[10px] font-black uppercase">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Real-Time Synchronization Active
+                            </div>
+                        </header>
+
+                        {activeTab === 'board' && (
+                            <div className="grid grid-cols-1 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                                    <div className="glass p-8 rounded-[2.5rem] hover-lift group">
+                                        <div className="text-[10px] font-black text-slate-400 uppercase mb-2">Requests</div>
+                                        <div className="text-5xl font-black text-slate-900 leading-none">{jobs.length}</div>
+                                    </div>
+                                    <div className="glass p-8 rounded-[2.5rem] hover-lift group border-emerald-100">
+                                        <div className="text-[10px] font-black text-emerald-500 uppercase mb-2">Fleet Active</div>
+                                        <div className="text-5xl font-black text-emerald-600 leading-none">{jobs.filter(j => j.status === 'ASSIGNED').length}</div>
+                                    </div>
+                                    <div className="glass p-8 rounded-[2.5rem] hover-lift group border-blue-100">
+                                        <div className="text-[10px] font-black text-blue-500 uppercase mb-2">Total Settlement</div>
+                                        <div className="text-3xl font-black text-slate-900 leading-none">฿{jobs.reduce((s, j) => s + (j.cost || 0), 0).toLocaleString()}</div>
+                                    </div>
+                                </div>
+
+                                <div className="glass rounded-[3rem] overflow-hidden border-white shadow-xl">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-slate-900 h-16">
+                                            <tr>
+                                                <th className="px-8 text-[10px] font-black text-white uppercase tracking-widest">Job ID</th>
+                                                <th className="px-8 text-[10px] font-black text-white uppercase tracking-widest">Route</th>
+                                                <th className="px-8 text-[10px] font-black text-white uppercase tracking-widest">Vehicle</th>
+                                                <th className="px-8 text-[10px] font-black text-white uppercase tracking-widest text-right">Cost</th>
+                                                <th className="px-8 text-[10px] font-black text-white uppercase tracking-widest text-center">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 bg-white">
+                                            {jobs.length === 0 ? (
+                                                <tr><td colSpan="5" className="px-8 py-32 text-center text-slate-300 font-black uppercase italic">No active operations in pipeline</td></tr>
+                                            ) : (
+                                                jobs.slice().reverse().map(job => (
+                                                    <tr key={job.id} className="hover:bg-blue-50/20 group">
+                                                        <td className="px-8 py-6 font-black text-blue-600 font-mono">#{job.id}</td>
+                                                        <td className="px-8 py-6">
+                                                            <div className="text-sm font-black text-slate-800">{job.origin}</div>
+                                                            <div className="text-[10px] font-bold text-slate-400">➔ {job.destination}</div>
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <div className="text-xs font-black text-slate-700">{job.subcontractor || 'Wait assignment'}</div>
+                                                            <div className="text-[10px] font-mono text-blue-500">{job.licensePlate || '-'}</div>
+                                                        </td>
+                                                        <td className="px-8 py-6 text-right">
+                                                            <div className="text-lg font-black text-slate-900">฿{(job.cost || 0).toLocaleString()}</div>
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <div className={`mx-auto w-32 px-3 py-1 rounded-full text-[9px] font-black text-center border uppercase tracking-widest ${job.status === 'ASSIGNED' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-orange-100 text-orange-700 border-orange-200 animate-status'}`}>
+                                                                {job.status}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'logs' && <AuditTrail logs={logs} />}
+
+                        {activeTab === 'create' && (
+                            <div className="max-w-xl mx-auto glass p-12 rounded-[3.5rem] shadow-2xl border-white relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
+                                <h2 className="text-2xl font-black text-slate-900 mb-8 tracking-tight">Post New Truck Request</h2>
+                                <form onSubmit={(e) => {
+                                    e.preventDefault();
+                                    const fd = new FormData(e.target);
+                                    createNewRequest(Object.fromEntries(fd));
+                                }} className="space-y-6">
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Origin</label>
+                                            <select name="origin" required className="w-full p-4 rounded-2xl bg-slate-50 border-slate-100 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:bg-white transition-all">
+                                                {INITIAL_MASTER_DATA.locations.map(l => <option key={l} value={l}>{l}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Destination</label>
+                                            <select name="destination" required className="w-full p-4 rounded-2xl bg-slate-50 border-slate-100 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:bg-white transition-all">
+                                                {INITIAL_MASTER_DATA.locations.reverse().map(l => <option key={l} value={l}>{l}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Truck Type</label>
+                                        <select name="truckType" required className="w-full p-4 rounded-2xl bg-slate-50 border-slate-100 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:bg-white transition-all">
+                                            {INITIAL_MASTER_DATA.truckTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                                        </select>
+                                    </div>
+                                    <button type="submit" className="w-full py-5 bg-slate-900 text-white rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-slate-200 hover:bg-black transition-all">
+                                        Deploy to Operation Pipeline
+                                    </button>
+                                </form>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
