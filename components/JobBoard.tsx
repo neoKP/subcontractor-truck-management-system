@@ -95,6 +95,20 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
       return;
     }
 
+    // Block actions on Pending Pricing jobs unless Admin/Accountant
+    if (job.status === JobStatus.PENDING_PRICING && ![UserRole.ADMIN, UserRole.ACCOUNTANT].includes(user.role)) {
+      if (typeof (window as any).Swal !== 'undefined') {
+        (window as any).Swal.fire({
+          title: 'Locked for Pricing / รอตรวจสอบราคา',
+          text: 'This job is pending pricing review. Please contact Admin/Accounting to add master price. / งานนี้ติดสถานะรอตรวจสอบราคา กรุณาแจ้ง Admin ให้เพิ่มราคากลางก่อนจัดรถ',
+          icon: 'warning',
+          confirmButtonColor: '#f59e0b',
+          customClass: { popup: 'rounded-[2rem]' }
+        });
+      }
+      return;
+    }
+
     setShowDispatcherModal(true);
   };
 
@@ -111,6 +125,7 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
   const getStatusStyle = (status: JobStatus) => {
     switch (status) {
       case JobStatus.NEW_REQUEST: return 'bg-orange-100 text-orange-700 border-orange-200';
+      case JobStatus.PENDING_PRICING: return 'bg-yellow-100 text-yellow-700 border-yellow-200'; // New Style
       case JobStatus.ASSIGNED: return 'bg-blue-100 text-blue-700 border-blue-200';
       case JobStatus.COMPLETED: return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       case JobStatus.BILLED: return 'bg-slate-100 text-slate-600 border-slate-200';
@@ -230,6 +245,7 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
 
   const renderKanban = () => {
     const columns = [
+      { status: JobStatus.PENDING_PRICING, label: 'Pricing Review / รอราคา', color: 'bg-yellow-500' },
       { status: JobStatus.NEW_REQUEST, label: 'Unassigned / รอรถ', color: 'bg-orange-500' },
       { status: JobStatus.ASSIGNED, label: 'In Progress / กำลังไป', color: 'bg-blue-500' },
       { status: JobStatus.COMPLETED, label: 'Finished / เสร็จแล้ว', color: 'bg-emerald-500' },
@@ -278,6 +294,15 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
                         <MapPin size={10} className="text-orange-500" /> {job.destination}
                       </div>
                     </div>
+
+                    {/* Locked Message for Pending Pricing */}
+                    {job.status === JobStatus.PENDING_PRICING && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4 flex items-center gap-2">
+                        <Lock size={12} className="text-yellow-600" />
+                        <span className="text-[9px] font-black text-yellow-700 uppercase tracking-wide">Locked: Pricing Review Needed</span>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between pt-3 border-t border-slate-50">
                       <div className="flex items-center gap-2">
                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
@@ -785,14 +810,14 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></svg>
             </button>
             <div className="w-px h-6 bg-slate-100 mx-1"></div>
-            {(['ALL', JobStatus.NEW_REQUEST, JobStatus.ASSIGNED, JobStatus.COMPLETED] as const).map((s, idx) => (
+            {(['ALL', JobStatus.PENDING_PRICING, JobStatus.NEW_REQUEST, JobStatus.ASSIGNED, JobStatus.COMPLETED] as const).map((s, idx) => (
               <button
                 key={`${s}-${idx}`}
                 onClick={() => setFilter(s)}
                 className={`px-3 md:px-4 py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-tighter transition-all ${filter === s ? 'bg-slate-900 text-white shadow-xl scale-105' : 'text-slate-400 hover:bg-slate-50'}`}
                 title={`Filter by ${s}`} aria-label={`Filter by ${s}`}
               >
-                {s === JobStatus.NEW_REQUEST ? 'NEW' : s}
+                {s === JobStatus.NEW_REQUEST ? 'NEW' : s === JobStatus.PENDING_PRICING ? 'PRICE' : s}
               </button>
             ))}
           </div>

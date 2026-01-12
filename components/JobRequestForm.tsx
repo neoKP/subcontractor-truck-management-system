@@ -99,20 +99,31 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
 
     const formattedSeq = nextSeq.toString().padStart(4, '0');
 
+    // Check for pricing availability
+    const matchedPricing = priceMatrix.filter(p =>
+      p.origin === formData.origin &&
+      p.destination === formData.destination &&
+      p.truckType === formData.truckType
+    );
+    const hasPricing = matchedPricing.length > 0;
+    const initialStatus = hasPricing ? JobStatus.NEW_REQUEST : JobStatus.PENDING_PRICING;
+
     const newJob: Job = {
       ...formData,
       id: `${yearPrefix}${formattedSeq}`,
-      status: JobStatus.NEW_REQUEST,
+      status: initialStatus,
     };
 
     // Show Success Alert and wait for user to click OK
     if (typeof Swal !== 'undefined') {
       await Swal.fire({
-        title: 'Success! / บันทึกสำเร็จ',
-        text: 'Job request has been created. / สร้างรายการงานเรียบร้อยแล้ว',
-        icon: 'success',
+        title: hasPricing ? 'Success! / บันทึกสำเร็จ' : 'Saved for Review / ส่งตรวจสอบราคา',
+        html: hasPricing
+          ? 'Job request has been created. / สร้างรายการงานเรียบร้อยแล้ว'
+          : 'Job saved but <b>Locked for Pricing Review</b>.<br/>Please notify Admin to add master price.<br/><br/>บันทึกงานแล้ว แต่สถานะเป็น <b>"รอตรวจสอบราคา"</b><br/>โปรดแจ้ง Admin ให้เพิ่มราคากลางก่อนจัดรถ',
+        icon: hasPricing ? 'success' : 'warning',
         confirmButtonText: 'OK / ตกลง',
-        confirmButtonColor: '#2563eb',
+        confirmButtonColor: hasPricing ? '#2563eb' : '#f59e0b',
         customClass: {
           popup: 'rounded-[2rem]',
           confirmButton: 'rounded-xl px-10 py-3 font-bold uppercase tracking-widest text-xs'
@@ -379,6 +390,15 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                           </>
                         )}
                       </p>
+                      {!hasPricing && (
+                        <div className="mt-3 bg-rose-100 p-3 rounded-xl border border-rose-200">
+                          <p className="text-[10px] font-black text-rose-700 uppercase tracking-wide mb-1">Status Impact / ผลกระทบต่อสถานะงาน</p>
+                          <p className="text-xs font-bold text-rose-800">
+                            งานนี้จะถูกบันทึกในสถานะ <span className="underline decoration-2 text-rose-900">"รอตรวจสอบราคา (Pending Pricing)"</span>
+                            และจะไม่สามารถจัดรถได้ จนกว่า Admin หรือฝ่ายบัญชีจะเพิ่มราคากลางเข้าระบบ.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {hasPricing && (

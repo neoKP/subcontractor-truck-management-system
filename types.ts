@@ -15,6 +15,7 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
 
 export enum JobStatus {
   NEW_REQUEST = 'New Request',
+  PENDING_PRICING = 'Pending Pricing', // New status
   ASSIGNED = 'Assigned',
   COMPLETED = 'Completed',
   BILLED = 'Billed',
@@ -23,6 +24,7 @@ export enum JobStatus {
 
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   [JobStatus.NEW_REQUEST]: 'รอรถ (New Request)',
+  [JobStatus.PENDING_PRICING]: 'รอตรวจสอบราคา (Pending Pricing)',
   [JobStatus.ASSIGNED]: 'ดำเนินการ (In Progress)',
   [JobStatus.COMPLETED]: 'เสร็จสิ้น (Completed)',
   [JobStatus.BILLED]: 'วางบิลแล้ว (Billed)',
