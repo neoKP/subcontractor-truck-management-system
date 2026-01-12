@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { UserRole, USER_ROLE_LABELS } from '../types';
-import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users } from 'lucide-react';
 
 interface SidebarProps {
   currentRole: UserRole;
@@ -22,6 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, setActiveTab,
     { id: 'billing', label: 'Billing / วางบิล', icon: Receipt, roles: [UserRole.ACCOUNTANT, UserRole.ADMIN] },
     { id: 'reports', label: 'Reports / รายงาน', icon: PieChart, roles: [UserRole.DISPATCHER, UserRole.ACCOUNTANT, UserRole.ADMIN] },
     { id: 'logs', label: 'Audit Logs / ประวัติแก้ไข', icon: ShieldCheck, roles: [UserRole.DISPATCHER, UserRole.ACCOUNTANT, UserRole.ADMIN] },
+    { id: 'users', label: 'Users / ผู้ใช้งาน', icon: Users, roles: [UserRole.ADMIN] },
   ];
 
   const filteredTabs = tabs.filter(tab => tab.roles.includes(currentRole));

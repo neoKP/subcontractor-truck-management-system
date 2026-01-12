@@ -11,15 +11,33 @@ import LoginPage from './components/LoginPage';
 import { PRICE_MATRIX } from './constants';
 import AccountingReportsView from './components/AccountingReportsView';
 import AccountingVerificationView from './components/AccountingVerificationView';
-import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck } from 'lucide-react';
+import UserManagementView from './components/UserManagementView';
+import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users } from 'lucide-react';
 import { db, ref, onValue, set, remove } from './firebaseConfig';
+
+// Initial Users Data for Seeding
+const INITIAL_USERS = [
+  { id: 'ADMIN_001', name: 'System Admin', role: UserRole.ADMIN, username: 'ADMIN001', password: 'a888' },
+  { id: 'ACCOUNTANT_001', name: 'ADMIN Accountant', role: UserRole.ACCOUNTANT, username: 'ACCOUNT001', password: 'ac999' },
+  { id: 'DISPATCHER_001', name: 'Fleet Dispatcher', role: UserRole.DISPATCHER, username: 'DISPATCH001', password: 't777' },
+  { id: 'BOOKING_001', name: 'อภัสนันท์ ภู่จรัสธนพัฒน์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING001', password: 'b001' },
+  { id: 'BOOKING_002', name: 'วรารัตน์ แก้วนิ่ม', role: UserRole.BOOKING_OFFICER, username: 'BOOKING002', password: 'b002' },
+  { id: 'BOOKING_003', name: 'กุลณัฐ คิดดีจริง', role: UserRole.BOOKING_OFFICER, username: 'BOOKING003', password: 'b003' },
+  { id: 'BOOKING_004', name: 'ชนัญชิดา พวงมาลัย', role: UserRole.BOOKING_OFFICER, username: 'BOOKING004', password: 'b004' },
+  { id: 'BOOKING_005', name: 'สุภาพร ชูชัยสุวรรณศรี', role: UserRole.BOOKING_OFFICER, username: 'BOOKING005', password: 'b005' },
+  { id: 'BOOKING_006', name: 'ชุติมา สีหาบุตร', role: UserRole.BOOKING_OFFICER, username: 'BOOKING006', password: 'b006' },
+  { id: 'BOOKING_007', name: 'เยาวนันท์ จันทรพิทักษ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING007', password: 'b007' },
+  { id: 'BOOKING_008', name: 'ขนิษฐา วัฒนวิกย์กรรม์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING008', password: 'b008' },
+  { id: 'BOOKING_009', name: 'สุพัชญ์กานต์ ธีระภัณฑ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING009', password: 'b009' },
+];
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; role: UserRole } | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [priceMatrix, setPriceMatrix] = useState<PriceMatrix[]>(PRICE_MATRIX);
-  const [activeTab, setActiveTab] = useState<'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'reports' | 'verify'>('board');
+  const [activeTab, setActiveTab] = useState<'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'reports' | 'verify' | 'users'>('board');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logSearch, setLogSearch] = useState('');
   const [logPage, setLogPage] = useState(1);
@@ -60,12 +78,35 @@ const App: React.FC = () => {
       }
     });
 
+    // Listen for Users
+    const usersRef = ref(db, 'users');
+    const unsubscribeUsers = onValue(usersRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setUsers(Object.values(data));
+      } else {
+        // Seed users if empty
+        INITIAL_USERS.forEach(user => {
+          set(ref(db, `users/${user.id}`), user);
+        });
+      }
+    });
+
     return () => {
       unsubscribeJobs();
       unsubscribeLogs();
       unsubscribePricing();
+      unsubscribeUsers();
     };
   }, []);
+
+  const handleUserUpdate = (user: any) => {
+    set(ref(db, `users/${user.id}`), user);
+  };
+
+  const handleUserDelete = (userId: string) => {
+    remove(ref(db, `users/${userId}`));
+  };
 
   const addJob = (job: Job) => {
     // Persist to Firebase
@@ -146,7 +187,7 @@ const App: React.FC = () => {
   };
 
   if (!currentUser) {
-    return <LoginPage onLogin={handleLogin} />;
+    return <LoginPage onLogin={handleLogin} users={users} />;
   }
 
   return (
@@ -239,6 +280,24 @@ const App: React.FC = () => {
               </div>
               <div className="p-6">
                 <BillingView jobs={jobs} user={currentUser} onUpdateJob={updateJob} />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'users' && currentUser.role === UserRole.ADMIN && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="bg-slate-900 px-6 py-4 flex items-center gap-3">
+                <Users className="text-white" size={24} />
+                <h2 className="text-xl font-bold text-white">จัดการผู้ใช้งานระบบ (User Management)</h2>
+              </div>
+              <div className="p-6">
+                <UserManagementView
+                  users={users}
+                  onAddUser={handleUserUpdate}
+                  onUpdateUser={handleUserUpdate}
+                  onDeleteUser={handleUserDelete}
+                  currentUserRole={currentUser.role}
+                />
               </div>
             </div>
           )}

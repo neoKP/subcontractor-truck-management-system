@@ -3,36 +3,22 @@ import React, { useState } from 'react';
 import { UserRole, USER_ROLE_LABELS } from '../types';
 import { Truck, Lock, User, KeyRound, AlertCircle, ArrowRight } from 'lucide-react';
 
+
 interface LoginPageProps {
     onLogin: (user: { id: string; name: string; role: UserRole }) => void;
+    users: any[];
 }
-
-const USERS_DB = [
-    { id: 'ADMIN_001', name: 'System Admin', role: UserRole.ADMIN, username: 'ADMIN001', password: 'a888' },
-    { id: 'ACCOUNTANT_001', name: 'ADMIN Accountant', role: UserRole.ACCOUNTANT, username: 'ACCOUNT001', password: 'ac999' },
-    { id: 'DISPATCHER_001', name: 'Fleet Dispatcher', role: UserRole.DISPATCHER, username: 'DISPATCH001', password: 't777' },
-    // Dispatch/Booking Team Real Names
-    { id: 'BOOKING_001', name: 'อภัสนันท์ ภู่จรัสธนพัฒน์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING001', password: 'b001' },
-    { id: 'BOOKING_002', name: 'วรารัตน์ แก้วนิ่ม', role: UserRole.BOOKING_OFFICER, username: 'BOOKING002', password: 'b002' },
-    { id: 'BOOKING_003', name: 'กุลณัฐ คิดดีจริง', role: UserRole.BOOKING_OFFICER, username: 'BOOKING003', password: 'b003' },
-    { id: 'BOOKING_004', name: 'ชนัญชิดา พวงมาลัย', role: UserRole.BOOKING_OFFICER, username: 'BOOKING004', password: 'b004' },
-    { id: 'BOOKING_005', name: 'สุภาพร ชูชัยสุวรรณศรี', role: UserRole.BOOKING_OFFICER, username: 'BOOKING005', password: 'b005' },
-    { id: 'BOOKING_006', name: 'ชุติมา สีหาบุตร', role: UserRole.BOOKING_OFFICER, username: 'BOOKING006', password: 'b006' },
-    { id: 'BOOKING_007', name: 'เยาวนันท์ จันทรพิทักษ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING007', password: 'b007' },
-    { id: 'BOOKING_008', name: 'ขนิษฐา วัฒนวิกย์กรรม์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING008', password: 'b008' },
-    { id: 'BOOKING_009', name: 'สุพัชญ์กานต์ ธีระภัณฑ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING009', password: 'b009' },
-];
 
 declare const Swal: any;
 
-const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        const user = USERS_DB.find(u => u.username.toLowerCase() === username.toLowerCase());
+        const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
 
         if (user) {
             if (password === user.password) {
@@ -97,7 +83,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                                         onChange={e => setUsername(e.target.value)}
                                     >
                                         <option value="">-- SELECT DEMO USER --</option>
-                                        {USERS_DB.map(user => (
+                                        {users.map((user: any) => (
                                             <option key={user.id} value={user.username}>
                                                 {user.name}
                                             </option>
