@@ -8,19 +8,19 @@ interface LoginPageProps {
 }
 
 const USERS_DB = [
-    { id: 'ADMIN_001', name: 'System Admin', role: UserRole.ADMIN, username: 'ADMIN001' },
-    { id: 'ACCOUNTANT_001', name: 'ADMIN Accountant', role: UserRole.ACCOUNTANT, username: 'ACCOUNT001' },
-    { id: 'DISPATCHER_001', name: 'Fleet Dispatcher', role: UserRole.DISPATCHER, username: 'DISPATCH001' },
+    { id: 'ADMIN_001', name: 'System Admin', role: UserRole.ADMIN, username: 'ADMIN001', password: 'a888' },
+    { id: 'ACCOUNTANT_001', name: 'ADMIN Accountant', role: UserRole.ACCOUNTANT, username: 'ACCOUNT001', password: 'ac999' },
+    { id: 'DISPATCHER_001', name: 'Fleet Dispatcher', role: UserRole.DISPATCHER, username: 'DISPATCH001', password: 't777' },
     // Dispatch/Booking Team Real Names
-    { id: 'BOOKING_001', name: 'อภัสนันท์ ภู่จรัสธนพัฒน์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING001' },
-    { id: 'BOOKING_002', name: 'วรารัตน์ แก้วนิ่ม', role: UserRole.BOOKING_OFFICER, username: 'BOOKING002' },
-    { id: 'BOOKING_003', name: 'กุลณัฐ คิดดีจริง', role: UserRole.BOOKING_OFFICER, username: 'BOOKING003' },
-    { id: 'BOOKING_004', name: 'ชนัญชิดา พวงมาลัย', role: UserRole.BOOKING_OFFICER, username: 'BOOKING004' },
-    { id: 'BOOKING_005', name: 'สุภาพร ชูชัยสุวรรณศรี', role: UserRole.BOOKING_OFFICER, username: 'BOOKING005' },
-    { id: 'BOOKING_006', name: 'ชุติมา สีหาบุตร', role: UserRole.BOOKING_OFFICER, username: 'BOOKING006' },
-    { id: 'BOOKING_007', name: 'เยาวนันท์ จันทรพิทักษ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING007' },
-    { id: 'BOOKING_008', name: 'ขนิษฐา วัฒนวิกย์กรรม์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING008' },
-    { id: 'BOOKING_009', name: 'สุพัชญ์กานต์ ธีระภัณฑ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING009' },
+    { id: 'BOOKING_001', name: 'อภัสนันท์ ภู่จรัสธนพัฒน์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING001', password: 'b001' },
+    { id: 'BOOKING_002', name: 'วรารัตน์ แก้วนิ่ม', role: UserRole.BOOKING_OFFICER, username: 'BOOKING002', password: 'b002' },
+    { id: 'BOOKING_003', name: 'กุลณัฐ คิดดีจริง', role: UserRole.BOOKING_OFFICER, username: 'BOOKING003', password: 'b003' },
+    { id: 'BOOKING_004', name: 'ชนัญชิดา พวงมาลัย', role: UserRole.BOOKING_OFFICER, username: 'BOOKING004', password: 'b004' },
+    { id: 'BOOKING_005', name: 'สุภาพร ชูชัยสุวรรณศรี', role: UserRole.BOOKING_OFFICER, username: 'BOOKING005', password: 'b005' },
+    { id: 'BOOKING_006', name: 'ชุติมา สีหาบุตร', role: UserRole.BOOKING_OFFICER, username: 'BOOKING006', password: 'b006' },
+    { id: 'BOOKING_007', name: 'เยาวนันท์ จันทรพิทักษ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING007', password: 'b007' },
+    { id: 'BOOKING_008', name: 'ขนิษฐา วัฒนวิกย์กรรม์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING008', password: 'b008' },
+    { id: 'BOOKING_009', name: 'สุพัชญ์กานต์ ธีระภัณฑ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING009', password: 'b009' },
 ];
 
 declare const Swal: any;
@@ -32,28 +32,34 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (password === '1234') {
-            const user = USERS_DB.find(u => u.username.toLowerCase() === username.toLowerCase());
-            if (user) {
+        const user = USERS_DB.find(u => u.username.toLowerCase() === username.toLowerCase());
+
+        if (user) {
+            if (password === user.password) {
+                // Password Match
                 onLogin({ id: user.id, name: user.name, role: user.role });
             } else {
+                // Wrong Password
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
-                        title: 'Access Denied!',
-                        text: 'Invalid username. Please select a demo user from the list.',
-                        icon: 'error',
-                        confirmButtonColor: '#ef4444',
+                        title: 'Wrong Password!',
+                        text: 'รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบรหัสผ่านส่วนตัวของท่าน',
+                        icon: 'warning',
+                        confirmButtonColor: '#f59e0b',
                         customClass: { popup: 'rounded-[2rem]' }
                     });
+                } else {
+                    alert('Wrong password');
                 }
             }
         } else {
+            // User Not Found (Should not happen with select)
             if (typeof Swal !== 'undefined') {
                 Swal.fire({
-                    title: 'Wrong Password!',
-                    text: 'Incorrect security password. Please use 1234 for demo access.',
-                    icon: 'warning',
-                    confirmButtonColor: '#f59e0b',
+                    title: 'Access Denied!',
+                    text: 'Invalid username.',
+                    icon: 'error',
+                    confirmButtonColor: '#ef4444',
                     customClass: { popup: 'rounded-[2rem]' }
                 });
             }
@@ -131,7 +137,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
                     <div className="bg-slate-50 p-6 border-t border-slate-100 text-center">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            Demo Access Password: <span className="text-blue-600 ml-1">1234</span>
+                            กรุณาใช้รหัสผ่านส่วนตัวในการเข้าสู่ระบบ (Personal Password Required)
                         </p>
                     </div>
                 </div>
