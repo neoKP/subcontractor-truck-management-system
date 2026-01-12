@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { UserRole, USER_ROLE_LABELS } from '../types';
-import { Truck, Lock, User, KeyRound, AlertCircle, ArrowRight } from 'lucide-react';
+import { Truck, Lock, User, KeyRound, AlertCircle, ArrowRight, ChevronDown, Check, Search } from 'lucide-react';
 
 
 interface LoginPageProps {
@@ -14,6 +14,15 @@ declare const Swal: any;
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredUsers = users.filter(user =>
+        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.username.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const selectedUser = users.find(u => u.username === username);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -74,24 +83,72 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users }) => {
                             <div className="space-y-2">
                                 <label htmlFor="username-select" className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Account Username</label>
                                 <div className="relative group">
-                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors z-10" size={20} />
-                                    <select
-                                        id="username-select"
-                                        required
-                                        className="w-full pl-12 pr-10 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-800 appearance-none cursor-pointer"
-                                        value={username}
-                                        onChange={e => setUsername(e.target.value)}
+                                    <div
+                                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                        className="w-full pl-12 pr-10 py-4 bg-slate-50 border border-slate-100 rounded-2xl cursor-pointer hover:bg-slate-100 transition-all flex items-center min-h-[60px]"
                                     >
-                                        <option value="">-- SELECT DEMO USER --</option>
-                                        {users.map((user: any) => (
-                                            <option key={user.id} value={user.username}>
-                                                {user.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-300">
-                                        <ArrowRight size={16} className="rotate-90" />
+                                        <User className="absolute left-4 text-slate-300" size={20} />
+                                        <span className={`font-bold ${selectedUser ? 'text-slate-800' : 'text-slate-400'}`}>
+                                            {selectedUser ? selectedUser.name : '-- SEARCH / SELECT USER --'}
+                                        </span>
+                                        <ChevronDown className="absolute right-4 text-slate-300" size={20} />
                                     </div>
+
+                                    {/* Dropdown Menu */}
+                                    {isDropdownOpen && (
+                                        <div className="absolute top-full left-0 w-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
+                                            {/* Search Input */}
+                                            <div className="p-3 border-b border-slate-100 bg-slate-50">
+                                                <div className="relative">
+                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="พิมพ์ขื่อเพื่อค้นหา..."
+                                                        className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                                        value={searchTerm}
+                                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                                        autoFocus
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* User List */}
+                                            <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                                {filteredUsers.length > 0 ? (
+                                                    filteredUsers.map(user => (
+                                                        <div
+                                                            key={user.id}
+                                                            onClick={() => {
+                                                                setUsername(user.username);
+                                                                setIsDropdownOpen(false);
+                                                                setSearchTerm('');
+                                                            }}
+                                                            className="px-4 py-3 hover:bg-blue-50 cursor-pointer flex items-center justify-between group/item transition-colors border-b border-slate-50 last:border-0"
+                                                        >
+                                                            <div className="flex flex-col">
+                                                                <span className="text-sm font-bold text-slate-700 group-hover/item:text-blue-700">{user.name}</span>
+                                                                <span className="text-[10px] text-slate-400 uppercase tracking-wider">{user.role.replace('_', ' ')}</span>
+                                                            </div>
+                                                            {username === user.username && <Check size={16} className="text-blue-600" />}
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="p-4 text-center text-xs text-slate-400 font-bold">
+                                                        ไม่พบรายชื่อที่ค้นหา
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Backdrop to close dropdown */}
+                                    {isDropdownOpen && (
+                                        <div
+                                            className="fixed inset-0 z-40"
+                                            onClick={() => setIsDropdownOpen(false)}
+                                        />
+                                    )}
                                 </div>
                             </div>
 
