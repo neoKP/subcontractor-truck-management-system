@@ -186,7 +186,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users }) => {
                 </div>
 
                 <p className="text-center mt-8 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
-                    Secure Multi-Tenant Logistics System &copy; 2026
+                    dev by Paweewat Phosanga &copy; 2026
                 </p>
             </div>
         </div>
