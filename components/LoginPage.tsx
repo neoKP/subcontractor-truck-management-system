@@ -8,16 +8,19 @@ interface LoginPageProps {
 }
 
 const USERS_DB = [
-    { id: 'BOOKING_001', name: 'Booking Officer 001', role: UserRole.BOOKING_OFFICER, username: 'BOOKING001' },
-    { id: 'BOOKING_002', name: 'Booking Officer 002', role: UserRole.BOOKING_OFFICER, username: 'BOOKING002' },
-    { id: 'BOOKING_003', name: 'Booking Officer 003', role: UserRole.BOOKING_OFFICER, username: 'BOOKING003' },
-    { id: 'DISPATCHER_001', name: 'Dispatcher 001', role: UserRole.DISPATCHER, username: 'DISPATCH001' },
-    { id: 'DISPATCHER_002', name: 'Dispatcher 002', role: UserRole.DISPATCHER, username: 'DISPATCH002' },
-    { id: 'DISPATCHER_003', name: 'Dispatcher 003', role: UserRole.DISPATCHER, username: 'DISPATCH003' },
-    { id: 'ACCOUNTANT_001', name: 'Accountant 001', role: UserRole.ACCOUNTANT, username: 'ACCOUNT001' },
-    { id: 'ACCOUNTANT_002', name: 'Accountant 002', role: UserRole.ACCOUNTANT, username: 'ACCOUNT002' },
-    { id: 'ACCOUNTANT_003', name: 'Accountant 003', role: UserRole.ACCOUNTANT, username: 'ACCOUNT003' },
     { id: 'ADMIN_001', name: 'System Admin', role: UserRole.ADMIN, username: 'ADMIN001' },
+    { id: 'ACCOUNTANT_001', name: 'ADMIN Accountant', role: UserRole.ACCOUNTANT, username: 'ACCOUNT001' },
+    { id: 'DISPATCHER_001', name: 'Fleet Dispatcher', role: UserRole.DISPATCHER, username: 'DISPATCH001' },
+    // Dispatch/Booking Team Real Names
+    { id: 'BOOKING_001', name: 'อภัสนันท์ ภู่จรัสธนพัฒน์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING001' },
+    { id: 'BOOKING_002', name: 'วรารัตน์ แก้วนิ่ม', role: UserRole.BOOKING_OFFICER, username: 'BOOKING002' },
+    { id: 'BOOKING_003', name: 'กุลณัฐ คิดดีจริง', role: UserRole.BOOKING_OFFICER, username: 'BOOKING003' },
+    { id: 'BOOKING_004', name: 'ชนัญชิดา พวงมาลัย', role: UserRole.BOOKING_OFFICER, username: 'BOOKING004' },
+    { id: 'BOOKING_005', name: 'สุภาพร ชูชัยสุวรรณศรี', role: UserRole.BOOKING_OFFICER, username: 'BOOKING005' },
+    { id: 'BOOKING_006', name: 'ชุติมา สีหาบุตร', role: UserRole.BOOKING_OFFICER, username: 'BOOKING006' },
+    { id: 'BOOKING_007', name: 'เยาวนันท์ จันทรพิทักษ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING007' },
+    { id: 'BOOKING_008', name: 'ขนิษฐา วัฒนวิกย์กรรม์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING008' },
+    { id: 'BOOKING_009', name: 'สุพัชญ์กานต์ ธีระภัณฑ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING009' },
 ];
 
 declare const Swal: any;
