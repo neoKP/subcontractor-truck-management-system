@@ -112,16 +112,32 @@ const App: React.FC = () => {
   const handleUserDelete = (userId: string) => {
     remove(ref(db, `users/${userId}`));
   };
+  const cleanJob = (job: Job): Job => {
+    const cleaned = { ...job };
+    // Numeric defaults
+    cleaned.cost = cleaned.cost ?? 0;
+    cleaned.sellingPrice = cleaned.sellingPrice ?? 0;
+    cleaned.extraCharge = cleaned.extraCharge ?? 0;
+
+    // Explicitly remove any undefined fields that Firebase might complain about
+    Object.keys(cleaned).forEach(key => {
+      if ((cleaned as any)[key] === undefined) {
+        delete (cleaned as any)[key];
+      }
+    });
+
+    return cleaned;
+  };
 
   const addJob = (job: Job) => {
     // Persist to Firebase
-    set(ref(db, `jobs/${job.id}`), job);
+    set(ref(db, `jobs/${job.id}`), cleanJob(job));
     setActiveTab('board');
   };
 
   const updateJob = (updatedJob: Job, newLogs?: AuditLog[]) => {
     // Persist to Firebase
-    set(ref(db, `jobs/${updatedJob.id}`), updatedJob);
+    set(ref(db, `jobs/${updatedJob.id}`), cleanJob(updatedJob));
     if (newLogs && newLogs.length > 0) {
       newLogs.forEach(log => {
         set(ref(db, `logs/${log.id}`), log);

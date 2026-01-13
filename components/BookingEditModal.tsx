@@ -46,7 +46,8 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
             driverName: job.driverName || '',
             driverPhone: job.driverPhone || '',
             licensePlate: job.licensePlate || '',
-            cost: job.cost || (contract ? contract.basePrice : 0)
+            cost: job.cost || (contract ? contract.basePrice : 0),
+            sellingPrice: job.sellingPrice || (contract ? contract.sellingBasePrice : 0)
         };
     });
 
@@ -141,6 +142,9 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
         if (job.licensePlate !== editData.licensePlate) {
             logs.push(createLog('License Plate', job.licensePlate || 'None', editData.licensePlate || 'None'));
         }
+        if ((job.sellingPrice || 0) !== (editData.sellingPrice || 0)) {
+            logs.push(createLog('Selling Price', (job.sellingPrice || 0).toString(), (editData.sellingPrice || 0).toString()));
+        }
 
         const updatedJob: Job = {
             ...job,
@@ -151,7 +155,8 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
             driverName: editData.driverName,
             driverPhone: editData.driverPhone,
             licensePlate: editData.licensePlate,
-            cost: editData.cost
+            cost: editData.cost || 0,
+            sellingPrice: editData.sellingPrice || 0
         };
 
         onSave(updatedJob, logs);

@@ -100,8 +100,8 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       ...formData,
       id: `${yearPrefix}${formattedSeq}`,
       status: initialStatus,
-      cost: hasPricing ? matchedPricing?.basePrice : 0,
-      sellingPrice: hasPricing ? matchedPricing?.sellingBasePrice : 0,
+      cost: hasPricing ? (matchedPricing?.basePrice ?? 0) : 0,
+      sellingPrice: hasPricing ? (matchedPricing?.sellingBasePrice ?? 0) : 0,
     };
 
     // Show Success Alert and wait for user to click OK
