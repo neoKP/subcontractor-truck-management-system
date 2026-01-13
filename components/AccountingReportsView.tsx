@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { Job, AuditLog, JobStatus, UserRole } from '../types';
-import { BarChart as BarIcon, DollarSign, TrendingUp, AlertTriangle, CheckCircle, XCircle, PieChart, Calendar, ChevronDown, Activity, Truck, Map as MapIcon, Layers, Download, Printer as PrintIcon, Filter, RotateCcw, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { BarChart as BarIcon, DollarSign, TrendingUp, AlertTriangle, CheckCircle, XCircle, PieChart, Calendar, ChevronDown, Activity, Truck, Map as MapIcon, Layers, Download, Filter, RotateCcw, ArrowUpRight, ArrowDownRight, FileDown } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface AccountingReportsViewProps {
     jobs: Job[];
@@ -90,8 +91,6 @@ const SimpleBarChart = ({ data, color }: { data: { label: string; value: number 
         <div className="space-y-3">
             {data.slice(0, 5).map((item, i) => {
                 const percentage = (item.value / max) * 100;
-                // Map background color classes to hex for SVG fill if needed, 
-                // but tailwind v4 can handle fill-[color]
                 const fillColor = color.replace('bg-', 'fill-');
 
                 return (
@@ -184,8 +183,10 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
         start: new Date().toISOString().split('T')[0],
         end: new Date().toISOString().split('T')[0]
     });
+    const [statusFilter, setStatusFilter] = useState<JobStatus | 'ALL'>('ALL');
 
     const [viewMode, setViewMode] = useState<'dashboard' | 'table'>('dashboard');
+    const [groupBy, setGroupBy] = useState<'sub' | 'route'>('sub');
     const [drillDown, setDrillDown] = useState<{ type: 'sub' | 'route' | null; value: string | null }>({ type: null, value: null });
 
     // --- Helper for Period Comparison ---
@@ -229,6 +230,9 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
 
             if (!matchesTime) return false;
 
+            // Status filter
+            if (statusFilter !== 'ALL' && j.status !== statusFilter) return false;
+
             // Drill-down filter
             if (drillDown.type === 'sub') return j.subcontractor === drillDown.value;
             if (drillDown.type === 'route') {
@@ -238,7 +242,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
 
             return true;
         });
-    }, [jobs, filterType, filterDay, filterMonth, filterYear, filterCustom, drillDown]);
+    }, [jobs, filterType, filterDay, filterMonth, filterYear, filterCustom, drillDown, statusFilter]);
 
     const prevJobs = useMemo(() => {
         if (!prevPeriod) return [];
@@ -255,9 +259,8 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
 
     // KPI Data Calculations
     const totalRev = validJobs.reduce((acc, j) => acc + (j.cost || 0) + (j.extraCharge || 0), 0);
-    const totalCost = validJobs.reduce((acc, j) => acc + (j.cost || 0), 0); // Cost is same as Revenue in this specific aggregation requested? 
-    // Actually user says Total Revenue = Cost + Extra.
-    const netProfit = totalRev - totalCost; // This might be just Extra Charge then.
+    const totalCost = validJobs.reduce((acc, j) => acc + (j.cost || 0), 0);
+    const netProfit = totalRev - totalCost;
     const profitMargin = totalRev > 0 ? (netProfit / totalRev) * 100 : 0;
 
     const prevTotalRev = prevJobs.reduce((acc, j) => acc + (j.sellingPrice || 0) + (j.extraCharge || 0), 0);
@@ -283,7 +286,6 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
 
     const revenueByPeriodTrend = useMemo(() => {
         if (filterType === 'day' || (filterType === 'month')) {
-            // Show daily trend for the month or just specific days
             const daysInMonth = filterType === 'day' ? 1 : new Date(parseInt(filterMonth.split('-')[0]), parseInt(filterMonth.split('-')[1]), 0).getDate();
             const days = Array(daysInMonth).fill(0).map((_, i) => ({
                 label: filterType === 'day' ? filterDay : `${i + 1}`,
@@ -297,7 +299,6 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
             });
             return days;
         } else {
-            // Monthly trend for year or custom
             const months = Array(12).fill(0).map((_, i) => ({ label: new Date(2026, i).toLocaleString('default', { month: 'short' }), value: 0 }));
             validJobs.forEach(j => {
                 const d = new Date(j.dateOfService);
@@ -330,6 +331,24 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
         return Object.entries(distMap).map(([label, value]) => ({ label, value }));
     }, [validJobs]);
 
+    const performanceData = useMemo(() => {
+        const map: Record<string, { label: string; jobs: number; completed: number; revenue: number; extra: number }> = {};
+        validJobs.forEach(j => {
+            const key = groupBy === 'sub'
+                ? (j.subcontractor || 'Waiting')
+                : `${j.origin.split(' ')[0]} -> ${j.destination.split(' ')[0]}`;
+
+            if (!map[key]) {
+                map[key] = { label: key, jobs: 0, completed: 0, revenue: 0, extra: 0 };
+            }
+            map[key].jobs += 1;
+            if (j.status === JobStatus.COMPLETED) map[key].completed += 1;
+            map[key].revenue += (j.cost || 0);
+            map[key].extra += (j.extraCharge || 0);
+        });
+        return Object.values(map).sort((a, b) => (b.revenue + b.extra) - (a.revenue + a.extra));
+    }, [validJobs, groupBy]);
+
     // --- Actions ---
     const exportToCSV = () => {
         const headers = ["Job ID", "Date", "Route", "Subcontractor", "Base Cost", "Extra Charge", "Total Aggregated Revenue", "Status"];
@@ -344,17 +363,37 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
             j.status
         ]);
 
-        const csvContent = "data:text/csv;charset=utf-8,"
-            + headers.join(",") + "\n"
+        const csvContent = headers.join(",") + "\n"
             + rows.map(r => r.join(",")).join("\n");
 
-        const encodedUri = encodeURI(csvContent);
+        const blob = new Blob(["\uFEFF", csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
+        link.setAttribute("href", url);
         link.setAttribute("download", `NEOSIAM_Analytics_${filterType}_${new Date().getTime()}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const exportToExcel = () => {
+        const headers = ["Job ID", "Date", "Route", "Subcontractor", "Base Cost", "Extra Charge", "Total Revenue", "Status"];
+        const data = validJobs.map(j => ({
+            "Job ID": j.id,
+            "Date": j.dateOfService,
+            "Route": `${j.origin} -> ${j.destination}`,
+            "Subcontractor": j.subcontractor || '-',
+            "Base Cost": j.cost || 0,
+            "Extra Charge": j.extraCharge || 0,
+            "Total Revenue": (j.cost || 0) + (j.extraCharge || 0),
+            "Status": j.status
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Data Aggregation");
+        XLSX.writeFile(workbook, `NEOSIAM_Data_Aggregation_${new Date().getTime()}.xlsx`);
     };
 
     return (
@@ -488,19 +527,36 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                         <Calendar size={16} className="text-blue-500 ml-auto" />
                     </div>
 
+                    {/* Status Filter */}
+                    <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value as any)}
+                            title="กรองตามสถานะ"
+                            aria-label="กรองตามสถานะ"
+                            className="bg-transparent text-[10px] font-black text-slate-700 outline-none cursor-pointer px-3 py-1"
+                        >
+                            <option value="ALL">ทุกสถานะ (All Tasks)</option>
+                            <option value={JobStatus.NEW_REQUEST}>คำขอใหม่ (New Request)</option>
+                            <option value={JobStatus.ASSIGNED}>กำลังดำเนินการ (In Progress)</option>
+                            <option value={JobStatus.COMPLETED}>เสร็จสิ้น (Completed)</option>
+                            <option value={JobStatus.CANCELLED}>ยกเลิก (Cancelled)</option>
+                        </select>
+                    </div>
+
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={() => window.print()}
+                            onClick={exportToCSV}
                             className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all"
-                            title="พิมพ์รายงาน"
+                            title="ส่งออก CSV"
                         >
-                            <PrintIcon size={18} />
+                            <Download size={18} />
                         </button>
                         <button
-                            onClick={exportToCSV}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-200 transition-all"
+                            onClick={exportToExcel}
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-100 transition-all"
                         >
-                            <Download size={14} /> ส่งออก CSV
+                            <FileDown size={14} /> EXCEL
                         </button>
                     </div>
                 </div>
@@ -569,8 +625,8 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                 </div>
             </div>
 
-            {/* 1. Full Width Row: Monthly Trend */}
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 mb-6">
+            {/* Charts Row 1: Trend */}
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
                 <div className="flex justify-between items-center mb-8">
                     <h4 className="font-black text-slate-800 flex items-center gap-3 text-lg">
                         <TrendingUp size={24} className="text-blue-500" />
@@ -583,8 +639,8 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                 <TrendLineChart data={revenueByPeriodTrend} color="#3b82f6" />
             </div>
 
-            {/* 2. Equal Split Row: Subcontractors & Routes */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* Charts Row 2: Distribution */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
                     <h4 className="font-black text-slate-800 flex items-center justify-between mb-8 text-lg">
                         <div className="flex items-center gap-3">
@@ -599,12 +655,11 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                         if (label) setDrillDown({ type: 'sub', value: label });
                     }}>
                         <DonutChart data={revenueBySub} colors={[
-                            { hex: '#3b82f6', className: 'bg-blue-500 legend-item' },
-                            { hex: '#8b5cf6', className: 'bg-violet-500 legend-item' },
-                            { hex: '#ec4899', className: 'bg-pink-500 legend-item' },
-                            { hex: '#f59e0b', className: 'bg-amber-500 legend-item' },
-                            { hex: '#10b981', className: 'bg-emerald-500 legend-item' },
-                            { hex: '#64748b', className: 'bg-slate-500 legend-item' }
+                            { hex: '#3b82f6', className: 'bg-blue-500' },
+                            { hex: '#8b5cf6', className: 'bg-violet-500' },
+                            { hex: '#ec4899', className: 'bg-pink-500' },
+                            { hex: '#f59e0b', className: 'bg-amber-500' },
+                            { hex: '#10b981', className: 'bg-emerald-500' }
                         ]} />
                     </div>
                 </div>
@@ -622,12 +677,102 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                         const label = target.closest('.bar-item')?.getAttribute('data-label');
                         if (label) setDrillDown({ type: 'route', value: label });
                     }}>
-                        <SimpleBarChart data={revenueByRoute} color="bg-orange-500 bar-item" />
+                        <SimpleBarChart data={revenueByRoute} color="bg-orange-500" />
                     </div>
                 </div>
             </div>
 
-            {/* 3. Bottom Row: Status Distribution & Statistics */}
+            {/* Table: Performance Review */}
+            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+                <div className="p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h4 className="text-lg font-black text-slate-900">การจัดกลุ่มและวิเคราะห์ประสิทธิภาพ (Performance Review)</h4>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Analysis Grouped by {groupBy === 'sub' ? 'Subcontractor' : 'Route'}</p>
+                    </div>
+                    <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                        <button
+                            onClick={() => setGroupBy('sub')}
+                            className={`px-4 py-1.5 rounded-xl text-[10px] font-black transition-all ${groupBy === 'sub' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            ตามผู้ให้บริการ
+                        </button>
+                        <button
+                            onClick={() => setGroupBy('route')}
+                            className={`px-4 py-1.5 rounded-xl text-[10px] font-black transition-all ${groupBy === 'route' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            ตามเส้นทาง
+                        </button>
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50/50 text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-100">
+                                <th className="px-8 py-5">{groupBy === 'sub' ? 'ผู้รับเหมา (Partner)' : 'เส้นทาง (Route)'}</th>
+                                <th className="px-8 py-5 text-center">จำนวนงาน</th>
+                                <th className="px-8 py-5 text-center">ความสำเร็จ %</th>
+                                <th className="px-8 py-5 text-right">ราคาจ้างรวม</th>
+                                <th className="px-8 py-5 text-right">ค่าใช้จ่ายพิเศษ</th>
+                                <th className="px-8 py-5 text-right">ยอดรวมประมวลผล</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {performanceData.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-8 py-20 text-center text-slate-300 font-bold italic">No performance data for this period.</td>
+                                </tr>
+                            ) : performanceData.map((item, idx) => {
+                                const total = item.revenue + item.extra;
+                                const sRate = (item.completed / item.jobs) * 100;
+                                return (
+                                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                                        <td className="px-8 py-5">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-1.5 h-8 rounded-full ${idx === 0 ? 'bg-blue-500' : idx === 1 ? 'bg-indigo-500' : 'bg-slate-200'}`}></div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-black text-slate-700">{item.label}</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Rank #{idx + 1}</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-5 text-center">
+                                            <span className="px-2 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-600">
+                                                {item.jobs} Jobs
+                                            </span>
+                                        </td>
+                                        <td className="px-8 py-5">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <progress
+                                                    className={`margin-progress ${sRate >= 90 ? 'progress-emerald' : sRate >= 70 ? 'progress-blue' : 'progress-amber'}`}
+                                                    value={sRate}
+                                                    max="100"
+                                                    title={`${sRate.toFixed(1)}% Success`}
+                                                ></progress>
+                                                <span className={`text-[10px] font-black ${sRate >= 90 ? 'text-emerald-600' : 'text-blue-600'}`}>
+                                                    {sRate.toFixed(1)}%
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-5 text-right font-bold text-slate-600 text-sm">
+                                            ฿{item.revenue.toLocaleString()}
+                                        </td>
+                                        <td className="px-8 py-5 text-right text-xs text-orange-600 font-bold">
+                                            ฿{item.extra.toLocaleString()}
+                                        </td>
+                                        <td className="px-8 py-5 text-right">
+                                            <span className="text-sm font-black text-slate-900">
+                                                ฿{total.toLocaleString()}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Distribution Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
                     <h4 className="font-black text-slate-800 flex items-center gap-3 mb-8 text-lg">

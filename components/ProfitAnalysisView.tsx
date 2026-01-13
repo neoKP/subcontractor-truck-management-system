@@ -16,8 +16,10 @@ import {
     ArrowUpRight,
     ArrowDownRight,
     Building2,
-    Target
+    Target,
+    FileDown
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface ProfitAnalysisViewProps {
     jobs: Job[];
@@ -34,29 +36,36 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
         start: new Date().toISOString().split('T')[0],
         end: new Date().toISOString().split('T')[0]
     });
+    const [statusFilter, setStatusFilter] = useState<JobStatus | 'ALL'>('ALL');
 
     const [groupBy, setGroupBy] = useState<'subcontractor' | 'route'>('subcontractor');
 
     // --- Filter Logic ---
     const filteredJobs = useMemo(() => {
         return jobs.filter(j => {
-            if (j.status === JobStatus.CANCELLED) return false;
-
             const jobDate = new Date(j.dateOfService);
             const jobDateStr = j.dateOfService.split('T')[0];
-
+            let matchesTime = false;
             switch (filterType) {
-                case 'day': return jobDateStr === filterDay;
+                case 'day': matchesTime = jobDateStr === filterDay; break;
                 case 'month': {
                     const [y, m] = filterMonth.split('-');
-                    return jobDate.getFullYear() === parseInt(y) && (jobDate.getMonth() + 1) === parseInt(m);
+                    matchesTime = jobDate.getFullYear() === parseInt(y) && (jobDate.getMonth() + 1) === parseInt(m);
+                    break;
                 }
-                case 'year': return jobDate.getFullYear() === filterYear;
-                case 'custom': return jobDateStr >= filterCustom.start && jobDateStr <= filterCustom.end;
-                default: return true;
+                case 'year': matchesTime = jobDate.getFullYear() === filterYear; break;
+                case 'custom': matchesTime = jobDateStr >= filterCustom.start && jobDateStr <= filterCustom.end; break;
+                default: matchesTime = true;
             }
+
+            if (!matchesTime) return false;
+
+            if (statusFilter === 'ALL') {
+                return j.status !== JobStatus.CANCELLED;
+            }
+            return j.status === statusFilter;
         });
-    }, [jobs, filterType, filterDay, filterMonth, filterYear, filterCustom]);
+    }, [jobs, filterType, filterDay, filterMonth, filterYear, filterCustom, statusFilter]);
 
     // --- Aggregation Logic ---
 
@@ -117,17 +126,42 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
             ((g.profit / g.revenue) * 100 || 0).toFixed(2) + "%"
         ]);
 
-        const csvContent = "data:text/csv;charset=utf-8,\uFEFF"
-            + headers.join(",") + "\n"
+        const csvContent = headers.join(",") + "\n"
             + rows.map(r => r.join(",")).join("\n");
 
-        const encodedUri = encodeURI(csvContent);
+        const blob = new Blob(["\uFEFF", csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
+        link.setAttribute("href", url);
         link.setAttribute("download", `Profit_Analysis_${groupBy}_${new Date().getTime()}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleExportExcel = () => {
+        const headers = ["Label", "Jobs", "Revenue", "Cost", "Gross Profit", "Margin %"];
+        const data = groupedData.map(g => {
+            const row: Record<string, any> = {};
+            const vals = [
+                g.label,
+                g.jobs,
+                g.revenue,
+                g.cost,
+                g.profit,
+                ((g.profit / g.revenue) * 100 || 0).toFixed(2) + "%"
+            ];
+            headers.forEach((h, i) => {
+                row[h] = vals[i];
+            });
+            return row;
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Profit Analysis");
+        XLSX.writeFile(workbook, `Profit_Analysis_${groupBy}_${new Date().getTime()}.xlsx`);
     };
 
     return (
@@ -214,6 +248,23 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
                         )}
                         <Calendar size={18} className="text-blue-400 ml-2" />
                     </div>
+
+                    {/* Status Filter */}
+                    <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md px-5 py-2.5 rounded-[1.5rem] border border-white/10">
+                        <Filter size={16} className="text-slate-400" />
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value as any)}
+                            className="bg-transparent text-xs font-black outline-none cursor-pointer pr-4"
+                            aria-label="กรองสถานะ"
+                        >
+                            <option value="ALL" className="text-slate-900">ทุกสถานะ (All Active)</option>
+                            <option value={JobStatus.NEW_REQUEST} className="text-slate-900">คำขอใหม่ (New)</option>
+                            <option value={JobStatus.ASSIGNED} className="text-slate-900">อยู่ระหว่างทาง (In Progress)</option>
+                            <option value={JobStatus.COMPLETED} className="text-slate-900">เสร็จสมบูรณ์ (Completed)</option>
+                            <option value={JobStatus.CANCELLED} className="text-slate-900">ยกเลิก (Cancelled)</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -295,13 +346,22 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
                                 ตามเส้นทาง
                             </button>
                         </div>
-                        <button
-                            onClick={handleExportCSV}
-                            className="bg-slate-900 text-white p-2.5 rounded-xl hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200"
-                            title="Export to CSV"
-                        >
-                            <Download size={18} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleExportCSV}
+                                className="bg-slate-100 text-slate-600 p-2.5 rounded-xl hover:bg-slate-200 transition-colors border border-slate-200"
+                                title="Export to CSV"
+                            >
+                                <Download size={18} />
+                            </button>
+                            <button
+                                onClick={handleExportExcel}
+                                className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center gap-2 text-xs font-black uppercase tracking-widest"
+                                title="Export to Excel"
+                            >
+                                <FileDown size={14} /> <span>Excel</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -322,52 +382,38 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
                                 <tr>
                                     <td colSpan={6} className="px-8 py-20 text-center text-slate-300 font-bold italic">No data found for this period.</td>
                                 </tr>
-                            ) : groupedData.map((item, idx) => {
-                                const margin = (item.profit / item.revenue) * 100 || 0;
+                            ) : groupedData.map((group, idx) => {
+                                const margin = (group.profit / group.revenue) * 100 || 0;
                                 return (
                                     <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
                                         <td className="px-8 py-5">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-1.5 h-8 rounded-full ${idx === 0 ? 'bg-blue-500' : idx === 1 ? 'bg-violet-500' : 'bg-slate-200'}`}></div>
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-black text-slate-700">{item.label}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                                                        {idx === 0 ? 'Top Performer' : `Rank #${idx + 1}`}
-                                                    </span>
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                                                    {groupBy === 'subcontractor' ? <Building2 size={20} /> : <MapPin size={20} />}
                                                 </div>
+                                                <span className="text-sm font-black text-slate-700">{group.label}</span>
                                             </div>
                                         </td>
-                                        <td className="px-8 py-5 text-center">
-                                            <span className="px-2 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-600">
-                                                {item.jobs} Jobs
-                                            </span>
+                                        <td className="px-8 py-5 text-center font-bold text-slate-500 text-sm">{group.jobs} งาน</td>
+                                        <td className="px-8 py-5 text-right font-black text-slate-900">฿{group.revenue.toLocaleString()}</td>
+                                        <td className="px-8 py-5 text-right text-xs font-bold text-slate-400 italic">
+                                            ฿{(group.profit / group.jobs).toLocaleString()} / job
                                         </td>
-                                        <td className="px-8 py-5 text-right font-bold text-slate-900 text-sm italic">
-                                            ฿{item.revenue.toLocaleString()}
-                                        </td>
-                                        <td className="px-8 py-5 text-right text-xs text-slate-500 font-medium">
-                                            ฿{(item.profit / item.jobs).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                        </td>
-                                        <td className="px-8 py-5 text-center">
-                                            <div className="flex items-center justify-center gap-2">
+                                        <td className="px-8 py-5">
+                                            <div className="flex items-center justify-center gap-3">
                                                 <progress
-                                                    className={`margin-progress ${margin > 20 ? 'progress-emerald' : margin > 10 ? 'progress-blue' : 'progress-amber'}`}
-                                                    value={Math.min(100, Math.max(0, margin))}
-                                                    max="100"
-                                                    title={`${margin.toFixed(1)}%`}
+                                                    className={`margin-progress ${margin >= 15 ? 'progress-emerald' : margin >= 5 ? 'progress-blue' : 'progress-amber'}`}
+                                                    value={margin}
+                                                    max="30"
+                                                    title={`${margin.toFixed(1)}% Margin`}
                                                 ></progress>
-                                                <span className={`text-[10px] font-black ${margin > 20 ? 'text-emerald-600' : 'text-blue-600'}`}>
-                                                    {margin.toFixed(1)}%
-                                                </span>
+                                                <span className={`text-[10px] font-black w-10 ${margin >= 15 ? 'text-emerald-600' : 'text-blue-600'}`}>{margin.toFixed(1)}%</span>
                                             </div>
                                         </td>
                                         <td className="px-8 py-5 text-right">
-                                            <div className="flex flex-col items-end">
-                                                <span className={`text-sm font-black ${item.profit >= 0 ? 'text-slate-900' : 'text-red-500'}`}>
-                                                    ฿{item.profit.toLocaleString()}
-                                                </span>
-                                                {item.profit > 0 && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-0.5"><ArrowUpRight size={10} /> POSITIVE</span>}
-                                            </div>
+                                            <span className={`px-4 py-1.5 rounded-xl text-xs font-black ${group.profit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                                                ฿{group.profit.toLocaleString()}
+                                            </span>
                                         </td>
                                     </tr>
                                 );
@@ -375,42 +421,6 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-slate-50 p-8 rounded-[3rem] border border-slate-200/60 flex flex-col justify-center">
-                    <div className="flex items-center gap-4 mb-6">
-                        <div className="p-3 bg-white rounded-2xl shadow-sm text-blue-500">
-                            <Activity size={24} />
-                        </div>
-                        <div>
-                            <h5 className="font-black text-slate-800 uppercase tracking-tighter">Insights & Observations</h5>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">คำแนะนำจากการวิเคราะห์ข้อมูล</p>
-                        </div>
-                    </div>
-                    <ul className="space-y-4">
-                        <li className="flex gap-3 text-sm text-slate-600">
-                            <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0 font-black text-[10px]">1</div>
-                            <span>เส้นทาง <span className="font-bold text-slate-900">{groupedData[0]?.label || '...'}</span> เป็นเส้นทางที่ทำรายได้สูงสุดในช่วงเวลาที่เลือก</span>
-                        </li>
-                        <li className="flex gap-3 text-sm text-slate-600">
-                            <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 font-black text-[10px]">2</div>
-                            <span>อัตรากำไรเฉลี่ยร้อยละ <span className="font-bold text-slate-900">{marginPercent.toFixed(1)}%</span> มีความมั่นคงสูงเมื่อเทียบกับไตรมาสที่ผ่านมา</span>
-                        </li>
-                    </ul>
-                </div>
-
-                <div className="bg-blue-600 p-8 rounded-[3rem] text-white flex flex-col items-center justify-center text-center shadow-2xl shadow-blue-200 relative overflow-hidden group">
-                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-transform"></div>
-                    <Building2 size={48} className="mb-4 opacity-50" />
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60 mb-2">Total Partners</p>
-                    <p className="text-6xl font-black mb-2">{new Set(filteredJobs.map(j => j.subcontractor)).size}</p>
-                    <p className="text-xs font-bold opacity-60 uppercase tracking-widest">Distinct Subcontractors Engaged</p>
-                </div>
-            </div>
-
-            <div className="text-center pt-8">
-                <p className="text-[9px] text-slate-300 font-black uppercase tracking-[0.5em]">Neo Siam Logistics • Profit Intelligence Module • v1.0</p>
             </div>
         </div>
     );
