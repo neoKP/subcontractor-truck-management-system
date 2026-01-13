@@ -154,7 +154,7 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                     : 'bg-white border-slate-200 hover:shadow-md'
                                     }`}
                             >
-                                <div className="flex justifyContent-between items-start mb-2">
+                                <div className="flex justify-between items-start mb-2">
                                     <span className="text-xs font-black text-slate-700 bg-slate-100 px-2 py-1 rounded-lg">#{job.id}</span>
                                     <div className="flex items-center gap-2">
                                         {(job.extraCharge || 0) > 0 && <span className="text-[10px] bg-amber-100 text-amber-600 font-bold px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle size={10} /> Extra</span>}
@@ -215,20 +215,47 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                 </h3>
                                 {selectedJob.podImageUrls && selectedJob.podImageUrls.length > 0 ? (
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                        {selectedJob.podImageUrls.map((url, idx) => (
-                                            <div key={idx} className="aspect-square rounded-2xl overflow-hidden bg-white shadow-sm border border-slate-200 group relative">
-                                                <img src={url} alt="POD" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
-                                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                    <button
-                                                        onClick={() => window.open(url, '_blank')}
-                                                        className="text-white bg-white/20 backdrop-blur-md p-2 rounded-full hover:bg-white/40"
-                                                        title="ดูรูปขยาย (View Full Size)"
-                                                    >
-                                                        <Eye size={20} />
-                                                    </button>
+                                        {selectedJob.podImageUrls.map((url, idx) => {
+                                            const isPdf = url.startsWith('data:application/pdf');
+                                            return (
+                                                <div key={idx} className="aspect-square rounded-2xl overflow-hidden bg-white shadow-sm border border-slate-200 group relative flex items-center justify-center">
+                                                    {isPdf ? (
+                                                        <div className="flex flex-col items-center gap-2 text-slate-400">
+                                                            <FileText size={40} className="text-red-500" />
+                                                            <span className="text-[10px] font-black uppercase">PDF Document</span>
+                                                        </div>
+                                                    ) : (
+                                                        <img
+                                                            src={url}
+                                                            alt="POD"
+                                                            className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                                                            onError={(e) => {
+                                                                (e.target as HTMLImageElement).src = 'https://placehold.co/400x400/f8fafc/cbd5e1?text=Image+Load+Error';
+                                                            }}
+                                                        />
+                                                    )}
+                                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                                                        <button
+                                                            onClick={() => {
+                                                                if (isPdf) {
+                                                                    // For PDF, we open in new tab
+                                                                    const win = window.open();
+                                                                    if (win) {
+                                                                        win.document.write(`<iframe src="${url}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                                                                    }
+                                                                } else {
+                                                                    window.open(url, '_blank');
+                                                                }
+                                                            }}
+                                                            className="text-white bg-white/20 backdrop-blur-md p-2 rounded-full hover:bg-white/40 shadow-xl"
+                                                            title="เปิดดูแบบเต็มหน้าจอ (View Full Screen)"
+                                                        >
+                                                            <Eye size={20} />
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 ) : (
                                     <div className="text-center py-8 bg-white rounded-2xl border border-dashed border-slate-300">
