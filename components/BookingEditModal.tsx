@@ -43,6 +43,9 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
             destination: job.destination,
             truckType: job.truckType,
             subcontractor: initialSub,
+            driverName: job.driverName || '',
+            driverPhone: job.driverPhone || '',
+            licensePlate: job.licensePlate || '',
             cost: job.cost || (contract ? contract.basePrice : 0)
         };
     });
@@ -77,6 +80,9 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
             job.origin !== editData.origin ||
             job.destination !== editData.destination ||
             job.truckType !== editData.truckType ||
+            job.driverName !== editData.driverName ||
+            job.driverPhone !== editData.driverPhone ||
+            job.licensePlate !== editData.licensePlate ||
             (job.subcontractor || '') !== editData.subcontractor;
 
         if (!hasChanged) {
@@ -126,6 +132,15 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
         if ((job.subcontractor || '') !== editData.subcontractor) {
             logs.push(createLog('Subcontractor', job.subcontractor || 'None', editData.subcontractor || 'None'));
         }
+        if (job.driverName !== editData.driverName) {
+            logs.push(createLog('Driver Name', job.driverName || 'None', editData.driverName || 'None'));
+        }
+        if (job.driverPhone !== editData.driverPhone) {
+            logs.push(createLog('Driver Phone', job.driverPhone || 'None', editData.driverPhone || 'None'));
+        }
+        if (job.licensePlate !== editData.licensePlate) {
+            logs.push(createLog('License Plate', job.licensePlate || 'None', editData.licensePlate || 'None'));
+        }
 
         const updatedJob: Job = {
             ...job,
@@ -133,6 +148,9 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
             destination: editData.destination,
             truckType: editData.truckType,
             subcontractor: editData.subcontractor,
+            driverName: editData.driverName,
+            driverPhone: editData.driverPhone,
+            licensePlate: editData.licensePlate,
             cost: editData.cost
         };
 
@@ -439,6 +457,53 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                     )}
                                 </div>
                             )}
+                        </div>
+
+                        {/* Driver & Truck Info Section */}
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4 shadow-sm">
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="p-1 px-2 bg-slate-900 text-white rounded text-[9px] font-black uppercase tracking-widest">Fleet Details</div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ข้อมูลคนขับและทะเบียนรถ</p>
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="space-y-1">
+                                    <label htmlFor="edit-driver-name" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ชื่อคนขับ (Driver Name)</label>
+                                    <input
+                                        id="edit-driver-name"
+                                        type="text"
+                                        placeholder="ระบุชื่อพนักงานขับรถ..."
+                                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-sm"
+                                        value={editData.driverName}
+                                        onChange={e => setEditData({ ...editData, driverName: e.target.value })}
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <label htmlFor="edit-driver-phone" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">เบอร์โทร (Phone)</label>
+                                        <input
+                                            id="edit-driver-phone"
+                                            type="tel"
+                                            placeholder="0xx-xxx-xxxx"
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-sm"
+                                            value={editData.driverPhone}
+                                            onChange={e => setEditData({ ...editData, driverPhone: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label htmlFor="edit-license-plate" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ทะเบียนรถ (Plate)</label>
+                                        <input
+                                            id="edit-license-plate"
+                                            type="text"
+                                            placeholder="ตัวอย่าง 70-1234"
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-sm"
+                                            value={editData.licensePlate}
+                                            onChange={e => setEditData({ ...editData, licensePlate: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Premium Pricing Intelligence Indicator */}

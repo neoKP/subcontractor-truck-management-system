@@ -240,7 +240,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ jobs, onClose
                                         {dueDate.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                         <button onClick={() => setIsEditingDueDate(true)} className="no-print opacity-0 group-hover:opacity-100" aria-label="Edit Due Date"><Edit2 size={10} /></button>
                                         {isEditingDueDate && (
-                                            <input type="date" aria-label="Due Date Input" className="no-print absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer" onChange={e => { setDueDate(new Date(e.target.value)); setIsEditingDueDate(false); }} />
+                                            <input type="date" aria-label="Due Date Input" className="no-print absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer" onKeyDown={(e) => e.preventDefault()} onChange={e => { setDueDate(new Date(e.target.value)); setIsEditingDueDate(false); }} />
                                         )}
                                     </div>
                                 </div>

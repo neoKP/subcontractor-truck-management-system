@@ -438,6 +438,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                             <input
                                 type="date"
                                 value={filterDay}
+                                onKeyDown={(e) => e.preventDefault()}
                                 onChange={(e) => setFilterDay(e.target.value)}
                                 aria-label="เลือกวันที่"
                                 title="เลือกวันที่"
@@ -508,6 +509,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                                 <input
                                     type="date"
                                     value={filterCustom.start}
+                                    onKeyDown={(e) => e.preventDefault()}
                                     onChange={(e) => setFilterCustom(prev => ({ ...prev, start: e.target.value }))}
                                     aria-label="วันที่เริ่มต้น"
                                     title="วันที่เริ่มต้น"
@@ -517,6 +519,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                                 <input
                                     type="date"
                                     value={filterCustom.end}
+                                    onKeyDown={(e) => e.preventDefault()}
                                     onChange={(e) => setFilterCustom(prev => ({ ...prev, end: e.target.value }))}
                                     aria-label="วันที่สิ้นสุด"
                                     title="วันที่สิ้นสุด"

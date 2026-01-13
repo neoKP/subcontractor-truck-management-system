@@ -1,15 +1,20 @@
 
 import React from 'react';
 import { UserRole } from '../types';
-import { Bell, Search, User, Menu } from 'lucide-react';
+import { Bell, Search, User, Menu, ShieldAlert } from 'lucide-react';
+import { Job, JobStatus } from '../types';
 
 interface HeaderProps {
   user: { id: string; name: string; role: UserRole };
   onMenuToggle?: () => void;
   className?: string;
+  jobs?: Job[];
 }
 
-const Header: React.FC<HeaderProps> = ({ user, onMenuToggle, className }) => {
+const Header: React.FC<HeaderProps> = ({ user, onMenuToggle, className, jobs = [] }) => {
+  const pendingPricingCount = jobs.filter(j => j.status === JobStatus.PENDING_PRICING).length;
+  const canSeeAlert = [UserRole.ADMIN, UserRole.ACCOUNTANT].includes(user.role);
+
   return (
     <header id="header" className={`h-20 bg-white border-b border-slate-200 px-4 md:px-8 flex items-center justify-between sticky top-0 z-10 box-border ${className || ''}`}>
       <div className="flex items-center gap-4">
@@ -39,6 +44,18 @@ const Header: React.FC<HeaderProps> = ({ user, onMenuToggle, className }) => {
           <Bell size={22} />
           <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white shadow-sm"></span>
         </button>
+
+        {canSeeAlert && pendingPricingCount > 0 && (
+          <button
+            className="relative p-2.5 text-yellow-500 hover:bg-yellow-50 rounded-xl transition-all flex items-center gap-2 group border border-transparent hover:border-yellow-200"
+            title={`${pendingPricingCount} Jobs Pending Pricing`}
+          >
+            <ShieldAlert size={22} className="animate-pulse" />
+            <span className="absolute -top-1 -right-1 bg-yellow-500 text-slate-900 text-[9px] font-black px-1.5 py-0.5 rounded-full border-2 border-white shadow-sm">
+              {pendingPricingCount}
+            </span>
+          </button>
+        )}
 
         <div className="h-8 w-px bg-slate-200 hidden xs:block"></div>
 

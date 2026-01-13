@@ -229,6 +229,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
                 disabled={isSubmitting}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 outline-none transition-all font-bold text-slate-800 disabled:opacity-50"
                 value={actualArrival}
+                onKeyDown={(e) => e.preventDefault()}
                 onChange={e => setActualArrival(e.target.value)}
               />
             </div>

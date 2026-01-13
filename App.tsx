@@ -13,7 +13,8 @@ import AccountingReportsView from './components/AccountingReportsView';
 import AccountingVerificationView from './components/AccountingVerificationView';
 import UserManagementView from './components/UserManagementView';
 import ProfitAnalysisView from './components/ProfitAnalysisView';
-import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp } from 'lucide-react';
+import JobSummaryBoard from './components/JobSummaryBoard';
+import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop } from 'lucide-react';
 import { db, ref, onValue, set, remove } from './firebaseConfig';
 
 // Initial Users Data for Seeding
@@ -44,6 +45,7 @@ const App: React.FC = () => {
   const [logPage, setLogPage] = useState(1);
   const logsPerPage = 15;
   const [logsLoaded, setLogsLoaded] = useState(false);
+  const [showSummaryBoard, setShowSummaryBoard] = useState(false);
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
   const closeSidebar = () => setSidebarOpen(false);
@@ -206,7 +208,7 @@ const App: React.FC = () => {
       />
 
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
-        <Header className="no-print" user={currentUser} onMenuToggle={toggleSidebar} />
+        <Header className="no-print" user={currentUser} onMenuToggle={toggleSidebar} jobs={jobs} />
 
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full box-border">
           {activeTab === 'create' && currentUser.role === UserRole.BOOKING_OFFICER && (
@@ -216,7 +218,12 @@ const App: React.FC = () => {
                 <h2 className="text-xl font-bold text-white">สร้างใบงานใหม่ (Create New Job Request)</h2>
               </div>
               <div className="p-6">
-                <JobRequestForm onSubmit={addJob} existingJobs={jobs} priceMatrix={priceMatrix} />
+                <JobRequestForm
+                  onSubmit={addJob}
+                  existingJobs={jobs}
+                  priceMatrix={priceMatrix}
+                  onShowSummary={() => setShowSummaryBoard(true)}
+                />
               </div>
             </div>
           )}
@@ -432,6 +439,16 @@ const App: React.FC = () => {
               </div>
             );
           })()}
+
+          {/* Job Summary Board Modal - Global */}
+          {showSummaryBoard && (
+            <JobSummaryBoard
+              jobs={jobs}
+              isOpen={showSummaryBoard}
+              onClose={() => setShowSummaryBoard(false)}
+              user={currentUser}
+            />
+          )}
         </div>
       </main>
     </div>

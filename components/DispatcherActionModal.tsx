@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus } from '../types';
 import { MASTER_DATA } from '../constants';
-import { AlertTriangle, Info, X, Lock } from 'lucide-react';
+import { AlertTriangle, Info, X, Lock, CheckCircle, User, Phone, Hash, CircleDot } from 'lucide-react';
 
 interface DispatcherActionModalProps {
   job: Job;
@@ -422,106 +422,139 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="driver-input" className="text-[11px] font-black text-slate-400 uppercase tracking-wider">ชื่อคนขับ (Driver Name)</label>
-              <input
-                id="driver-input"
-                disabled={isSubmitting}
-                type="text"
-                placeholder="ชื่อ-นามสกุล"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-800"
-                value={editData.driverName}
-                onChange={e => setEditData({ ...editData, driverName: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label htmlFor="driver-phone-input" className="text-[11px] font-black text-slate-400 uppercase tracking-wider">เบอร์โทรศัพท์ (Driver Phone)</label>
-              <input
-                id="driver-phone-input"
-                disabled={isSubmitting}
-                type="tel"
-                placeholder="0xx-xxx-xxxx"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-800"
-                value={editData.driverPhone}
-                onChange={e => setEditData({ ...editData, driverPhone: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label htmlFor="plate-input" className="text-[11px] font-black text-slate-400 uppercase tracking-wider">ทะเบียนรถ (License Plate)</label>
-              <input
-                id="plate-input"
-                disabled={isSubmitting}
-                type="text"
-                placeholder="ตัวอย่าง 70-1234"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-800"
-                value={editData.licensePlate}
-                onChange={e => setEditData({ ...editData, licensePlate: e.target.value })}
-              />
-            </div>
-
           </div>
 
-          {showReason && (
-            <div className="bg-orange-50 border-2 border-dashed border-orange-200 p-6 rounded-2xl animate-in slide-in-from-top-4 duration-300">
-              <div className="flex items-center gap-3 text-orange-800 font-black mb-4">
-                <AlertTriangle size={20} className="text-orange-500" />
-                <span className="uppercase text-xs tracking-widest">Reason for Change (จำเป็นต้องระบุ)</span>
+          {/* Fleet & Driver Information Section */}
+          <div className="bg-slate-100/50 rounded-[2rem] p-6 space-y-5 border border-slate-200/50">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-slate-900 text-white rounded-lg">
+                  <User size={14} />
+                </div>
+                <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.15em]">ข้อมูลคนขับและทะเบียน (Fleet Assignment)</h4>
               </div>
-              <div className="space-y-3">
-                <select
-                  id="reason-select"
-                  required
+
+              {(!editData.driverName || !editData.driverPhone || !editData.licensePlate) ? (
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-100 text-orange-600 rounded-full border border-orange-200 animate-pulse">
+                  <CircleDot size={10} className="fill-orange-600" />
+                  <span className="text-[9px] font-black uppercase tracking-widest">ข้อมูลไม่สมบูรณ์</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-600 rounded-full border border-emerald-200">
+                  <CheckCircle size={10} />
+                  <span className="text-[9px] font-black uppercase tracking-widest">ข้อมูลครบถ้วน</span>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 space-y-1.5">
+                <label htmlFor="driver-input" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                  <User size={10} /> ชื่อคนขับ (Driver Name)
+                </label>
+                <input
+                  id="driver-input"
                   disabled={isSubmitting}
-                  className="w-full px-4 py-3 rounded-xl border border-orange-300 focus:ring-4 focus:ring-orange-100 focus:border-orange-500 outline-none transition-all font-bold text-slate-800 bg-white"
-                  value={reason}
-                  onChange={e => setReason(e.target.value)}
-                  title="Select Reason for Change"
-                >
-                  <option value="">-- กรูณาเลือกเหตุผล --</option>
-                  {MASTER_DATA.reasons.map((r, idx) => <option key={`${r}-${idx}`} value={r}>{r}</option>)}
-                </select>
-                {reason === 'อื่นๆ (ระบุเอง)' && (
-                  <textarea
-                    id="custom-reason-input"
-                    disabled={isSubmitting}
-                    placeholder="ไประบุรายละเอียดเพิ่มเติมที่นี่..."
-                    className="w-full px-4 py-3 rounded-xl border border-orange-300 focus:ring-4 focus:ring-orange-100 focus:border-orange-500 outline-none transition-all font-medium text-slate-800 bg-white text-sm"
-                    rows={2}
-                    value={customReason}
-                    onChange={e => setCustomReason(e.target.value)}
-                    title="Custom Reason Details"
-                  />
-                )}
+                  type="text"
+                  placeholder="พิมพ์ชื่อพนักงานขับรถ... (Specify driver name)"
+                  className="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-800 bg-white placeholder:text-slate-300 placeholder:font-medium"
+                  value={editData.driverName}
+                  onChange={e => setEditData({ ...editData, driverName: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="driver-phone-input" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                  <Phone size={10} /> เบอร์โทรศัพท์ (Phone)
+                </label>
+                <input
+                  id="driver-phone-input"
+                  disabled={isSubmitting}
+                  type="tel"
+                  placeholder="0xx-xxx-xxxx"
+                  className="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-800 bg-white placeholder:text-slate-300 placeholder:font-medium text-sm"
+                  value={editData.driverPhone}
+                  onChange={e => setEditData({ ...editData, driverPhone: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="plate-input" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                  <Hash size={10} /> ทะเบียนรถ (License Plate)
+                </label>
+                <input
+                  id="plate-input"
+                  disabled={isSubmitting}
+                  type="text"
+                  placeholder="Ex. 70-1234"
+                  className="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-black text-slate-800 bg-white placeholder:text-slate-300 placeholder:font-medium"
+                  value={editData.licensePlate}
+                  onChange={e => setEditData({ ...editData, licensePlate: e.target.value })}
+                />
               </div>
             </div>
-          )}
+          </div>
+
         </div>
 
-        <div className="bg-slate-50 px-8 py-6 flex justify-end gap-4 border-t border-slate-100 shrink-0">
-          <button
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="px-6 py-3 rounded-xl font-black text-slate-500 hover:bg-white hover:text-slate-800 transition-all text-xs uppercase tracking-widest disabled:opacity-50"
-          >
-            ย้อนกลับ (Go Back)
-          </button>
-          <button
-            onClick={showReason ? finalizeSave : handleSaveAttempt}
-            disabled={isSubmitting || !editData.subcontractor || (showReason && !reason)}
-            className="bg-blue-600 disabled:bg-slate-300 hover:bg-blue-700 text-white px-10 py-3 rounded-xl font-black shadow-xl shadow-blue-200 disabled:shadow-none transform hover:-translate-y-0.5 transition-all text-xs uppercase tracking-widest relative overflow-hidden"
-          >
-            {isSubmitting ? (
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                กำลังบันทึก (Saving...)
-              </div>
-            ) : (
-              showReason ? 'ยืนยันการเปลี่ยนแปลง (Confirm)' : 'อัปเดตข้อมูล (Update & Lock)'
-            )}
-          </button>
-        </div>
+        {showReason && (
+          <div className="bg-orange-50 border-2 border-dashed border-orange-200 p-6 rounded-2xl animate-in slide-in-from-top-4 duration-300">
+            <div className="flex items-center gap-3 text-orange-800 font-black mb-4">
+              <AlertTriangle size={20} className="text-orange-500" />
+              <span className="uppercase text-xs tracking-widest">Reason for Change (จำเป็นต้องระบุ)</span>
+            </div>
+            <div className="space-y-3">
+              <select
+                id="reason-select"
+                required
+                disabled={isSubmitting}
+                className="w-full px-4 py-3 rounded-xl border border-orange-300 focus:ring-4 focus:ring-orange-100 focus:border-orange-500 outline-none transition-all font-bold text-slate-800 bg-white"
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                title="Select Reason for Change"
+              >
+                <option value="">-- กรูณาเลือกเหตุผล --</option>
+                {MASTER_DATA.reasons.map((r, idx) => <option key={`${r}-${idx}`} value={r}>{r}</option>)}
+              </select>
+              {reason === 'อื่นๆ (ระบุเอง)' && (
+                <textarea
+                  id="custom-reason-input"
+                  disabled={isSubmitting}
+                  placeholder="ไประบุรายละเอียดเพิ่มเติมที่นี่..."
+                  className="w-full px-4 py-3 rounded-xl border border-orange-300 focus:ring-4 focus:ring-orange-100 focus:border-orange-500 outline-none transition-all font-medium text-slate-800 bg-white text-sm"
+                  rows={2}
+                  value={customReason}
+                  onChange={e => setCustomReason(e.target.value)}
+                  title="Custom Reason Details"
+                />
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-slate-50 px-8 py-6 flex justify-end gap-4 border-t border-slate-100 shrink-0">
+        <button
+          onClick={onClose}
+          disabled={isSubmitting}
+          className="px-6 py-3 rounded-xl font-black text-slate-500 hover:bg-white hover:text-slate-800 transition-all text-xs uppercase tracking-widest disabled:opacity-50"
+        >
+          ย้อนกลับ (Go Back)
+        </button>
+        <button
+          onClick={showReason ? finalizeSave : handleSaveAttempt}
+          disabled={isSubmitting || !editData.subcontractor || (showReason && !reason)}
+          className="bg-blue-600 disabled:bg-slate-300 hover:bg-blue-700 text-white px-10 py-3 rounded-xl font-black shadow-xl shadow-blue-200 disabled:shadow-none transform hover:-translate-y-0.5 transition-all text-xs uppercase tracking-widest relative overflow-hidden"
+        >
+          {isSubmitting ? (
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              กำลังบันทึก (Saving...)
+            </div>
+          ) : (
+            showReason ? 'ยืนยันการเปลี่ยนแปลง (Confirm)' : 'อัปเดตข้อมูล (Update & Lock)'
+          )}
+        </button>
       </div>
     </div>
   );

@@ -2,18 +2,19 @@
 import React, { useState } from 'react';
 import { Job, JobStatus } from '../types';
 import { MASTER_DATA } from '../constants';
-import { Truck, MapPin, ClipboardCheck, ArrowRight, ArrowLeft, CheckCircle2, Zap, Search, Info, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Truck, MapPin, ClipboardCheck, ArrowRight, ArrowLeft, CheckCircle2, Zap, Search, Info, AlertTriangle, ShieldCheck, LayoutPanelTop } from 'lucide-react';
 import { PriceMatrix } from '../types';
 
 interface JobRequestFormProps {
   onSubmit: (job: Job) => void;
   existingJobs: Job[];
   priceMatrix: PriceMatrix[];
+  onShowSummary: () => void;
 }
 
 declare const Swal: any;
 
-const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs, priceMatrix }) => {
+const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs, priceMatrix, onShowSummary }) => {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -26,6 +27,9 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     remark: '',
     referenceNo: '',
     subcontractor: '',
+    driverName: '',
+    driverPhone: '',
+    licensePlate: '',
     cost: 0
   });
 
@@ -119,6 +123,11 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
 
     onSubmit(newJob);
     setIsSubmitting(false);
+
+    // Auto-open summary board after brief delay to let user digest success alert
+    setTimeout(() => {
+      onShowSummary();
+    }, 200);
   };
 
   const nextStep = () => setStep(s => s + 1);
@@ -174,6 +183,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                     type="date"
                     className="w-full px-5 py-4 rounded-2xl border border-slate-100 bg-slate-50/50 focus:bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-800"
                     value={formData.dateOfService}
+                    onKeyDown={(e) => e.preventDefault()}
                     onChange={e => setFormData({ ...formData, dateOfService: e.target.value })}
                   />
                 </div>
@@ -452,6 +462,48 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                           ))}
                         </select>
                       </div>
+
+                      {/* Driver & Truck Info for Booking Officer */}
+                      <div className="space-y-4 p-4 bg-white rounded-2xl border border-blue-50 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="p-1 px-2 bg-blue-600 text-white rounded text-[9px] font-black uppercase tracking-widest">Operator Entry</div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">รายละเอียดคนขับประจำเที่ยว (Fleet Info)</p>
+                        </div>
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">ชื่อคนขับ (Driver Name)</label>
+                            <input
+                              type="text"
+                              placeholder="ระบุชื่อคนขับ... (Driver Name)"
+                              className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-200 outline-none transition-all font-bold text-slate-700 text-xs"
+                              value={formData.driverName}
+                              onChange={e => setFormData({ ...formData, driverName: e.target.value })}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">เบอร์โทรศัพท์ (Phone)</label>
+                              <input
+                                type="tel"
+                                placeholder="0xx-xxx-xxxx"
+                                className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-200 outline-none transition-all font-bold text-slate-700 text-xs"
+                                value={formData.driverPhone}
+                                onChange={e => setFormData({ ...formData, driverPhone: e.target.value })}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">ทะเบียนรถ (License Plate)</label>
+                              <input
+                                type="text"
+                                placeholder="ตัวอย่าง 70-1234"
+                                className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-200 outline-none transition-all font-bold text-slate-700 text-xs"
+                                value={formData.licensePlate}
+                                onChange={e => setFormData({ ...formData, licensePlate: e.target.value })}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="space-y-4">
@@ -520,7 +572,15 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
               >
                 <ArrowLeft size={18} /> Back / ย้อนกลับ
               </button>
-            ) : <div />}
+            ) : (
+              <button
+                type="button"
+                onClick={onShowSummary}
+                className="flex items-center gap-2 px-6 py-4 rounded-2xl font-black text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all uppercase tracking-widest text-[10px]"
+              >
+                <LayoutPanelTop size={16} /> สรุปกระดานงาน (Summary Board)
+              </button>
+            )}
 
             {step < 3 ? (
               <button

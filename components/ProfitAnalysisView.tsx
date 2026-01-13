@@ -207,7 +207,7 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
                     {/* Dynamic Filters */}
                     <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md px-5 py-2.5 rounded-[1.5rem] border border-white/10">
                         {filterType === 'day' && (
-                            <input type="date" value={filterDay} onChange={e => setFilterDay(e.target.value)} title="เลือกวันที่" aria-label="เลือกวันที่" className="bg-transparent text-sm font-black outline-none cursor-pointer" />
+                            <input type="date" value={filterDay} onKeyDown={(e) => e.preventDefault()} onChange={e => setFilterDay(e.target.value)} title="เลือกวันที่" aria-label="เลือกวันที่" className="bg-transparent text-sm font-black outline-none cursor-pointer" />
                         )}
                         {filterType === 'month' && (
                             <div className="flex items-center gap-2">
@@ -241,9 +241,9 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
                         )}
                         {filterType === 'custom' && (
                             <div className="flex items-center gap-2">
-                                <input type="date" value={filterCustom.start} onChange={e => setFilterCustom({ ...filterCustom, start: e.target.value })} title="วันที่เริ่มต้น" aria-label="วันที่เริ่มต้น" className="bg-transparent text-[10px] font-black outline-none" />
+                                <input type="date" value={filterCustom.start} onKeyDown={(e) => e.preventDefault()} onChange={e => setFilterCustom({ ...filterCustom, start: e.target.value })} title="วันที่เริ่มต้น" aria-label="วันที่เริ่มต้น" className="bg-transparent text-[10px] font-black outline-none" />
                                 <span className="opacity-30">→</span>
-                                <input type="date" value={filterCustom.end} onChange={e => setFilterCustom({ ...filterCustom, end: e.target.value })} title="วันที่สิ้นสุด" aria-label="วันที่สิ้นสุด" className="bg-transparent text-[10px] font-black outline-none" />
+                                <input type="date" value={filterCustom.end} onKeyDown={(e) => e.preventDefault()} onChange={e => setFilterCustom({ ...filterCustom, end: e.target.value })} title="วันที่สิ้นสุด" aria-label="วันที่สิ้นสุด" className="bg-transparent text-[10px] font-black outline-none" />
                             </div>
                         )}
                         <Calendar size={18} className="text-blue-400 ml-2" />
