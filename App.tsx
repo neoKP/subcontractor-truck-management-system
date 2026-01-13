@@ -148,7 +148,7 @@ const App: React.FC = () => {
   const handleVerifyJob = (updatedJob: Job, action: 'approve' | 'reject' | 'update', reason?: string) => {
     let finalJob = { ...updatedJob };
     const log: AuditLog = {
-      id: crypto.randomUUID(),
+      id: `LOG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       jobId: updatedJob.id,
       userId: currentUser?.id || 'unknown',
       userName: currentUser?.name || 'unknown',
@@ -166,8 +166,8 @@ const App: React.FC = () => {
     } else if (action === 'reject') {
       finalJob.accountingStatus = AccountingStatus.REJECTED;
       finalJob.accountingRemark = reason;
-      // Note: We don't change main status to ensure workflow consistency, 
-      // but rejected accounting status acts as a flag for dispatcher to fix.
+      // Revert status to ASSIGNED so it appears back in the active flow for Dispatcher
+      finalJob.status = JobStatus.ASSIGNED;
     }
 
     updateJob(finalJob, [log]);

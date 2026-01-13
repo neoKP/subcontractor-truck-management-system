@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS } from '../types';
+import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS } from '../types';
 import { Calendar, MapPin, Package, Hash, Lock, CheckCircle, Edit3, Filter, Truck, Printer, LayoutDashboard, Receipt, XCircle, Search, Trash2, ShieldAlert, ExternalLink } from 'lucide-react';
 import Swal from 'sweetalert2';
 import DispatcherActionModal from './DispatcherActionModal';
@@ -57,7 +57,23 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
   });
 
   const totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
-  const paginatedJobs = filteredJobs.slice().reverse().slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedJobs = [...filteredJobs]
+    .sort((a, b) => {
+      // 1. Sort by Date/ID descending (Temporal)
+      const timeA = new Date(a.dateOfService || 0).getTime();
+      const timeB = new Date(b.dateOfService || 0).getTime();
+      if (timeA !== timeB) return timeB - timeA;
+      return b.id.localeCompare(a.id);
+    })
+    .sort((a, b) => {
+      // 2. Put REJECTED jobs at the absolute top
+      const aRejected = a.accountingStatus === AccountingStatus.REJECTED;
+      const bRejected = b.accountingStatus === AccountingStatus.REJECTED;
+      if (aRejected && !bRejected) return -1;
+      if (!aRejected && bRejected) return 1;
+      return 0;
+    })
+    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleAction = (job: Job) => {
     setSelectedJob(job);
@@ -81,14 +97,16 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
     }
 
     // Lock editing for Completed/Billed jobs unless the user is Admin or Accountant
-    const isLocked = [JobStatus.COMPLETED, JobStatus.BILLED].includes(job.status);
+    const isCompletedOrBilled = [JobStatus.COMPLETED, JobStatus.BILLED].includes(job.status);
+    const isFinalized = job.accountingStatus === AccountingStatus.APPROVED || job.accountingStatus === AccountingStatus.LOCKED;
     const canOverride = [UserRole.ADMIN, UserRole.ACCOUNTANT].includes(user.role);
 
-    if (isLocked && !canOverride) {
+    // Lock ONLY if it's finalized (Approved/Locked) AND the user is not Admin/Accountant
+    if (isCompletedOrBilled && isFinalized && !canOverride) {
       if (typeof (window as any).Swal !== 'undefined') {
         (window as any).Swal.fire({
           title: 'Locked / ข้อมูลถูกล็อก',
-          text: 'This job is completed and locked. Only Admin/Account can edit. / งานนี้จบงานแล้ว ข้อมูลถูกล็อกให้เฉพาะผู้ดูแลหรือบัญชีแก้ไขเท่านั้น',
+          text: 'This job is finalized and locked. Only Admin/Account can edit. / งานนี้ถูกอนุมัติหรือล็อกผลถาวรแล้ว ข้อมูลถูกล็อกให้เฉพาะผู้ดูแลหรือบัญชีแก้ไขเท่านั้น',
           icon: 'info',
           confirmButtonColor: '#0f172a',
           customClass: { popup: 'rounded-[2rem]' }
@@ -257,11 +275,23 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
     return (
       <div className="flex lg:grid lg:grid-cols-3 gap-6 overflow-x-auto pb-4 px-2 snap-x lg:snap-none scrollbar-none lg:overflow-x-visible items-start">
         {columns.map(col => {
-          const columnJobs = jobs.filter(j => j.status === col.status && (!searchTerm ||
-            j.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            j.origin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            j.destination.toLowerCase().includes(searchTerm.toLowerCase())
-          ));
+          const columnJobs = jobs.filter(j => {
+            // Special handling: Move REJECTED jobs from COMPLETED to ASSIGNED column visually
+            const matchesSearch = (!searchTerm ||
+              j.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              j.origin.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              j.destination.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            if (col.status === JobStatus.ASSIGNED) {
+              return (j.status === JobStatus.ASSIGNED || (j.status === JobStatus.COMPLETED && j.accountingStatus === AccountingStatus.REJECTED)) && matchesSearch;
+            }
+            if (col.status === JobStatus.COMPLETED) {
+              return j.status === JobStatus.COMPLETED && j.accountingStatus !== AccountingStatus.REJECTED && matchesSearch;
+            }
+
+            return j.status === col.status && matchesSearch;
+          });
           return (
             <div key={col.status} className="bg-slate-100/60 rounded-3xl p-4 flex flex-col h-[calc(100vh-280px)] min-h-[500px] min-w-[300px] md:min-w-[340px] lg:min-w-0 snap-center border border-slate-200/40">
               <div className="flex items-center justify-between px-3 mb-4">
@@ -278,13 +308,21 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
                 {columnJobs.slice().reverse().map(job => (
                   <div
                     key={job.id}
-                    className={`bg-white rounded-2xl p-5 shadow-sm border border-slate-100 transition-all group relative active:scale-95 hover-lift ${user.role !== UserRole.BOOKING_OFFICER ? 'hover:shadow-md hover:border-blue-200 cursor-pointer' : ''} ${job.status === JobStatus.CANCELLED ? 'opacity-60 grayscale-[0.5]' : ''}`}
+                    className={`bg-white rounded-2xl p-5 shadow-sm border transition-all group relative active:scale-95 hover-lift ${job.accountingStatus === AccountingStatus.REJECTED ? 'border-rose-300 ring-4 ring-rose-50/50 bg-rose-50/10' : 'border-slate-100'
+                      } ${user.role !== UserRole.BOOKING_OFFICER ? 'hover:shadow-md hover:border-blue-200 cursor-pointer' : ''
+                      } ${job.status === JobStatus.CANCELLED ? 'opacity-60 grayscale-[0.5]' : ''}`}
                     onClick={() => handleAction(job)}
                   >
                     <div className="flex justify-between items-start mb-3">
                       <span className="text-[10px] font-black font-mono text-blue-600">#{job.id}</span>
                       <span className="text-[9px] font-bold text-slate-400">{new Date(job.dateOfService).toLocaleDateString('th-TH')}</span>
                     </div>
+                    {/* Rejected Badge */}
+                    {job.accountingStatus === AccountingStatus.REJECTED && (
+                      <div className="mb-2 bg-rose-500 text-white text-[9px] font-black uppercase px-2 py-1 rounded-lg inline-flex items-center gap-1 animate-pulse shadow-sm">
+                        <ShieldAlert size={10} /> Correction Required
+                      </div>
+                    )}
                     <h4 className={`text-xs font-black text-slate-800 mb-1 leading-tight ${job.status === JobStatus.CANCELLED ? 'line-through decoration-rose-500 decoration-2' : ''}`}>
                       {job.truckType} {job.productDetail ? `/ ${job.productDetail}` : ''}
                     </h4>
@@ -496,12 +534,13 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
                   paginatedJobs.map(job => (
                     <tr
                       key={job.id}
-                      className={`transition-all duration-300 group hover:bg-slate-50/50 border-l-[6px] ${job.status === JobStatus.NEW_REQUEST ? 'border-l-orange-500' :
-                        job.status === JobStatus.ASSIGNED ? 'border-l-blue-500' :
-                          job.status === JobStatus.COMPLETED ? 'border-l-emerald-500' :
-                            job.status === JobStatus.CANCELLED ? 'border-l-rose-500 opacity-50 grayscale' :
-                              'border-l-slate-200'
-                        } hover:shadow-xl hover:translate-x-1`}
+                      className={`transition-all duration-300 group hover:bg-slate-50/50 border-l-[6px] ${job.accountingStatus === AccountingStatus.REJECTED ? 'border-l-rose-500 bg-rose-50/20' :
+                        job.status === JobStatus.NEW_REQUEST ? 'border-l-orange-500' :
+                          job.status === JobStatus.ASSIGNED ? 'border-l-blue-500' :
+                            job.status === JobStatus.COMPLETED ? 'border-l-emerald-500' :
+                              job.status === JobStatus.CANCELLED ? 'border-l-rose-500 opacity-50 grayscale' :
+                                'border-l-slate-200'
+                        } ${job.accountingStatus === AccountingStatus.REJECTED ? 'ring-2 ring-rose-100 ring-inset' : ''} hover:shadow-xl hover:translate-x-1`}
                       onClick={() => handleAction(job)}
                     >
                       <td className="px-8 py-6">
@@ -516,6 +555,11 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
                             <span className={`inline-block px-3 py-1 rounded-lg text-[9px] font-black uppercase text-center border shadow-sm ${getStatusStyle(job.status)}`}>
                               {JOB_STATUS_LABELS[job.status]}
                             </span>
+                            {job.accountingStatus === AccountingStatus.REJECTED && (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 bg-rose-600 text-white rounded-lg text-[9px] font-black uppercase animate-pulse shadow-lg shadow-rose-200">
+                                <ShieldAlert size={10} /> Correction Required
+                              </span>
+                            )}
                           </div>
                           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mt-1">Ref: {job.id.split('-')[1]}</span>
                         </div>
@@ -547,9 +591,10 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
                         <div className="flex flex-col items-center gap-2">
                           <div className="w-full max-w-[100px] h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner border border-slate-50">
                             <div
-                              className={`h-full transition-all duration-1000 ${job.status === JobStatus.NEW_REQUEST ? 'bg-orange-500 w-[20%]' :
-                                job.status === JobStatus.ASSIGNED ? 'bg-blue-500 w-[60%] animate-pulse' :
-                                  job.status === JobStatus.COMPLETED ? 'bg-emerald-500 w-[100%]' : 'bg-slate-200 w-0'
+                              className={`h-full transition-all duration-1000 ${job.accountingStatus === AccountingStatus.REJECTED ? 'bg-rose-500 w-[60%] animate-pulse' :
+                                job.status === JobStatus.NEW_REQUEST ? 'bg-orange-500 w-[20%]' :
+                                  job.status === JobStatus.ASSIGNED ? 'bg-blue-500 w-[60%] animate-pulse' :
+                                    job.status === JobStatus.COMPLETED ? 'bg-emerald-500 w-[100%]' : 'bg-slate-200 w-0'
                                 }`}
                             ></div>
                           </div>
@@ -586,7 +631,7 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
                       )}
                       <td className="px-8 py-6">
                         <div className="flex items-center justify-center gap-2">
-                          {job.status === JobStatus.ASSIGNED && user.role !== UserRole.BOOKING_OFFICER && (
+                          {(job.status === JobStatus.ASSIGNED || (job.status === JobStatus.COMPLETED && job.accountingStatus === AccountingStatus.REJECTED)) && user.role !== UserRole.BOOKING_OFFICER && (
                             <button
                               onClick={(e) => { e.stopPropagation(); handleConfirmAction(job); }}
                               className="p-3 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-90 tap-spark"

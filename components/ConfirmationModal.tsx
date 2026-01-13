@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Job, JobStatus, AccountingStatus } from '../types';
-import { Camera, CheckCircle2, DollarSign, Image as ImageIcon, X, FileText, Upload, MapPin, Calendar, User, Phone } from 'lucide-react';
+import { Camera, CheckCircle2, DollarSign, Image as ImageIcon, X, FileText, Upload, MapPin, Calendar, User, Phone, ShieldAlert } from 'lucide-react';
 
 interface ConfirmationModalProps {
   job: Job;
@@ -165,6 +165,22 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
         </div>
 
         <div className="flex-1 p-6 md:p-8 space-y-6 md:space-y-8 overflow-y-auto scrollbar-thin">
+          {/* Rejection Alert */}
+          {job.accountingStatus === AccountingStatus.REJECTED && (
+            <div className="bg-rose-50 border border-rose-100 rounded-[1.5rem] p-5 animate-pulse">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-rose-100 flex items-center justify-center text-rose-500 shrink-0">
+                  <ShieldAlert size={20} />
+                </div>
+                <div>
+                  <h4 className="text-[11px] font-black text-rose-900 uppercase tracking-wider mb-1">เหตุผลที่ฝ่ายบัญชีให้ตรวจสอบใหม่ (Correction Requested)</h4>
+                  <p className="text-sm font-bold text-rose-700 leading-tight">
+                    {job.accountingRemark || 'กรุณาตรวจสอบความถูกต้องของข้อมูลและหลักฐานใหม่...'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="bg-white border border-slate-100 rounded-[2rem] p-6 flex items-start gap-4 hover-lift shadow-sm">
             <div className="shrink-0 px-3 py-2 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col items-center justify-center min-w-[100px]">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">รหัสใบงาน (Service ID)</span>

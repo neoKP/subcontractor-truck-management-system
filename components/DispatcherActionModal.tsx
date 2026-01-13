@@ -25,7 +25,10 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     sellingPrice: job.sellingPrice || 0
   });
 
-  const isActuallyLocked = job.isBaseCostLocked && user.role !== UserRole.ADMIN;
+  const isActuallyLocked = job.isBaseCostLocked &&
+    user.role !== UserRole.ADMIN &&
+    job.accountingStatus !== AccountingStatus.REJECTED &&
+    job.accountingStatus !== AccountingStatus.PENDING_REVIEW;
   const isAdminOverride = job.isBaseCostLocked && user.role === UserRole.ADMIN;
 
   const [showReason, setShowReason] = useState(false);
@@ -178,7 +181,11 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
       ...editData,
       cost: editData.cost || 0,
       sellingPrice: editData.sellingPrice || 0,
-      status: job.status === JobStatus.NEW_REQUEST ? JobStatus.ASSIGNED : job.status
+      status: job.status === JobStatus.NEW_REQUEST ? JobStatus.ASSIGNED : job.status,
+      // Auto-reset accounting status if it was rejected to notify accounting to check again
+      accountingStatus: job.accountingStatus === AccountingStatus.REJECTED
+        ? AccountingStatus.PENDING_REVIEW
+        : job.accountingStatus
     };
 
     onSave(updatedJob, logs);
