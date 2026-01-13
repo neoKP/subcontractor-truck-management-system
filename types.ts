@@ -71,7 +71,8 @@ export interface Job {
   driverName?: string;
   driverPhone?: string;
   licensePlate?: string;
-  cost?: number;
+  cost?: number; // Cost paid to subcontractor
+  sellingPrice?: number; // Revenue billed to customer (selling price)
 
   // Completion fields
   actualArrivalTime?: string;
@@ -111,6 +112,7 @@ export interface PriceMatrix {
   destination: string;
   subcontractor: string;
   truckType: string;
-  basePrice: number;
+  basePrice: number; // Cost paid to sub
+  sellingBasePrice: number; // Revenue billed to customer
   dropOffFee?: number;
 }

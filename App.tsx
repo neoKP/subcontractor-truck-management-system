@@ -12,7 +12,8 @@ import { PRICE_MATRIX } from './constants';
 import AccountingReportsView from './components/AccountingReportsView';
 import AccountingVerificationView from './components/AccountingVerificationView';
 import UserManagementView from './components/UserManagementView';
-import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users } from 'lucide-react';
+import ProfitAnalysisView from './components/ProfitAnalysisView';
+import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp } from 'lucide-react';
 import { db, ref, onValue, set, remove } from './firebaseConfig';
 
 // Initial Users Data for Seeding
@@ -37,7 +38,7 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [priceMatrix, setPriceMatrix] = useState<PriceMatrix[]>(PRICE_MATRIX);
-  const [activeTab, setActiveTab] = useState<'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'reports' | 'verify' | 'users'>('board');
+  const [activeTab, setActiveTab] = useState<'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit'>('board');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logSearch, setLogSearch] = useState('');
   const [logPage, setLogPage] = useState(1);
@@ -248,14 +249,26 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'reports' && (
+          {activeTab === 'aggregation' && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="bg-indigo-600 px-6 py-4 flex items-center gap-3">
                 <PieChart className="text-white" size={24} />
-                <h2 className="text-xl font-bold text-white">รายงานและการวิเคราะห์ (Analytics & Reports)</h2>
+                <h2 className="text-xl font-bold text-white">การประมวลผลตัวเลข (Data Aggregation)</h2>
               </div>
               <div className="p-6">
                 <AccountingReportsView jobs={jobs} logs={logs} userRole={currentUser.role} />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'profit' && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="bg-blue-600 px-6 py-4 flex items-center gap-3">
+                <TrendingUp className="text-white" size={24} />
+                <h2 className="text-xl font-bold text-white">วิเคราะห์ผลกำไรและประสิทธิภาพ (Profit Margin Analysis)</h2>
+              </div>
+              <div className="p-6">
+                <ProfitAnalysisView jobs={jobs} userRole={currentUser.role} />
               </div>
             </div>
           )}

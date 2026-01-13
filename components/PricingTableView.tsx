@@ -20,6 +20,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
     subcontractor: '',
     truckType: '',
     basePrice: 0,
+    sellingBasePrice: 0,
     dropOffFee: 0
   });
   const [filterSubCon, setFilterSubCon] = useState('');
@@ -67,6 +68,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
       subcontractor: '',
       truckType: '',
       basePrice: 0,
+      sellingBasePrice: 0,
       dropOffFee: 0
     });
     setIsAdding(true);
@@ -141,9 +143,10 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                 <th className="px-6 py-5">ปลายทาง (DESTINATION)</th>
                 <th className="px-6 py-5">บริษัทรถร่วม (SUB-CON)</th>
                 <th className="px-6 py-5">ประเภทรถ (TRUCK TYPE)</th>
-                <th className="px-6 py-5">ราคากลาง (BASE PRICE)</th>
+                <th className="px-6 py-5">ต้นทุนรถ (COST)</th>
+                <th className="px-6 py-5">ราคาจ้าง (REVENUE)</th>
                 <th className="px-6 py-5 text-center">ค่าจุด (DROP FEE)</th>
-                {canEdit && <th className="px-6 py-5 text-right">เครื่องมือ (ACTIONS)</th>}
+                {canEdit && <th className="px-6 py-5 text-right">จัดการ (ACTIONS)</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
@@ -183,8 +186,19 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-1.5 font-black text-slate-900 text-xs">
-                        ฿{(Number(p.basePrice) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase">Cost</span>
+                        <div className="flex items-center gap-1.5 font-black text-slate-900 text-xs">
+                          ฿{(Number(p.basePrice) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] font-bold text-blue-400 uppercase">Revenue</span>
+                        <div className="flex items-center gap-1.5 font-black text-blue-600 text-xs">
+                          ฿{(Number(p.sellingBasePrice) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -330,19 +344,31 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                   </datalist>
                 </div>
                 <div className="space-y-1">
-                  <label htmlFor="price-base" className="text-xs font-bold text-slate-500 uppercase">Base Price (฿)</label>
+                  <label htmlFor="price-base" className="text-xs font-bold text-slate-500 uppercase">Cost (ต้นทุนรถร่วม)</label>
                   <input
                     id="price-base"
                     type="number"
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                     value={formData.basePrice}
                     onChange={e => setFormData({ ...formData, basePrice: Number(e.target.value) })}
-                    title="Base Price"
+                    title="Cost Paid to Subcontractor"
                     placeholder="0.00"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label htmlFor="price-drop" className="text-xs font-bold text-slate-500 uppercase">Drop Fee (฿)</label>
+                  <label htmlFor="price-selling" className="text-xs font-bold text-blue-500 uppercase">Revenue (ราคาจ้าง)</label>
+                  <input
+                    id="price-selling"
+                    type="number"
+                    className="w-full px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-blue-700"
+                    value={formData.sellingBasePrice}
+                    onChange={e => setFormData({ ...formData, sellingBasePrice: Number(e.target.value) })}
+                    title="Revenue Billed to Customer"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="price-drop" className="text-xs font-bold text-slate-500 uppercase">Drop Fee (ค่าจุด)</label>
                   <input
                     id="price-drop"
                     type="number"

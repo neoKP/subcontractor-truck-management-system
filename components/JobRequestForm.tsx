@@ -84,18 +84,20 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     const formattedSeq = nextSeq.toString().padStart(4, '0');
 
     // Check for pricing availability
-    const matchedPricing = priceMatrix.filter(p =>
+    const matchedPricing = priceMatrix.find(p =>
       p.origin === formData.origin &&
       p.destination === formData.destination &&
       p.truckType === formData.truckType
     );
-    const hasPricing = matchedPricing.length > 0;
+    const hasPricing = !!matchedPricing;
     const initialStatus = hasPricing ? JobStatus.NEW_REQUEST : JobStatus.PENDING_PRICING;
 
     const newJob: Job = {
       ...formData,
       id: `${yearPrefix}${formattedSeq}`,
       status: initialStatus,
+      cost: hasPricing ? matchedPricing?.basePrice : 0,
+      sellingPrice: hasPricing ? matchedPricing?.sellingBasePrice : 0,
     };
 
     // Show Success Alert and wait for user to click OK

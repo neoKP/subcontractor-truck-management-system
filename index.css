@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /* Glassmorphism */
 .glass {
   background-color: rgba(255, 255, 255, 0.7);
@@ -136,4 +138,49 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background-color: #cbd5e1;
+}
+
+/* Progress Bar Stylings to avoid inline styles */
+progress.margin-progress {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 48px;
+  height: 4px;
+  border-radius: 999px;
+  border: none;
+  background: #f1f5f9;
+}
+
+progress.margin-progress::-webkit-progress-bar {
+  background: #f1f5f9;
+  border-radius: 999px;
+}
+
+progress.margin-progress::-webkit-progress-value {
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+progress.progress-emerald::-webkit-progress-value {
+  background-color: #10b981;
+}
+
+progress.progress-blue::-webkit-progress-value {
+  background-color: #3b82f6;
+}
+
+progress.progress-amber::-webkit-progress-value {
+  background-color: #f59e0b;
+}
+
+progress.progress-emerald::-moz-progress-bar {
+  background-color: #10b981;
+}
+
+progress.progress-blue::-moz-progress-bar {
+  background-color: #3b82f6;
+}
+
+progress.progress-amber::-moz-progress-bar {
+  background-color: #f59e0b;
 }

@@ -1,12 +1,12 @@
 
 import React from 'react';
 import { UserRole, USER_ROLE_LABELS } from '../types';
-import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users, TrendingUp } from 'lucide-react';
 
 interface SidebarProps {
   currentRole: UserRole;
-  activeTab: 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'reports' | 'verify';
-  setActiveTab: (tab: 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'reports' | 'verify') => void;
+  activeTab: 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit';
+  setActiveTab: (tab: 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit') => void;
   onLogout: () => void;
   isOpen?: boolean;
   onClose?: () => void;
@@ -20,7 +20,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, setActiveTab,
     { id: 'pricing', label: 'Price Master / มาตรฐานราคา', icon: Tag, roles: [UserRole.DISPATCHER, UserRole.ACCOUNTANT, UserRole.ADMIN] },
     { id: 'verify', label: 'Verify / ตรวจสอบงาน', icon: ClipboardCheck, roles: [UserRole.ACCOUNTANT, UserRole.ADMIN] },
     { id: 'billing', label: 'Billing / วางบิล', icon: Receipt, roles: [UserRole.ACCOUNTANT, UserRole.ADMIN] },
-    { id: 'reports', label: 'Reports / รายงาน', icon: PieChart, roles: [UserRole.DISPATCHER, UserRole.ACCOUNTANT, UserRole.ADMIN] },
+    { id: 'aggregation', label: 'Data Aggregation / การประมวลผลตัวเลข', icon: PieChart, roles: [UserRole.DISPATCHER, UserRole.ACCOUNTANT, UserRole.ADMIN] },
+    { id: 'profit', label: 'Profit Margin / วิเคราะห์กำไร', icon: TrendingUp, roles: [UserRole.DISPATCHER, UserRole.ACCOUNTANT, UserRole.ADMIN] },
     { id: 'logs', label: 'Audit Logs / ประวัติแก้ไข', icon: ShieldCheck, roles: [UserRole.DISPATCHER, UserRole.ACCOUNTANT, UserRole.ADMIN] },
     { id: 'users', label: 'Users / ผู้ใช้งาน', icon: Users, roles: [UserRole.ADMIN] },
   ];
