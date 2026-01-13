@@ -876,6 +876,7 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
           onClose={() => setShowBookingModal(false)}
           onSave={onUpdateJob}
           user={user}
+          priceMatrix={priceMatrix}
         />
       )}
     </div>

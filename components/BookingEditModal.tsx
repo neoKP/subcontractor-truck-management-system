@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { Job, UserRole, AuditLog } from '../types';
-import { MASTER_DATA, PRICE_MATRIX } from '../constants';
+import { Job, UserRole, AuditLog, PriceMatrix } from '../types';
+import { MASTER_DATA } from '../constants';
 import { X, Edit3, MapPin, Truck, ShieldAlert, BadgeCheck, Zap, ShieldCheck } from 'lucide-react';
 
 interface BookingEditModalProps {
@@ -9,15 +9,16 @@ interface BookingEditModalProps {
     onClose: () => void;
     onSave: (job: Job, logs?: AuditLog[]) => void;
     user: { id: string; name: string; role: UserRole };
+    priceMatrix: PriceMatrix[];
 }
 
-const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSave, user }) => {
+const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSave, user, priceMatrix }) => {
     // Pricing Intelligence Logic
     const findContractMatch = (origin: string, dest: string, truck: string, sub?: string) => {
         if (!origin || !dest || !truck) return null;
 
         // Find all matches for this route/truck
-        const matches = PRICE_MATRIX.filter(p => {
+        const matches = priceMatrix.filter(p => {
             const originMatch = p.origin.includes(origin) || origin.includes(p.origin);
             const destMatch = p.destination.includes(dest) || dest.includes(p.destination);
             const truckMatch = p.truckType === truck;
@@ -46,7 +47,7 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
         };
     });
 
-    const allMatches = PRICE_MATRIX.filter(p => {
+    const allMatches = priceMatrix.filter(p => {
         const originMatch = p.origin.includes(editData.origin) || editData.origin.includes(p.origin);
         const destMatch = p.destination.includes(editData.destination) || editData.destination.includes(p.destination);
         const truckMatch = p.truckType === editData.truckType;
@@ -60,6 +61,14 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
 
     const [reason, setReason] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Searchable Input States
+    const [originQuery, setOriginQuery] = useState('');
+    const [destQuery, setDestQuery] = useState('');
+    const [subQuery, setSubQuery] = useState('');
+    const [showOriginList, setShowOriginList] = useState(false);
+    const [showDestList, setShowDestList] = useState(false);
+    const [showSubList, setShowSubList] = useState(false);
 
     const handleSave = async () => {
         if (isSubmitting) return;
@@ -166,52 +175,159 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                 {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto px-8 pt-8 pb-12 space-y-6 scrollbar-thin scrollbar-thumb-slate-200">
                     <div className="grid grid-cols-1 gap-5">
-                        <div className="space-y-2">
-                            <label htmlFor="origin-select" className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        {/* Origin Input (Searchable) */}
+                        <div className="space-y-2 relative">
+                            <label htmlFor="origin-input" className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                 <MapPin size={12} className="text-blue-500" /> Origin / ต้นทาง
                             </label>
-                            <select
-                                id="origin-select"
-                                name="origin"
-                                className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all"
-                                value={editData.origin}
-                                title="Select Origin"
-                                onChange={e => {
-                                    const newOrigin = e.target.value;
-                                    const contract = findContractMatch(newOrigin, editData.destination, editData.truckType, editData.subcontractor)
-                                        || findContractMatch(newOrigin, editData.destination, editData.truckType);
-                                    const newPrice = contract ? contract.basePrice : editData.cost;
-                                    setEditData({ ...editData, origin: newOrigin, cost: newPrice });
-                                }}
-                            >
-                                {MASTER_DATA.locations.map((loc, idx) => (
-                                    <option key={`${loc}-${idx}`} value={loc}>{loc}</option>
-                                ))}
-                            </select>
+                            <div className="relative group">
+                                <input
+                                    id="origin-input"
+                                    type="text"
+                                    autoComplete="off"
+                                    placeholder="Type to search origin..."
+                                    className="w-full pl-4 pr-10 py-4 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all placeholder:font-normal"
+                                    value={originQuery !== '' ? originQuery : editData.origin}
+                                    onFocus={() => {
+                                        setOriginQuery(editData.origin);
+                                        setShowOriginList(true);
+                                    }}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setOriginQuery(val);
+                                        setEditData(prev => ({ ...prev, origin: val }));
+
+                                        // Recalculate price if contract exists
+                                        const contract = findContractMatch(val, editData.destination, editData.truckType, editData.subcontractor)
+                                            || findContractMatch(val, editData.destination, editData.truckType);
+                                        const newPrice = contract ? contract.basePrice : editData.cost;
+                                        if (contract) setEditData(prev => ({ ...prev, origin: val, cost: newPrice }));
+                                    }}
+                                    onBlur={() => setTimeout(() => setShowOriginList(false), 200)}
+                                />
+                                {/* Clear button if has value */}
+                                {editData.origin && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setEditData({ ...editData, origin: '' });
+                                            setOriginQuery('');
+                                        }}
+                                        title="Clear origin"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 p-1"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+                            {showOriginList && (
+                                <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+                                    {MASTER_DATA.locations
+                                        .filter(l => l.toLowerCase().includes((originQuery || editData.origin || '').toLowerCase()))
+                                        .map((l, i) => (
+                                            <button
+                                                key={i}
+                                                type="button"
+                                                className="w-full text-left px-4 py-3 hover:bg-blue-50 text-sm font-bold text-slate-700 transition-colors border-b border-slate-50 last:border-0"
+                                                onClick={() => {
+                                                    setEditData(prev => {
+                                                        const newData = { ...prev, origin: l };
+                                                        const contract = findContractMatch(l, prev.destination, prev.truckType, prev.subcontractor)
+                                                            || findContractMatch(l, prev.destination, prev.truckType);
+                                                        if (contract) newData.cost = contract.basePrice;
+                                                        return newData;
+                                                    });
+                                                    setOriginQuery('');
+                                                    setShowOriginList(false);
+                                                }}
+                                            >
+                                                {l}
+                                            </button>
+                                        ))}
+                                    {MASTER_DATA.locations.filter(l => l.toLowerCase().includes((originQuery || editData.origin || '').toLowerCase())).length === 0 && (
+                                        <div className="p-4 text-center text-xs text-slate-400 font-bold">
+                                            No match found. Using custom value.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
-                        <div className="space-y-2">
-                            <label htmlFor="destination-select" className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        {/* Destination Input (Searchable) */}
+                        <div className="space-y-2 relative">
+                            <label htmlFor="destination-input" className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                 <MapPin size={12} className="text-orange-500" /> Destination / ปลายทาง
                             </label>
-                            <select
-                                id="destination-select"
-                                name="destination"
-                                className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all"
-                                value={editData.destination}
-                                title="Select Destination"
-                                onChange={e => {
-                                    const newDest = e.target.value;
-                                    const contract = findContractMatch(editData.origin, newDest, editData.truckType, editData.subcontractor)
-                                        || findContractMatch(editData.origin, newDest, editData.truckType);
-                                    const newPrice = contract ? contract.basePrice : editData.cost;
-                                    setEditData({ ...editData, destination: newDest, cost: newPrice });
-                                }}
-                            >
-                                {MASTER_DATA.locations.map((loc, idx) => (
-                                    <option key={`${loc}-${idx}`} value={loc}>{loc}</option>
-                                ))}
-                            </select>
+                            <div className="relative group">
+                                <input
+                                    id="destination-input"
+                                    type="text"
+                                    autoComplete="off"
+                                    placeholder="Type to search destination..."
+                                    className="w-full pl-4 pr-10 py-4 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all placeholder:font-normal"
+                                    value={destQuery !== '' ? destQuery : editData.destination}
+                                    onFocus={() => {
+                                        setDestQuery(editData.destination);
+                                        setShowDestList(true);
+                                    }}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setDestQuery(val);
+                                        setEditData(prev => ({ ...prev, destination: val }));
+
+                                        // Recalculate price if contract exists
+                                        const contract = findContractMatch(editData.origin, val, editData.truckType, editData.subcontractor)
+                                            || findContractMatch(editData.origin, val, editData.truckType);
+                                        const newPrice = contract ? contract.basePrice : editData.cost;
+                                        if (contract) setEditData(prev => ({ ...prev, destination: val, cost: newPrice }));
+                                    }}
+                                    onBlur={() => setTimeout(() => setShowDestList(false), 200)}
+                                />
+                                {editData.destination && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setEditData({ ...editData, destination: '' });
+                                            setDestQuery('');
+                                        }}
+                                        title="Clear destination"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 p-1"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+                            {showDestList && (
+                                <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+                                    {MASTER_DATA.locations
+                                        .filter(l => l.toLowerCase().includes((destQuery || editData.destination || '').toLowerCase()))
+                                        .map((l, i) => (
+                                            <button
+                                                key={i}
+                                                type="button"
+                                                className="w-full text-left px-4 py-3 hover:bg-blue-50 text-sm font-bold text-slate-700 transition-colors border-b border-slate-50 last:border-0"
+                                                onClick={() => {
+                                                    setEditData(prev => {
+                                                        const newData = { ...prev, destination: l };
+                                                        const contract = findContractMatch(prev.origin, l, prev.truckType, prev.subcontractor)
+                                                            || findContractMatch(prev.origin, l, prev.truckType);
+                                                        if (contract) newData.cost = contract.basePrice;
+                                                        return newData;
+                                                    });
+                                                    setDestQuery('');
+                                                    setShowDestList(false);
+                                                }}
+                                            >
+                                                {l}
+                                            </button>
+                                        ))}
+                                    {MASTER_DATA.locations.filter(l => l.toLowerCase().includes((destQuery || editData.destination || '').toLowerCase())).length === 0 && (
+                                        <div className="p-4 text-center text-xs text-slate-400 font-bold">
+                                            No match found. Using custom value.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-2">
@@ -238,29 +354,91 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                             </select>
                         </div>
 
-                        <div className="space-y-2">
-                            <label htmlFor="subcontractor-select" className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <div className="space-y-2 relative">
+                            <label htmlFor="subcontractor-input" className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                 <Truck size={12} className="text-emerald-500" /> Subcontractor / บริษัทรถร่วม
                             </label>
-                            <select
-                                id="subcontractor-select"
-                                name="subcontractor"
-                                className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all"
-                                value={editData.subcontractor}
-                                title="Select Subcontractor"
-                                onChange={e => {
-                                    const newSub = e.target.value;
-                                    const contract = findContractMatch(editData.origin, editData.destination, editData.truckType, newSub)
-                                        || findContractMatch(editData.origin, editData.destination, editData.truckType);
-                                    const newPrice = contract ? contract.basePrice : editData.cost;
-                                    setEditData({ ...editData, subcontractor: newSub, cost: newPrice });
-                                }}
-                            >
-                                <option value="">Waiting Assignment / รอจัดสรร</option>
-                                {MASTER_DATA.subcontractors.map((sub, idx) => (
-                                    <option key={`${sub}-${idx}`} value={sub}>{sub}</option>
-                                ))}
-                            </select>
+                            <div className="relative group">
+                                <input
+                                    id="subcontractor-input"
+                                    type="text"
+                                    autoComplete="off"
+                                    placeholder="Type to search subcontractor..."
+                                    className="w-full pl-4 pr-10 py-4 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all placeholder:font-normal"
+                                    value={subQuery !== '' ? subQuery : editData.subcontractor}
+                                    onFocus={() => {
+                                        setSubQuery(editData.subcontractor || '');
+                                        setShowSubList(true);
+                                    }}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setSubQuery(val);
+                                        setEditData(prev => ({ ...prev, subcontractor: val }));
+
+                                        // Recalculate price if contract exists
+                                        const contract = findContractMatch(editData.origin, editData.destination, editData.truckType, val)
+                                            || findContractMatch(editData.origin, editData.destination, editData.truckType);
+                                        const newPrice = contract ? contract.basePrice : editData.cost;
+                                        if (contract) setEditData(prev => ({ ...prev, subcontractor: val, cost: newPrice }));
+                                    }}
+                                    onBlur={() => setTimeout(() => setShowSubList(false), 200)}
+                                />
+                                {editData.subcontractor && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setEditData({ ...editData, subcontractor: '' });
+                                            setSubQuery('');
+                                        }}
+                                        title="Clear subcontractor"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 p-1"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+                            {showSubList && (
+                                <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+                                    <button
+                                        type="button"
+                                        className="w-full text-left px-4 py-3 hover:bg-emerald-50 text-sm font-bold text-emerald-600 transition-colors border-b border-slate-50 italic"
+                                        onClick={() => {
+                                            setEditData(prev => ({ ...prev, subcontractor: '' }));
+                                            setSubQuery('');
+                                            setShowSubList(false);
+                                        }}
+                                    >
+                                        Waiting Assignment / รอจัดสรร
+                                    </button>
+                                    {MASTER_DATA.subcontractors
+                                        .filter(s => s.toLowerCase().includes((subQuery || editData.subcontractor || '').toLowerCase()))
+                                        .map((s, i) => (
+                                            <button
+                                                key={i}
+                                                type="button"
+                                                className="w-full text-left px-4 py-3 hover:bg-blue-50 text-sm font-bold text-slate-700 transition-colors border-b border-slate-50 last:border-0"
+                                                onClick={() => {
+                                                    setEditData(prev => {
+                                                        const newData = { ...prev, subcontractor: s };
+                                                        const contract = findContractMatch(prev.origin, prev.destination, prev.truckType, s)
+                                                            || findContractMatch(prev.origin, prev.destination, prev.truckType);
+                                                        if (contract) newData.cost = contract.basePrice;
+                                                        return newData;
+                                                    });
+                                                    setSubQuery('');
+                                                    setShowSubList(false);
+                                                }}
+                                            >
+                                                {s}
+                                            </button>
+                                        ))}
+                                    {MASTER_DATA.subcontractors.filter(s => s.toLowerCase().includes((subQuery || editData.subcontractor || '').toLowerCase())).length === 0 && (
+                                        <div className="p-4 text-center text-xs text-slate-400 font-bold">
+                                            No match found. Using custom value.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Premium Pricing Intelligence Indicator */}
