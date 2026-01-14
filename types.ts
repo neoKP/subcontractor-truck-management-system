@@ -68,6 +68,10 @@ export interface Job {
   referenceNo?: string;
   status: JobStatus;
 
+  // Requester information
+  requestedBy?: string; // User ID of the booking officer
+  requestedByName?: string; // Name of the booking officer
+
   // Dispatcher assigned fields
   subcontractor?: string;
   driverName?: string;

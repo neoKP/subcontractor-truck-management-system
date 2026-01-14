@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Job, JobStatus } from '../types';
+import { Job, JobStatus, UserRole } from '../types';
 import { MASTER_DATA } from '../constants';
 import { Truck, MapPin, ClipboardCheck, ArrowRight, ArrowLeft, CheckCircle2, Zap, Search, Info, AlertTriangle, ShieldCheck, LayoutPanelTop } from 'lucide-react';
 import { PriceMatrix } from '../types';
@@ -10,11 +10,12 @@ interface JobRequestFormProps {
   existingJobs: Job[];
   priceMatrix: PriceMatrix[];
   onShowSummary: () => void;
+  user: { id: string; name: string; role: UserRole };
 }
 
 declare const Swal: any;
 
-const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs, priceMatrix, onShowSummary }) => {
+const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs, priceMatrix, onShowSummary, user }) => {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -102,6 +103,8 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       status: initialStatus,
       cost: hasPricing ? (matchedPricing?.basePrice ?? 0) : 0,
       sellingPrice: hasPricing ? (matchedPricing?.sellingBasePrice ?? 0) : 0,
+      requestedBy: user.id,
+      requestedByName: user.name,
     };
 
     // Show Success Alert and wait for user to click OK

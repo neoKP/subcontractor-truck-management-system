@@ -617,6 +617,11 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
                     <td className="px-8 py-6">
                       <div className="font-black text-slate-900 font-mono text-base">#{job.id}</div>
                       <div className="text-[10px] text-slate-500 font-black uppercase tracking-tighter mt-1">{job.subcontractor}</div>
+                      {job.requestedByName && (
+                        <div className="flex items-center gap-1.5 mt-1.5 bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 w-fit">
+                          <span className="text-[9px] font-bold text-indigo-600">👤 {job.requestedByName}</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-1.5 mt-2 bg-white border border-slate-100 rounded-lg px-2 py-1 w-fit">
                         <History size={10} className="text-slate-400" />
                         <span className="text-[9px] font-bold text-slate-400">{new Date(job.dateOfService).toLocaleDateString('th-TH')}</span>

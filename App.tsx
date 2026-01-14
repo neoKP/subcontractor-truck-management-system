@@ -290,6 +290,7 @@ const App: React.FC = () => {
                   existingJobs={jobs}
                   priceMatrix={priceMatrix}
                   onShowSummary={() => setShowSummaryBoard(true)}
+                  user={currentUser}
                 />
               </div>
             </div>
