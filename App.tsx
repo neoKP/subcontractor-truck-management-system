@@ -47,8 +47,29 @@ const App: React.FC = () => {
   const [logsLoaded, setLogsLoaded] = useState(false);
   const [showSummaryBoard, setShowSummaryBoard] = useState(false);
 
+  // State for Pending Pricing Modal (Lifted from JobBoard) - Refreshed Logic
+  const [showPendingPricingModal, setShowPendingPricingModal] = useState(false);
+
+  // State for passing data to Pricing Table Modal
+  const [pricingModalData, setPricingModalData] = useState<Partial<PriceMatrix> | undefined>(undefined);
+
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
   const closeSidebar = () => setSidebarOpen(false);
+
+  // New handler to navigate from JobBoard -> Pricing Tab
+  const handleNavigateToPricing = (job: Job) => {
+    setPricingModalData({
+      origin: job.origin,
+      destination: job.destination,
+      truckType: job.truckType,
+      subcontractor: job.subcontractor // Optional: if we want to pre-fill sub
+    });
+    setActiveTab('pricing');
+    // Clear data after a delay to allow modal to open? 
+    // Actually PricingTableView will react to the prop change. 
+    // We might need to clear it when modal closes, handled in PricingTableView? 
+    // For now this is fine, the useEffect in PricingTableView handles the trigger.
+  };
 
   // Sync with Firebase on mount
   React.useEffect(() => {
@@ -224,7 +245,15 @@ const App: React.FC = () => {
       />
 
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
-        <Header className="no-print" user={currentUser} onMenuToggle={toggleSidebar} jobs={jobs} />
+        <Header
+          className="no-print"
+          user={currentUser}
+          onMenuToggle={toggleSidebar}
+          jobs={jobs}
+          logs={logs}
+          onShowPendingPricing={() => setShowPendingPricingModal(true)}
+          onNavigateToLogs={() => setActiveTab('logs')}
+        />
 
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full box-border">
           {activeTab === 'create' && currentUser.role === UserRole.BOOKING_OFFICER && (
@@ -253,6 +282,9 @@ const App: React.FC = () => {
               priceMatrix={priceMatrix}
               logs={logs}
               logsLoaded={logsLoaded}
+              onAddPrice={handleNavigateToPricing}
+              showPendingPricing={showPendingPricingModal}
+              onTogglePendingPricing={setShowPendingPricingModal}
             />
           )}
 
@@ -267,6 +299,7 @@ const App: React.FC = () => {
                   priceMatrix={priceMatrix}
                   onUpdate={updatePriceMatrix}
                   userRole={currentUser.role}
+                  initialData={pricingModalData}
                 />
               </div>
             </div>

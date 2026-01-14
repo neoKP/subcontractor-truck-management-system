@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS } from '../types';
-import { Calendar, MapPin, Package, Hash, Lock, CheckCircle, Edit3, Filter, Truck, Printer, LayoutDashboard, Receipt, XCircle, Search, Trash2, ShieldAlert, ExternalLink } from 'lucide-react';
+import { Calendar, MapPin, Package, Hash, Lock, CheckCircle, Edit3, Filter, Truck, Printer, LayoutDashboard, Receipt, XCircle, Search, Trash2, ShieldAlert, ExternalLink, TrendingUp } from 'lucide-react';
 import Swal from 'sweetalert2';
 import DispatcherActionModal from './DispatcherActionModal';
 import ConfirmationModal from './ConfirmationModal';
@@ -18,15 +18,32 @@ interface JobBoardProps {
   priceMatrix: PriceMatrix[];
   logs: AuditLog[];
   logsLoaded: boolean;
+  onAddPrice?: (job: Job) => void;
+  showPendingPricing?: boolean;
+  onTogglePendingPricing?: (show: boolean) => void;
 }
 
-const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatrix, onDeleteJob, logs, logsLoaded }) => {
+const JobBoard: React.FC<JobBoardProps> = ({
+  jobs, user, onUpdateJob, priceMatrix, onDeleteJob, logs, logsLoaded,
+  onAddPrice, showPendingPricing, onTogglePendingPricing
+}) => {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showDispatcherModal, setShowDispatcherModal] = useState(false);
+  // Internal state fallback if not controlled by parent
+  const [internalShowPendingPricing, setInternalShowPendingPricing] = useState(false);
+
+  const isPendingPricingOpen = showPendingPricing !== undefined ? showPendingPricing : internalShowPendingPricing;
+  const setPendingPricingOpen = (show: boolean) => {
+    if (onTogglePendingPricing) {
+      onTogglePendingPricing(show);
+    } else {
+      setInternalShowPendingPricing(show);
+    }
+  };
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const [showPendingPricingModal, setShowPendingPricingModal] = useState(false);
+  // Removed internal showPendingPricingModal state in favor of hybrid control
   const [filter, setFilter] = useState<JobStatus | 'ALL'>('ALL');
   const [viewMode, setViewMode] = useState<'kanban' | 'table'>(
     user.role === UserRole.DISPATCHER ? 'kanban' : 'table'
@@ -414,7 +431,7 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
             <div className="absolute -right-4 -top-4 w-20 h-20 bg-emerald-50 rounded-full blur-2xl opacity-50"></div>
             <div className="flex justify-between items-start mb-6">
               <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-100 group-hover:rotate-12 transition-transform">
-                <CheckCircle size={24} />
+                <TrendingUp size={24} />
               </div>
               <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg uppercase">Success Rate</span>
             </div>
@@ -451,7 +468,7 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
 
               {/* Pending Pricing Card - NEW */}
               <div
-                onClick={() => setShowPendingPricingModal(true)}
+                onClick={() => setPendingPricingOpen(true)}
                 className="bg-white p-8 rounded-[3rem] shadow-sm border-2 border-dashed border-yellow-200 flex flex-col justify-between hover:border-yellow-400 hover:bg-yellow-50 cursor-pointer transition-all group relative overflow-hidden"
               >
                 <div className="absolute right-0 top-0 w-16 h-16 bg-yellow-400/10 rounded-bl-full"></div>
@@ -631,7 +648,8 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
                       )}
                       <td className="px-8 py-6">
                         <div className="flex items-center justify-center gap-2">
-                          {(job.status === JobStatus.ASSIGNED || (job.status === JobStatus.COMPLETED && job.accountingStatus === AccountingStatus.REJECTED)) && user.role !== UserRole.BOOKING_OFFICER && (
+
+                          {(job.status === JobStatus.ASSIGNED || (job.status === JobStatus.COMPLETED && job.accountingStatus === AccountingStatus.REJECTED && false)) && user.role !== UserRole.BOOKING_OFFICER && (
                             <button
                               onClick={(e) => { e.stopPropagation(); handleConfirmAction(job); }}
                               className="p-3 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-90 tap-spark"
@@ -998,15 +1016,19 @@ const JobBoard: React.FC<JobBoardProps> = ({ jobs, user, onUpdateJob, priceMatri
         />
       )}
 
-      {showPendingPricingModal && (
+      {isPendingPricingOpen && (
         <PendingPricingModal
           jobs={jobs}
           priceMatrix={priceMatrix}
-          isOpen={showPendingPricingModal}
-          onClose={() => setShowPendingPricingModal(false)}
+          isOpen={isPendingPricingOpen}
+          onClose={() => setPendingPricingOpen(false)}
           onAction={(job) => {
-            setShowPendingPricingModal(false);
-            handleAction(job);
+            setPendingPricingOpen(false);
+            if (onAddPrice) {
+              onAddPrice(job);
+            } else {
+              handleAction(job);
+            }
           }}
           userRole={user.role}
         />

@@ -3,9 +3,28 @@ import { Job, JobStatus, AccountingStatus, ExtraChargeDetail, UserRole } from '.
 import {
     CheckCircle, XCircle, AlertTriangle, FileText,
     Truck, MapPin, Calendar, DollarSign, Search,
-    ChevronRight, ChevronDown, Lock, Eye
+    ChevronRight, ChevronDown, Lock, Eye, X
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+
+const dataURItoBlob = (dataURI: string) => {
+    try {
+        if (!dataURI.startsWith('data:')) return null;
+        const splitData = dataURI.split(',');
+        if (splitData.length < 2) return null;
+        const byteString = atob(splitData[1]);
+        const mimeString = splitData[0].split(':')[1].split(';')[0];
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+        }
+        return new Blob([ab], { type: mimeString });
+    } catch (e) {
+        console.error('Blob conversion failed', e);
+        return null;
+    }
+};
 
 interface AccountingVerificationViewProps {
     jobs: Job[];
@@ -18,6 +37,7 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
     const [rejectReason, setRejectReason] = useState('');
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
 
     // Filter jobs: Only Completed jobs are relevant for accounting
     const accountingJobs = useMemo(() => {
@@ -226,26 +246,24 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                                         </div>
                                                     ) : (
                                                         <img
-                                                            src={url}
-                                                            alt="POD"
-                                                            className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                                                            src={url || 'https://placehold.co/400x400/f1f5f9/cbd5e1?text=No+Data'}
+                                                            alt="POD Evidence"
+                                                            loading="lazy"
+                                                            className="w-full h-full object-cover transition-transform group-hover:scale-110 bg-slate-100"
                                                             onError={(e) => {
-                                                                (e.target as HTMLImageElement).src = 'https://placehold.co/400x400/f8fafc/cbd5e1?text=Image+Load+Error';
+                                                                const target = e.target as HTMLImageElement;
+                                                                // Prevent infinite loop if placeholder fails
+                                                                if (!target.src.includes('placehold.co')) {
+                                                                    target.src = 'https://placehold.co/400x400/f8fafc/cbd5e1?text=Load+Error';
+                                                                    target.className = "w-full h-full object-contain p-4 bg-slate-50 opacity-50";
+                                                                }
                                                             }}
                                                         />
                                                     )}
                                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                                                         <button
                                                             onClick={() => {
-                                                                if (isPdf) {
-                                                                    // For PDF, we open in new tab
-                                                                    const win = window.open();
-                                                                    if (win) {
-                                                                        win.document.write(`<iframe src="${url}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-                                                                    }
-                                                                } else {
-                                                                    window.open(url, '_blank');
-                                                                }
+                                                                setPreviewImage(url);
                                                             }}
                                                             className="text-white bg-white/20 backdrop-blur-md p-2 rounded-full hover:bg-white/40 shadow-xl"
                                                             title="เปิดดูแบบเต็มหน้าจอ (View Full Screen)"
@@ -343,6 +361,49 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* Image Preview Modal (Lightbox) */}
+            {previewImage && (
+                <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setPreviewImage(null)}>
+                    <button
+                        onClick={() => setPreviewImage(null)}
+                        className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors bg-white/10 hover:bg-white/20 p-2 rounded-full"
+                        aria-label="Close Preview"
+                        title="Close Preview"
+                    >
+                        <X size={32} />
+                    </button>
+                    {previewImage && (previewImage.startsWith('data:application/pdf') || previewImage.endsWith('.pdf')) ? (() => {
+                        const blob = dataURItoBlob(previewImage);
+                        const displayUrl = blob ? URL.createObjectURL(blob) : previewImage;
+                        return (
+                            <div className="w-full max-w-5xl h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden relative">
+                                <iframe
+                                    src={displayUrl}
+                                    className="w-full h-full"
+                                    title="PDF Document Preview"
+                                />
+                                <div className="absolute bottom-6 right-6 z-10">
+                                    <a
+                                        href={previewImage}
+                                        download="document.pdf"
+                                        className="px-6 py-3 bg-slate-900 text-white rounded-xl text-sm font-black shadow-lg hover:bg-black transition-all flex items-center gap-2"
+                                    >
+                                        <FileText size={16} /> Download
+                                    </a>
+                                </div>
+                            </div>
+                        );
+                    })() : (
+                        <img
+                            src={previewImage || ''}
+                            alt="Full Preview"
+                            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    )}
+                </div>
+            )}
         </div>
     );
 };

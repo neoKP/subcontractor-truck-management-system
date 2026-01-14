@@ -8,9 +8,10 @@ interface PricingTableViewProps {
   priceMatrix: PriceMatrix[];
   onUpdate: (newList: PriceMatrix[]) => void;
   userRole: UserRole;
+  initialData?: Partial<PriceMatrix>; // New Prop for Auto-fill
 }
 
-const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpdate, userRole }) => {
+const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpdate, userRole, initialData }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -23,6 +24,22 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
     sellingBasePrice: 0,
     dropOffFee: 0
   });
+
+  // Auto-open modal if initialData is provided
+  React.useEffect(() => {
+    if (initialData) {
+      setFormData({
+        origin: initialData.origin || '',
+        destination: initialData.destination || '',
+        subcontractor: initialData.subcontractor || '',
+        truckType: initialData.truckType || '',
+        basePrice: initialData.basePrice || 0,
+        sellingBasePrice: initialData.sellingBasePrice || 0,
+        dropOffFee: initialData.dropOffFee || 0
+      });
+      setIsAdding(true);
+    }
+  }, [initialData]);
   const [filterSubCon, setFilterSubCon] = useState('');
   const [filterTruckType, setFilterTruckType] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
