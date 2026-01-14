@@ -108,7 +108,7 @@ const JobTrackingModal: React.FC<JobTrackingModalProps> = ({ job, onClose, curre
                         active={true}
                         completed={true}
                         icon={<FileText size={14} />}
-                        title="Job Request Created"
+                        title="สร้างคำขอบริการ (Job Request Created)"
                         date={job.createdAt}
                     >
                         <div className="flex items-center gap-3 mb-2">
@@ -116,8 +116,8 @@ const JobTrackingModal: React.FC<JobTrackingModalProps> = ({ job, onClose, curre
                                 {job.bookingOfficer ? job.bookingOfficer.charAt(0) : 'U'}
                             </div>
                             <div>
-                                <p className="text-xs font-bold text-slate-700">Booking Officer</p>
-                                <p className="text-[10px] text-slate-500">{job.bookingOfficer || 'Unknown User'}</p>
+                                <p className="text-xs font-bold text-slate-700">เจ้าหน้าที่ Booking</p>
+                                <p className="text-[10px] text-slate-500">{job.bookingOfficer || 'ไม่ระบุ'}</p>
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-[10px] bg-slate-100 p-2 rounded-lg">
@@ -137,13 +137,13 @@ const JobTrackingModal: React.FC<JobTrackingModalProps> = ({ job, onClose, curre
                         active={job.status !== JobStatus.PENDING_PRICING && job.status !== JobStatus.NEW_REQUEST}
                         completed={isCompleted || isBilled}
                         icon={<Truck size={14} />}
-                        title="Transportation"
+                        title="ดำเนินการขนส่ง (Transportation)"
                         date={job.dateOfService} // Approximate
                     >
                         <div className="space-y-3">
                             <div className="flex items-center justify-between">
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${isCompleted ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                    {isCompleted ? 'Completed' : 'In Progress'}
+                                    {isCompleted ? 'เสร็จสิ้น (Completed)' : 'กำลังดำเนินการ (In Progress)'}
                                 </span>
                             </div>
 
@@ -151,7 +151,7 @@ const JobTrackingModal: React.FC<JobTrackingModalProps> = ({ job, onClose, curre
                                 <div className="flex items-center gap-3 p-2 bg-slate-100 rounded-lg">
                                     <User size={16} className="text-slate-400" />
                                     <div>
-                                        <p className="text-xs font-bold text-slate-700">{job.driverName || 'No Driver Assigned'}</p>
+                                        <p className="text-xs font-bold text-slate-700">{job.driverName || 'ยังไม่ได้มอบหมายพนักงานขับรถ'}</p>
                                         <p className="text-[10px] text-slate-500">{job.licensePlate} {job.phone ? `• ${job.phone}` : ''}</p>
                                     </div>
                                 </div>
@@ -160,7 +160,7 @@ const JobTrackingModal: React.FC<JobTrackingModalProps> = ({ job, onClose, curre
                             {/* POD Thumbnail */}
                             {job.podImageUrls && job.podImageUrls.length > 0 && (
                                 <div className="mt-2">
-                                    <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase">Proof of Delivery</p>
+                                    <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase">หลักฐานการส่งมอบ (Proof of Delivery)</p>
                                     <div className="flex -space-x-2 overflow-hidden">
                                         {job.podImageUrls.map((url, i) => (
                                             <div key={i} className="w-10 h-10 rounded-lg border-2 border-white shadow-sm overflow-hidden bg-slate-200">
@@ -181,21 +181,21 @@ const JobTrackingModal: React.FC<JobTrackingModalProps> = ({ job, onClose, curre
                         active={isCompleted}
                         completed={isBilled || isPaid}
                         icon={<Receipt size={14} />}
-                        title="Billing Document"
+                        title="เอกสารวางบิล (Billing Document)"
                         date={job.billingDate}
                     >
                         {job.billingDocNo ? (
                             <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3">
                                 <div className="flex justify-between items-center mb-1">
-                                    <span className="text-[10px] font-bold text-indigo-400 uppercase">Billing Ref</span>
+                                    <span className="text-[10px] font-bold text-indigo-400 uppercase">เลขที่ใบวางบิล</span>
                                     <span className="text-xs font-black text-indigo-700 font-mono">{job.billingDocNo}</span>
                                 </div>
                                 <p className="text-[10px] text-indigo-500">
-                                    Billing Date: {new Date(job.billingDate!).toLocaleDateString('th-TH')}
+                                    วันที่วางบิล: {new Date(job.billingDate!).toLocaleDateString('th-TH')}
                                 </p>
                             </div>
                         ) : (
-                            <p className="text-[10px] text-slate-400 italic">Waiting for billing document issuing...</p>
+                            <p className="text-[10px] text-slate-400 italic">รอออกเอกสารวางบิล...</p>
                         )}
                     </TimelineStep>
 
@@ -204,24 +204,24 @@ const JobTrackingModal: React.FC<JobTrackingModalProps> = ({ job, onClose, curre
                         active={isBilled}
                         completed={isPaid}
                         icon={<CreditCard size={14} />}
-                        title="Payment Status"
+                        title="สถานะการจ่ายเงิน (Payment Status)"
                         isLast={true}
                         date={job.paymentDate}
                     >
                         {isPaid ? (
                             <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 flex flex-col gap-2">
                                 <div className="flex items-center gap-2 text-emerald-700 font-bold text-xs uppercase tracking-wider">
-                                    <ShieldCheck size={16} /> Paid & Secured
+                                    <ShieldCheck size={16} /> จ่ายเงินแล้ว (Paid & Secured)
                                 </div>
                                 <p className="text-[10px] text-emerald-600">
-                                    Payment Date: {new Date(job.paymentDate!).toLocaleDateString('th-TH')}
+                                    วันที่จ่ายเงิน: {new Date(job.paymentDate!).toLocaleDateString('th-TH')}
                                 </p>
                                 {/* Could show Slip Thumbnail here if wanted */}
                             </div>
                         ) : (
                             <div className="flex items-center gap-2 text-slate-400 text-[10px] italic">
                                 <Clock size={12} />
-                                <span>Processing Payment Check...</span>
+                                <span>รอการตรวจสอบการชำระเงิน...</span>
                             </div>
                         )}
                     </TimelineStep>
