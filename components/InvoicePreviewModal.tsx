@@ -73,12 +73,21 @@ const bahtText = (num: number): string => {
 interface InvoicePreviewModalProps {
     jobs: Job[];
     onClose: () => void;
-    onBatchConfirm: (jobs: Job[]) => void;
+    onBatchConfirm?: (jobs: Job[]) => void;
+    existingDocNo?: string;
+    existingDate?: string;
+    readOnly?: boolean;
 }
 
-const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ jobs, onClose, onBatchConfirm }) => {
+const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
+    jobs,
+    onClose,
+    onBatchConfirm,
+    existingDocNo,
+    existingDate,
+    readOnly = false
+}) => {
     const mainJob = jobs[0];
-    const primaryJob = jobs[0]; // Fix for persistent ReferenceError
     const printRef = useRef<HTMLDivElement>(null);
 
     const [vatRate, setVatRate] = useState<string | number>(7);
@@ -88,31 +97,22 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ jobs, onClose
     const [applyWht, setApplyWht] = useState(true);
     const [isEditingWht, setIsEditingWht] = useState(false);
     const [dueDate, setDueDate] = useState(() => {
+        if (existingDate) {
+            const d = new Date(existingDate);
+            d.setDate(d.getDate() + 30);
+            return d;
+        }
         const d = new Date();
         d.setDate(d.getDate() + 30);
         return d;
     });
     const [isEditingDueDate, setIsEditingDueDate] = useState(false);
 
-    // Contractor Reference Info
-
-
     if (!mainJob) return null;
 
     const handlePrint = () => {
         if (!printRef.current) return;
         window.print();
-    };
-
-    const finalizeBilled = () => {
-        const updatedJobs = jobs.map(j => ({
-            ...j,
-            status: JobStatus.BILLED,
-            billingDocNo: documentNumber,
-            billingDate: issueDate.toISOString()
-        }));
-        onBatchConfirm(updatedJobs);
-        onClose();
     };
 
     // Calculate Totals for all jobs
@@ -122,13 +122,23 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ jobs, onClose
     const billTotal = subtotal + vatAmount;
     const netTotal = subtotal + vatAmount - whtAmount;
 
-    // Generate Document Number (e.g., BA-202601-048)
-    const now = new Date();
+    // Generate Document Number (e.g., BA-202601-048) OR use existing
+    const now = existingDate ? new Date(existingDate) : new Date();
     const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const documentNumber = `BA-${yearMonth}-${mainJob.id.split('-').pop()}`;
+    const documentNumber = existingDocNo || `BA-${yearMonth}-${mainJob.id.split('-').pop()}`;
+    const issueDate = existingDate ? new Date(existingDate) : new Date();
 
-    // Static Issue Date
-    const issueDate = new Date();
+    const finalizeBilled = () => {
+        if (readOnly || !onBatchConfirm) return;
+        const updatedJobs = jobs.map(j => ({
+            ...j,
+            status: JobStatus.BILLED,
+            billingDocNo: documentNumber,
+            billingDate: issueDate.toISOString()
+        }));
+        onBatchConfirm(updatedJobs);
+        onClose();
+    };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -381,7 +391,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ jobs, onClose
                                             </div>
                                         )}
                                     </div>
-                                    <span className="font-bold text-slate-900">{whtAmount > 0 ? `-${whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '0.00'}</span>
+                                    <span className="font-bold text-slate-900">{whtAmount > 0 ? `- ${whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ` : '0.00'}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-2 px-1 bg-slate-100 mt-2 rounded-sm border border-slate-200">
                                     <span className="font-black text-slate-900 uppercase text-xs">ยอดเงินสุทธิ (Net Total)</span>
@@ -425,17 +435,26 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ jobs, onClose
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             {jobs.length} Job References Linked to this Acknowledgement (BA)
                         </p>
-                        <p className="text-[9px] font-bold text-blue-500">
-                            * คลิกไอคอน <Edit2 size={10} className="inline mx-1" /> ในตัวเอกสารเพื่อแก้ไข เลขที่ใบวางบิล/ใบกำกับภาษี ของรถร่วมก่อนพิมพ์
-                        </p>
+                        {!readOnly && (
+                            <p className="text-[9px] font-bold text-blue-500">
+                                * คลิกไอคอน <Edit2 size={10} className="inline mx-1" /> ในตัวเอกสารเพื่อแก้ไข เลขที่ใบวางบิล/ใบกำกับภาษี ของรถร่วมก่อนพิมพ์
+                            </p>
+                        )}
                     </div>
                     <div className="flex items-center gap-3">
                         <button onClick={handlePrint} className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl text-xs font-black uppercase hover:bg-slate-800 transition-all shadow-xl shadow-slate-200">
                             <Printer size={16} /> Print / Save PDF
                         </button>
-                        <button onClick={finalizeBilled} className="flex items-center gap-2 px-8 py-3 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100">
-                            <CheckCircle size={16} /> Confirm & Issue Acknowledgement ({jobs.length})
-                        </button>
+                        {!readOnly && onBatchConfirm && (
+                            <button onClick={finalizeBilled} className="flex items-center gap-2 px-8 py-3 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100">
+                                <CheckCircle size={16} /> Confirm & Issue Acknowledgement ({jobs.length})
+                            </button>
+                        )}
+                        {readOnly && (
+                            <button onClick={onClose} className="flex items-center gap-2 px-8 py-3 bg-slate-100 text-slate-600 rounded-xl text-xs font-black uppercase hover:bg-slate-200 transition-all">
+                                Close
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

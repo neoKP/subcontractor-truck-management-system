@@ -3,6 +3,8 @@ import React, { useState, useMemo } from 'react';
 import { Job, JobStatus, UserRole, AccountingStatus, AuditLog, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS } from '../types';
 import { DollarSign, ExternalLink, FileCheck, Info, TrendingUp, CheckCircle, XCircle, Lock, AlertCircle, History, Receipt } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
+import PaymentModal from './PaymentModal';
+import { Download, CreditCard, FileText } from 'lucide-react';
 
 interface BillingViewProps {
   jobs: Job[];
@@ -11,12 +13,21 @@ interface BillingViewProps {
 }
 
 const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) => {
-  const [activeFilter, setActiveFilter] = useState<AccountingStatus | 'ALL' | 'PENDING_BILL'>('ALL');
+  const [viewTab, setViewTab] = useState<'VERIFICATION' | 'BILLING' | 'PAYMENT'>('VERIFICATION');
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'REJECTED' | 'READY' | 'HISTORY' | 'PAID'>('ALL'); // Sub-filter
+
+  // Invoice Modal State
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [selectedInvoiceJobs, setSelectedInvoiceJobs] = useState<Job[]>([]);
+  const [isInvoiceViewMode, setIsInvoiceViewMode] = useState(false);
+
+  // Payment Modal State
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentTargetJobs, setPaymentTargetJobs] = useState<Job[]>([]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedInvoiceJobs, setSelectedInvoiceJobs] = useState<Job[]>([]);
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
   // New Filters
   const [filterDateStart, setFilterDateStart] = useState('');
@@ -30,6 +41,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
 
   const filteredJobs = jobs.filter(j => {
     if (j.status === JobStatus.CANCELLED) return false;
+    // Base Check: Must be Completed or Billed
     if (j.status !== JobStatus.COMPLETED && j.status !== JobStatus.BILLED) return false;
 
     // Search filter
@@ -47,9 +59,44 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
     // Subcontractor Filter
     if (filterSub !== 'ALL' && j.subcontractor !== filterSub) return false;
 
-    if (activeFilter === 'ALL') return true;
-    if (activeFilter === 'PENDING_BILL') return j.status === JobStatus.COMPLETED && j.accountingStatus === AccountingStatus.APPROVED;
-    return j.accountingStatus === activeFilter;
+    // --- TAB LOGIC ---
+    if (viewTab === 'VERIFICATION') {
+      // Show jobs waiting for review (Pending or Rejected). Exclude Approved/Locked/Billed.
+      // Criteria: Completed AND (No Accounting Status OR Pending OR Rejected)
+      const isPending = j.status === JobStatus.COMPLETED &&
+        (j.accountingStatus === AccountingStatus.PENDING_REVIEW || !j.accountingStatus || j.accountingStatus === AccountingStatus.REJECTED);
+
+      if (!isPending) return false;
+
+      // Sub-filter: Rejected
+      if (activeFilter === 'REJECTED') return j.accountingStatus === AccountingStatus.REJECTED;
+
+      return true;
+    } else if (viewTab === 'BILLING') {
+      // BILLING TAB
+      // Show jobs ready to bill (Approved) or History (Billed/Locked).
+      const isBilling = (j.status === JobStatus.COMPLETED && j.accountingStatus === AccountingStatus.APPROVED) ||
+        (j.status === JobStatus.BILLED) ||
+        (j.accountingStatus === AccountingStatus.LOCKED);
+
+      if (!isBilling) return false;
+
+      // Sub-filters
+      if (activeFilter === 'READY') return j.accountingStatus === AccountingStatus.APPROVED && j.status === JobStatus.COMPLETED;
+      if (activeFilter === 'HISTORY') return j.status === JobStatus.BILLED || j.accountingStatus === AccountingStatus.LOCKED;
+
+      return true;
+    } else {
+      // PAYMENT TAB
+      // Show jobs that are BILLED (ready to pay) or PAID/LOCKED (History)
+      const isPayment = j.status === JobStatus.BILLED || j.accountingStatus === AccountingStatus.PAID || j.accountingStatus === AccountingStatus.LOCKED;
+      if (!isPayment) return false;
+
+      if (activeFilter === 'READY') return j.status === JobStatus.BILLED && j.accountingStatus !== AccountingStatus.PAID && j.accountingStatus !== AccountingStatus.LOCKED;
+      if (activeFilter === 'PAID') return j.accountingStatus === AccountingStatus.PAID || j.accountingStatus === AccountingStatus.LOCKED;
+
+      return true;
+    }
   });
 
   const totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
@@ -192,6 +239,145 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
     }
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const compressImage = async (file: File): Promise<string> => {
+    // If not an image (e.g. PDF), fallback to normal Base64
+    if (!file.type.startsWith('image/')) {
+      return fileToBase64(file);
+    }
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.src = objectUrl;
+
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Resize logic: Max Width 1280px (Keep aspect ratio)
+          const MAX_WIDTH = 1200;
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('Canvas context unavailable');
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert to WebP with 0.8 quality (High quality, low size)
+          // This typically reduces 5MB -> ~300-500KB
+          const compressedDataUrl = canvas.toDataURL('image/webp', 0.8);
+
+          URL.revokeObjectURL(objectUrl);
+          resolve(compressedDataUrl);
+        } catch (err) {
+          URL.revokeObjectURL(objectUrl);
+          // Fallback to original if canvas fails
+          resolve(fileToBase64(file));
+        }
+      };
+
+      img.onerror = (err) => {
+        URL.revokeObjectURL(objectUrl);
+        reject(err);
+      };
+    });
+  };
+
+  const handleOpenPaymentModal = (jobsToPay: Job[]) => {
+    setPaymentTargetJobs(jobsToPay);
+    setShowPaymentModal(true);
+  };
+
+  const handleConfirmPayment = async (date: string, file: File | null) => {
+    let slipUrl = '';
+    if (file) {
+      // Use the new compression function
+      try {
+        slipUrl = await compressImage(file);
+      } catch (error) {
+        console.error("Compression failed, using original", error);
+        slipUrl = await fileToBase64(file);
+      }
+    }
+
+    const logs: AuditLog[] = [];
+
+    paymentTargetJobs.forEach(job => {
+      const updatedJob: Job = {
+        ...job,
+        accountingStatus: AccountingStatus.PAID,
+        paymentDate: date,
+        paymentSlipUrl: slipUrl,
+        isBaseCostLocked: true
+      };
+
+      const log: AuditLog = {
+        id: `LOG-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        jobId: job.id,
+        userId: user.id,
+        userName: user.name,
+        userRole: user.role,
+        timestamp: new Date().toISOString(),
+        field: 'Payment',
+        oldValue: job.accountingStatus || 'Unpaid',
+        newValue: 'PAID',
+        reason: `Payment Recorded: ${date}`
+      };
+
+      logs.push(log);
+      onUpdateJob(updatedJob, [log]);
+    });
+
+    (window as any).Swal.fire({
+      icon: 'success',
+      title: 'Payment Recorded',
+      text: `Successfully recorded payment for ${paymentTargetJobs.length} jobs.`,
+      timer: 1500
+    });
+  };
+
+  const downloadPaymentReport = () => {
+    const headers = ['Job ID', 'Date', 'Subcontractor', 'Route', 'Cost', 'Extra', 'Total', 'Payment Date', 'Status'];
+    const rows = filteredJobs.map(j => [
+      j.id,
+      new Date(j.dateOfService).toLocaleDateString('en-GB'),
+      j.subcontractor || '-',
+      `"${j.origin} -> ${j.destination}"`,
+      j.cost || 0,
+      j.extraCharge || 0,
+      (j.cost || 0) + (j.extraCharge || 0),
+      j.paymentDate ? new Date(j.paymentDate).toLocaleDateString('en-GB') : '-',
+      j.accountingStatus || '-'
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `payment_report_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const getAccStatusBadge = (status?: AccountingStatus) => {
     switch (status) {
       case AccountingStatus.PENDING_REVIEW: return 'bg-amber-100 text-amber-700 border-amber-200';
@@ -205,18 +391,87 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
   return (
     <div className="space-y-8">
       {/* Filters & Navigation */}
-      <div className="flex flex-wrap items-center gap-3">
-        {(['ALL', 'PENDING_BILL', AccountingStatus.PENDING_REVIEW, AccountingStatus.APPROVED, AccountingStatus.REJECTED, AccountingStatus.LOCKED] as const).map(f => (
+      {/* Tab Switcher */}
+      <div className="flex flex-col gap-6">
+        <div className="flex p-1 bg-slate-100 rounded-2xl w-fit border border-slate-200">
           <button
-            key={f}
-            onClick={() => setActiveFilter(f)}
-            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === f ? 'bg-slate-900 text-white border-slate-900 shadow-xl scale-105' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-400 active:scale-95'}`}
+            onClick={() => { setViewTab('VERIFICATION'); setActiveFilter('ALL'); setCurrentPage(1); }}
+            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'VERIFICATION' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            {f === 'ALL' ? 'ทั้งหมด (All Records)' :
-              f === 'PENDING_BILL' ? '🔔 รอรับวางบิล (Pending Acknowledgement)' :
-                ACCOUNTING_STATUS_LABELS[f]}
+            🟢 Verification Center (รอตรวจสอบ)
           </button>
-        ))}
+          <button
+            onClick={() => { setViewTab('BILLING'); setActiveFilter('ALL'); setCurrentPage(1); }}
+            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'BILLING' ? 'bg-white text-indigo-600 shadow-sm border border-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            🔵 Billing Center (รอวางบิล)
+          </button>
+          <button
+            onClick={() => { setViewTab('PAYMENT'); setActiveFilter('ALL'); setCurrentPage(1); }}
+            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'PAYMENT' ? 'bg-white text-emerald-600 shadow-sm border border-emerald-100' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            💳 Payment Center (รอจ่ายเงิน)
+          </button>
+        </div>
+
+        {/* Sub-Filters */}
+        <div className="flex flex-wrap items-center gap-3 w-full">
+          <button
+            onClick={() => setActiveFilter('ALL')}
+            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'ALL' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+          >
+            Show All (ทั้งหมด)
+          </button>
+
+          {viewTab === 'VERIFICATION' && (
+            <button
+              onClick={() => setActiveFilter('REJECTED')}
+              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'REJECTED' ? 'bg-rose-600 text-white border-rose-600 shadow-lg' : 'bg-white text-rose-400 border-rose-100 hover:border-rose-300'}`}
+            >
+              Rejected Only (งานถูกตีกลับ)
+            </button>
+          )}
+
+          {viewTab === 'BILLING' && (
+            <>
+              <button
+                onClick={() => setActiveFilter('READY')}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'READY' ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-white text-emerald-600 border-emerald-100 hover:border-emerald-300'}`}
+              >
+                Ready to Bill (รอวางบิล)
+              </button>
+              <button
+                onClick={() => setActiveFilter('HISTORY')}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'HISTORY' ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+              >
+                Billing History (ประวัติการวางบิล)
+              </button>
+            </>
+          )}
+
+          {viewTab === 'PAYMENT' && (
+            <>
+              <button
+                onClick={() => setActiveFilter('READY')}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'READY' ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-white text-indigo-600 border-indigo-100 hover:border-indigo-300'}`}
+              >
+                To Pay (รอจ่ายเงิน)
+              </button>
+              <button
+                onClick={() => setActiveFilter('PAID')}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'PAID' ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-white text-emerald-600 border-emerald-100 hover:border-emerald-300'}`}
+              >
+                Paid History (ประวัติจ่ายแล้ว)
+              </button>
+              <button
+                onClick={downloadPaymentReport}
+                className="ml-auto px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border bg-white text-slate-600 border-slate-200 hover:border-slate-400 flex items-center gap-2"
+              >
+                <Download size={14} /> Export Report
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Stats Row */}
@@ -424,41 +679,89 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
                       </div>
                     </td>
                     <td className="px-8 py-6">
-                      <div className="flex flex-wrap gap-2 justify-center max-w-[160px] mx-auto">
+                      <div className="flex flex-col gap-2 relative z-10">
+                        {/* POD / Evidence Display */}
                         {job.podImageUrls && job.podImageUrls.length > 0 ? (
-                          job.podImageUrls.map((base64Url, idx) => {
-                            const isPdf = base64Url.startsWith('data:application/pdf');
-                            return (
-                              <button
-                                key={idx}
-                                onClick={() => {
-                                  if (typeof (window as any).Swal !== 'undefined') {
-                                    const blob = base64ToBlob(base64Url);
-                                    if (!blob) return;
-                                    const blobUrl = URL.createObjectURL(blob);
-                                    (window as any).Swal.fire({
-                                      title: `POD Verify #${job.id}`,
-                                      html: isPdf
-                                        ? `<iframe src="${blobUrl}" width="100%" height="500px" style="border:none; border-radius: 12px; margin-bottom: 20px;"></iframe>`
-                                        : `<div style="margin-bottom: 20px;"><img src="${blobUrl}" style="max-width: 100%; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);" /></div>`,
-                                      width: isPdf ? '800px' : '650px',
-                                      confirmButtonText: 'Done',
-                                      confirmButtonColor: '#2563eb',
-                                      customClass: { popup: 'rounded-[2rem]' },
-                                      didClose: () => URL.revokeObjectURL(blobUrl)
-                                    });
-                                  }
-                                }}
-                                className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center border border-indigo-100 shadow-sm group/pod active:scale-90"
-                                title="View POD"
-                              >
-                                <Receipt size={24} className="group-hover/pod:scale-110 transition-transform" />
-                              </button>
-                            );
-                          })
+                          <div className="flex flex-wrap gap-1">
+                            {job.podImageUrls.map((url, idx) => {
+                              const isPdf = url.startsWith('data:application/pdf');
+                              return (
+                                <button
+                                  key={idx}
+                                  onClick={() => {
+                                    if ((window as any).Swal) {
+                                      if (isPdf) {
+                                        const base64Content = url.split(',')[1];
+                                        const byteCharacters = atob(base64Content);
+                                        const byteNumbers = new Array(byteCharacters.length);
+                                        for (let i = 0; i < byteCharacters.length; i++) {
+                                          byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                        }
+                                        const byteArray = new Uint8Array(byteNumbers);
+                                        const blob = new Blob([byteArray], { type: 'application/pdf' });
+                                        const blobUrl = URL.createObjectURL(blob);
+
+                                        (window as any).Swal.fire({
+                                          html: `<iframe src="${blobUrl}" width="100%" height="600px" style="border:none; border-radius: 8px;"></iframe>`,
+                                          showConfirmButton: false,
+                                          width: '800px',
+                                          showCloseButton: true,
+                                          willClose: () => URL.revokeObjectURL(blobUrl)
+                                        });
+                                      } else {
+                                        (window as any).Swal.fire({
+                                          imageUrl: url,
+                                          imageAlt: 'POD',
+                                          showConfirmButton: false,
+                                          width: 'auto',
+                                          background: 'transparent',
+                                          backdrop: 'rgba(0,0,0,0.8)',
+                                          showCloseButton: true
+                                        });
+                                      }
+                                    }
+                                  }}
+                                  className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 hover:scale-110 transition-transform overflow-hidden shadow-sm relative flex items-center justify-center group"
+                                  title={`View POD ${idx + 1}`}
+                                >
+                                  {isPdf ? (
+                                    <FileText size={16} className="text-rose-500" />
+                                  ) : (
+                                    <img
+                                      src={url}
+                                      alt={`POD ${idx + 1}`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
                         ) : (
-                          <div className="px-4 py-4 rounded-2xl bg-rose-50 border border-rose-100 text-rose-400 text-[10px] font-black uppercase tracking-widest leading-tight text-center max-w-[100px]">
-                            NO<br />DOCUMENT
+                          <span className="text-[10px] text-slate-400 italic flex items-center gap-1">
+                            <AlertCircle size={12} /> No POD
+                          </span>
+                        )}
+
+                        {/* Billing Doc Reference */}
+                        {job.billingDocNo && (
+                          <div className="mt-1 pt-2 border-t border-slate-100">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Billing Ref:</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-slate-700 font-mono bg-slate-100 px-1.5 py-0.5 rounded">{job.billingDocNo}</span>
+                              <button
+                                onClick={() => {
+                                  const relatedJobs = jobs.filter(j => j.billingDocNo === job.billingDocNo);
+                                  setSelectedInvoiceJobs(relatedJobs.length > 0 ? relatedJobs : [job]);
+                                  setShowInvoiceModal(true);
+                                  setIsInvoiceViewMode(true);
+                                }}
+                                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
+                                title="View Billing Acknowledgement"
+                              >
+                                <Receipt size={14} />
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -497,18 +800,30 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
                               </button>
                             )}
 
-                            {job.status === JobStatus.BILLED && job.accountingStatus !== AccountingStatus.LOCKED && (
-                              <button
-                                onClick={() => handleAccountingAction(job, AccountingStatus.LOCKED)}
-                                className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 hover:bg-slate-900 hover:text-white transition-all border border-slate-200 flex items-center justify-center shadow-sm"
-                                title="Final Lock / ปิดงานถาวร"
-                              >
-                                <Lock size={18} />
-                              </button>
-                            )}
+                            {/* Manual Lock button removed to enforce Payment Slip requirement */}
                           </div>
                         ) : (
                           <span className="text-[10px] font-black text-slate-300 uppercase italic">Access Restricted (Audit Only)</span>
+                        )}
+
+                        {/* Payment Actions */}
+                        {viewTab === 'PAYMENT' && job.accountingStatus !== AccountingStatus.PAID && job.accountingStatus !== AccountingStatus.LOCKED && (
+                          <button
+                            onClick={() => handleOpenPaymentModal([job])}
+                            className="px-6 py-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 flex flex-col items-center gap-1 min-w-[120px]"
+                          >
+                            <span>แจ้งชำระเงิน</span>
+                            <span className="opacity-80">(Mark Paid)</span>
+                          </button>
+                        )}
+
+                        {job.accountingStatus === AccountingStatus.PAID && (
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-200">
+                              <CreditCard size={12} /> PAID & LOCKED
+                            </div>
+                            {job.paymentDate && <span className="text-[9px] font-bold text-slate-400">Date: {new Date(job.paymentDate).toLocaleDateString('th-TH')}</span>}
+                          </div>
                         )}
 
                         {job.accountingStatus === AccountingStatus.LOCKED && (
@@ -591,21 +906,34 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
       {showInvoiceModal && selectedInvoiceJobs.length > 0 && (
         <InvoicePreviewModal
           jobs={selectedInvoiceJobs}
+          readOnly={isInvoiceViewMode}
+          existingDocNo={isInvoiceViewMode ? selectedInvoiceJobs[0]?.billingDocNo : undefined}
+          existingDate={isInvoiceViewMode ? selectedInvoiceJobs[0]?.billingDate : undefined}
           onClose={() => {
             setShowInvoiceModal(false);
             setSelectedInvoiceJobs([]);
+            setIsInvoiceViewMode(false);
           }}
           onBatchConfirm={(updatedJobs) => {
             updatedJobs.forEach(uj => onUpdateJob(uj));
             setShowInvoiceModal(false);
             setSelectedInvoiceJobs([]);
             setSelectedJobIds([]);
+            setIsInvoiceViewMode(false);
           }}
         />
       )}
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onSubmit={handleConfirmPayment}
+        totalAmount={paymentTargetJobs.reduce((sum, j) => sum + (j.cost || 0) + (j.extraCharge || 0), 0)}
+        jobCount={paymentTargetJobs.length}
+      />
     </div>
   );
 };
 
 export default BillingView;
-

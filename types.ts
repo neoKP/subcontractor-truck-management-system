@@ -35,14 +35,16 @@ export enum AccountingStatus {
   PENDING_REVIEW = 'Pending Review',
   APPROVED = 'Approved',
   REJECTED = 'Rejected',
-  LOCKED = 'Locked (Final)'
+  LOCKED = 'Locked (Final)',
+  PAID = 'Paid'
 }
 
 export const ACCOUNTING_STATUS_LABELS: Record<AccountingStatus, string> = {
   [AccountingStatus.PENDING_REVIEW]: 'รอตรวจสอบ (Pending Review)',
   [AccountingStatus.APPROVED]: 'อนุมัติแล้ว (Approved)',
   [AccountingStatus.REJECTED]: 'ไม่อนุมัติ/แก้ไข (Rejected)',
-  [AccountingStatus.LOCKED]: 'ปิดงานถาวร (Locked)'
+  [AccountingStatus.LOCKED]: 'ปิดงานถาวร (Locked)',
+  [AccountingStatus.PAID]: 'จ่ายเงินแล้ว (Paid)'
 };
 
 export interface ExtraChargeDetail {
@@ -87,6 +89,8 @@ export interface Job {
   isBaseCostLocked?: boolean;
   billingDate?: string;
   billingDocNo?: string;
+  paymentDate?: string;
+  paymentSlipUrl?: string;
 }
 
 export interface AuditLog {
