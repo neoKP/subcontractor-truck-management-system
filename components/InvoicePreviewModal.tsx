@@ -105,7 +105,12 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({ jobs, onClose
     };
 
     const finalizeBilled = () => {
-        const updatedJobs = jobs.map(j => ({ ...j, status: JobStatus.BILLED }));
+        const updatedJobs = jobs.map(j => ({
+            ...j,
+            status: JobStatus.BILLED,
+            billingDocNo: documentNumber,
+            billingDate: issueDate.toISOString()
+        }));
         onBatchConfirm(updatedJobs);
         onClose();
     };

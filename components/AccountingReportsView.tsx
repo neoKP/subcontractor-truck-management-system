@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Job, AuditLog, JobStatus, UserRole } from '../types';
 import { BarChart as BarIcon, DollarSign, TrendingUp, AlertTriangle, CheckCircle, XCircle, PieChart, Calendar, ChevronDown, Activity, Truck, Map as MapIcon, Layers, Download, Filter, RotateCcw, ArrowUpRight, ArrowDownRight, FileDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import BillingReportView from './BillingReportView';
 
 interface AccountingReportsViewProps {
     jobs: Job[];
@@ -175,6 +176,7 @@ const TrendLineChart = ({ data, color }: { data: { label: string; value: number 
 // --- Main Component ---
 
 const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, logs, userRole }) => {
+    const canViewBilling = userRole === UserRole.ADMIN || userRole === UserRole.ACCOUNTANT;
     const [filterType, setFilterType] = useState<'day' | 'month' | 'year' | 'custom'>('year');
     const [filterYear, setFilterYear] = useState(new Date().getFullYear());
     const [filterMonth, setFilterMonth] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
@@ -184,6 +186,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
         end: new Date().toISOString().split('T')[0]
     });
     const [statusFilter, setStatusFilter] = useState<JobStatus | 'ALL'>('ALL');
+    const [reportMode, setReportMode] = useState<'profit' | 'billing'>(canViewBilling ? 'billing' : 'profit');
 
     const [viewMode, setViewMode] = useState<'dashboard' | 'table'>('dashboard');
     const [groupBy, setGroupBy] = useState<'sub' | 'route'>('sub');
@@ -401,410 +404,440 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
             {/* Header / Filter Bar */}
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 no-print">
                 <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-slate-200">
-                        <BarIcon size={24} />
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg transition-colors ${reportMode === 'billing' ? 'bg-emerald-600 shadow-emerald-200' : 'bg-slate-900 shadow-slate-200'}`}>
+                        {reportMode === 'billing' ? <FileDown size={24} /> : <BarIcon size={24} />}
                     </div>
                     <div>
-                        <h2 className="text-xl font-black text-slate-900 leading-tight uppercase">การประมวลผลตัวเลข</h2>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Data Aggregation Service</p>
+                        <h2 className="text-xl font-black text-slate-900 leading-tight uppercase">
+                            {reportMode === 'billing' ? 'รายงานการวางบิล' : 'การประมวลผลตัวเลข'}
+                        </h2>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                            {reportMode === 'billing' ? 'Billing Performance Report' : 'Data Aggregation Service'}
+                        </p>
                     </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
-                    {/* Filter Type Selector */}
-                    <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                        {[
-                            { id: 'day', label: 'รายวัน' },
-                            { id: 'month', label: 'รายเดือน' },
-                            { id: 'year', label: 'รายปี' },
-                            { id: 'custom', label: 'คัดกรองเอง' }
-                        ].map(type => (
-                            <button
-                                key={type.id}
-                                onClick={() => setFilterType(type.id as any)}
-                                className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all ${filterType === type.id
-                                    ? 'bg-white text-slate-900 shadow-sm'
-                                    : 'text-slate-400 hover:text-slate-600'
-                                    }`}
-                            >
-                                {type.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Dynamic Filter Controls */}
-                    <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 flex-1 sm:flex-initial">
-                        {filterType === 'day' && (
-                            <input
-                                type="date"
-                                value={filterDay}
-                                onKeyDown={(e) => e.preventDefault()}
-                                onChange={(e) => setFilterDay(e.target.value)}
-                                aria-label="เลือกวันที่"
-                                title="เลือกวันที่"
-                                className="bg-transparent text-sm font-black text-slate-700 outline-none focus:ring-0 cursor-pointer"
-                            />
-                        )}
-                        {filterType === 'month' && (
-                            <div className="flex items-center gap-1">
-                                <select
-                                    value={filterMonth.split('-')[1]}
-                                    onChange={(e) => {
-                                        const [y] = filterMonth.split('-');
-                                        setFilterMonth(`${y}-${e.target.value}`);
-                                    }}
-                                    title="เลือกเดือน"
-                                    aria-label="เลือกเดือน"
-                                    className="bg-transparent text-sm font-black text-slate-700 outline-none cursor-pointer hover:text-blue-600 transition-colors"
-                                >
-                                    {Array.from({ length: 12 }, (_, i) => {
-                                        const m = String(i + 1).padStart(2, '0');
-                                        return (
-                                            <option key={m} value={m} className="text-slate-900 bg-white">
-                                                {new Date(2024, i).toLocaleString('th-TH', { month: 'short' })}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
-                                <span className="text-slate-300">/</span>
-                                <select
-                                    value={filterMonth.split('-')[0]}
-                                    onChange={(e) => {
-                                        const [, m] = filterMonth.split('-');
-                                        setFilterMonth(`${e.target.value}-${m}`);
-                                    }}
-                                    title="เลือกปี"
-                                    aria-label="เลือกปี"
-                                    className="bg-transparent text-sm font-black text-slate-700 outline-none cursor-pointer hover:text-blue-600 transition-colors"
-                                >
-                                    {[2024, 2025, 2026, 2027].map(y => (
-                                        <option key={y} value={y} className="text-slate-900 bg-white">{y}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-                        {filterType === 'year' && (
-                            <div className="flex items-center gap-4">
-                                <button
-                                    onClick={() => setFilterYear(y => y - 1)}
-                                    className="hover:text-blue-500 transition-colors"
-                                    aria-label="ปีที่แล้ว"
-                                    title="ปีที่แล้ว"
-                                >
-                                    <ChevronDown className="rotate-90" size={16} />
-                                </button>
-                                <span className="text-sm font-black text-slate-700 w-12 text-center">{filterYear}</span>
-                                <button
-                                    onClick={() => setFilterYear(y => y + 1)}
-                                    className="hover:text-blue-500 transition-colors"
-                                    aria-label="ปีถัดไป"
-                                    title="ปีถัดไป"
-                                >
-                                    <ChevronDown className="-rotate-90" size={16} />
-                                </button>
-                            </div>
-                        )}
-                        {filterType === 'custom' && (
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="date"
-                                    value={filterCustom.start}
-                                    onKeyDown={(e) => e.preventDefault()}
-                                    onChange={(e) => setFilterCustom(prev => ({ ...prev, start: e.target.value }))}
-                                    aria-label="วันที่เริ่มต้น"
-                                    title="วันที่เริ่มต้น"
-                                    className="bg-transparent text-xs font-black text-slate-700 outline-none"
-                                />
-                                <span className="text-slate-300">→</span>
-                                <input
-                                    type="date"
-                                    value={filterCustom.end}
-                                    onKeyDown={(e) => e.preventDefault()}
-                                    onChange={(e) => setFilterCustom(prev => ({ ...prev, end: e.target.value }))}
-                                    aria-label="วันที่สิ้นสุด"
-                                    title="วันที่สิ้นสุด"
-                                    className="bg-transparent text-xs font-black text-slate-700 outline-none"
-                                />
-                            </div>
-                        )}
-                        <Calendar size={16} className="text-blue-500 ml-auto" />
-                    </div>
-
-                    {/* Status Filter */}
-                    <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value as any)}
-                            title="กรองตามสถานะ"
-                            aria-label="กรองตามสถานะ"
-                            className="bg-transparent text-[10px] font-black text-slate-700 outline-none cursor-pointer px-3 py-1"
-                        >
-                            <option value="ALL">ทุกสถานะ (All Tasks)</option>
-                            <option value={JobStatus.NEW_REQUEST}>คำขอใหม่ (New Request)</option>
-                            <option value={JobStatus.ASSIGNED}>กำลังดำเนินการ (In Progress)</option>
-                            <option value={JobStatus.COMPLETED}>เสร็จสิ้น (Completed)</option>
-                            <option value={JobStatus.CANCELLED}>ยกเลิก (Cancelled)</option>
-                        </select>
-                    </div>
-
-                    <div className="flex items-center gap-2">
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+                    {canViewBilling && (
                         <button
-                            onClick={exportToCSV}
-                            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all"
-                            title="ส่งออก CSV"
+                            onClick={() => setReportMode('billing')}
+                            className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all flex items-center gap-2 ${reportMode === 'billing' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                         >
-                            <Download size={18} />
+                            <FileDown size={14} /> Billing (สรุปยอด)
                         </button>
-                        <button
-                            onClick={exportToExcel}
-                            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-100 transition-all"
-                        >
-                            <FileDown size={14} /> EXCEL
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Drill-down Info Bar */}
-            {drillDown.value && (
-                <div className="flex items-center justify-between bg-blue-600 text-white px-8 py-3 rounded-2xl shadow-lg animate-in slide-in-from-top-4">
-                    <div className="flex items-center gap-3">
-                        <Filter size={18} />
-                        <span className="text-sm font-bold">แสดงข้อมูลเฉพาะ: <span className="underline decoration-2 underline-offset-4">{drillDown.value}</span></span>
-                    </div>
+                    )}
                     <button
-                        onClick={() => setDrillDown({ type: null, value: null })}
-                        className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-1.5 rounded-xl text-xs font-black transition-all"
+                        onClick={() => setReportMode('profit')}
+                        className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all flex items-center gap-2 ${reportMode === 'profit' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                     >
-                        <RotateCcw size={14} /> ล้างการเจาะลึก
+                        <BarIcon size={14} /> Profit (กำไร/ขาดทุน)
                     </button>
                 </div>
-            )}
-
-            {/* KPI Cards Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Total Billing (Revenue) */}
-                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-xl transition-all">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Revenue</p>
-                    <h3 className="text-3xl font-black text-slate-900 tracking-tight">
-                        ฿{totalRev >= 1000000 ? `${(totalRev / 1000000).toFixed(2)}M` : totalRev.toLocaleString()}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-2">
-                        <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-black ${revenueGrowth >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                            {revenueGrowth >= 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-                            {Math.abs(revenueGrowth).toFixed(1)}%
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-400">vs prev. period</span>
-                    </div>
-                </div>
-
-                {/* Profit KPI */}
-                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-xl transition-all">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Gross Profit</p>
-                    <h3 className={`text-3xl font-black tracking-tight ${netProfit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                        ฿{Math.abs(netProfit) >= 1000000 ? `${(netProfit / 1000000).toFixed(2)}M` : netProfit.toLocaleString()}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-2 text-[10px] font-black uppercase text-slate-400 tracking-tighter">
-                        Margin: <span className={profitMargin > 15 ? 'text-emerald-600' : 'text-amber-500'}>{profitMargin.toFixed(1)}%</span>
-                    </div>
-                </div>
-
-                {/* Total Trips */}
-                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-xl transition-all">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Operational Flow</p>
-                    <h3 className="text-3xl font-black text-blue-600 tracking-tight">{totalTrips} <span className="text-lg font-bold text-slate-300">Jobs</span></h3>
-                    <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-500 bg-blue-50 w-fit px-2 py-0.5 rounded-md uppercase">
-                        {completedJobs} Confirmed
-                    </div>
-                </div>
-
-                {/* Avg Ticket */}
-                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-xl transition-all">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ticket Quality</p>
-                    <h3 className="text-3xl font-black text-slate-800 tracking-tight">{completionRate.toFixed(1)}%</h3>
-                    <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-slate-400 uppercase">
-                        Completion Rate
-                    </div>
-                </div>
             </div>
 
-            {/* Charts Row 1: Trend */}
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-                <div className="flex justify-between items-center mb-8">
-                    <h4 className="font-black text-slate-800 flex items-center gap-3 text-lg">
-                        <TrendingUp size={24} className="text-blue-500" />
-                        {filterType === 'day' ? 'ยอดรายได้รายชั่วโมง (ประมาณการ)' : filterType === 'month' ? 'แนวโน้มรายได้รายวัน' : 'แนวโน้มรายได้รายเดือน'}
-                    </h4>
-                    <div className="text-xs font-black text-slate-400 bg-slate-50 px-4 py-1.5 rounded-full uppercase tracking-tighter">
-                        {filterType === 'day' ? filterDay : filterType === 'month' ? filterMonth : `ปี ${filterYear}`}
-                    </div>
-                </div>
-                <TrendLineChart data={revenueByPeriodTrend} color="#3b82f6" />
-            </div>
+            {reportMode === 'billing' ? (
+                <BillingReportView jobs={jobs} />
+            ) : (
+                <div className="space-y-6">
+                    <div className="flex flex-col xl:flex-row justify-end items-start xl:items-center gap-6 bg-transparent no-print">
 
-            {/* Charts Row 2: Distribution */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-                    <h4 className="font-black text-slate-800 flex items-center justify-between mb-8 text-lg">
-                        <div className="flex items-center gap-3">
-                            <PieChart size={24} className="text-purple-500" />
-                            Revenue by Subcontractor
+                        <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
+                            {/* Filter Type Selector */}
+                            <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                                {[
+                                    { id: 'day', label: 'รายวัน' },
+                                    { id: 'month', label: 'รายเดือน' },
+                                    { id: 'year', label: 'รายปี' },
+                                    { id: 'custom', label: 'คัดกรองเอง' }
+                                ].map(type => (
+                                    <button
+                                        key={type.id}
+                                        onClick={() => setFilterType(type.id as any)}
+                                        className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all ${filterType === type.id
+                                            ? 'bg-white text-slate-900 shadow-sm'
+                                            : 'text-slate-400 hover:text-slate-600'
+                                            }`}
+                                    >
+                                        {type.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Dynamic Filter Controls */}
+                            <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 flex-1 sm:flex-initial">
+                                {filterType === 'day' && (
+                                    <input
+                                        type="date"
+                                        value={filterDay}
+                                        onKeyDown={(e) => e.preventDefault()}
+                                        onChange={(e) => setFilterDay(e.target.value)}
+                                        aria-label="เลือกวันที่"
+                                        title="เลือกวันที่"
+                                        className="bg-transparent text-sm font-black text-slate-700 outline-none focus:ring-0 cursor-pointer"
+                                    />
+                                )}
+                                {filterType === 'month' && (
+                                    <div className="flex items-center gap-1">
+                                        <select
+                                            value={filterMonth.split('-')[1]}
+                                            onChange={(e) => {
+                                                const [y] = filterMonth.split('-');
+                                                setFilterMonth(`${y}-${e.target.value}`);
+                                            }}
+                                            title="เลือกเดือน"
+                                            aria-label="เลือกเดือน"
+                                            className="bg-transparent text-sm font-black text-slate-700 outline-none cursor-pointer hover:text-blue-600 transition-colors"
+                                        >
+                                            {Array.from({ length: 12 }, (_, i) => {
+                                                const m = String(i + 1).padStart(2, '0');
+                                                return (
+                                                    <option key={m} value={m} className="text-slate-900 bg-white">
+                                                        {new Date(2024, i).toLocaleString('th-TH', { month: 'short' })}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                        <span className="text-slate-300">/</span>
+                                        <select
+                                            value={filterMonth.split('-')[0]}
+                                            onChange={(e) => {
+                                                const [, m] = filterMonth.split('-');
+                                                setFilterMonth(`${e.target.value}-${m}`);
+                                            }}
+                                            title="เลือกปี"
+                                            aria-label="เลือกปี"
+                                            className="bg-transparent text-sm font-black text-slate-700 outline-none cursor-pointer hover:text-blue-600 transition-colors"
+                                        >
+                                            {[2024, 2025, 2026, 2027].map(y => (
+                                                <option key={y} value={y} className="text-slate-900 bg-white">{y}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                                {filterType === 'year' && (
+                                    <div className="flex items-center gap-4">
+                                        <button
+                                            onClick={() => setFilterYear(y => y - 1)}
+                                            className="hover:text-blue-500 transition-colors"
+                                            aria-label="ปีที่แล้ว"
+                                            title="ปีที่แล้ว"
+                                        >
+                                            <ChevronDown className="rotate-90" size={16} />
+                                        </button>
+                                        <span className="text-sm font-black text-slate-700 w-12 text-center">{filterYear}</span>
+                                        <button
+                                            onClick={() => setFilterYear(y => y + 1)}
+                                            className="hover:text-blue-500 transition-colors"
+                                            aria-label="ปีถัดไป"
+                                            title="ปีถัดไป"
+                                        >
+                                            <ChevronDown className="-rotate-90" size={16} />
+                                        </button>
+                                    </div>
+                                )}
+                                {filterType === 'custom' && (
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="date"
+                                            value={filterCustom.start}
+                                            onKeyDown={(e) => e.preventDefault()}
+                                            onChange={(e) => setFilterCustom(prev => ({ ...prev, start: e.target.value }))}
+                                            aria-label="วันที่เริ่มต้น"
+                                            title="วันที่เริ่มต้น"
+                                            className="bg-transparent text-xs font-black text-slate-700 outline-none"
+                                        />
+                                        <span className="text-slate-300">→</span>
+                                        <input
+                                            type="date"
+                                            value={filterCustom.end}
+                                            onKeyDown={(e) => e.preventDefault()}
+                                            onChange={(e) => setFilterCustom(prev => ({ ...prev, end: e.target.value }))}
+                                            aria-label="วันที่สิ้นสุด"
+                                            title="วันที่สิ้นสุด"
+                                            className="bg-transparent text-xs font-black text-slate-700 outline-none"
+                                        />
+                                    </div>
+                                )}
+                                <Calendar size={16} className="text-blue-500 ml-auto" />
+                            </div>
+
+                            {/* Status Filter */}
+                            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value as any)}
+                                    title="กรองตามสถานะ"
+                                    aria-label="กรองตามสถานะ"
+                                    className="bg-transparent text-[10px] font-black text-slate-700 outline-none cursor-pointer px-3 py-1"
+                                >
+                                    <option value="ALL">ทุกสถานะ (All Tasks)</option>
+                                    <option value={JobStatus.NEW_REQUEST}>คำขอใหม่ (New Request)</option>
+                                    <option value={JobStatus.ASSIGNED}>กำลังดำเนินการ (In Progress)</option>
+                                    <option value={JobStatus.COMPLETED}>เสร็จสิ้น (Completed)</option>
+                                    <option value={JobStatus.CANCELLED}>ยกเลิก (Cancelled)</option>
+                                </select>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={exportToCSV}
+                                    className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all"
+                                    title="ส่งออก CSV"
+                                >
+                                    <Download size={18} />
+                                </button>
+                                <button
+                                    onClick={exportToExcel}
+                                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-100 transition-all"
+                                >
+                                    <FileDown size={14} /> EXCEL
+                                </button>
+                            </div>
                         </div>
-                        <span className="text-[9px] text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-lg">Click to drill-down</span>
-                    </h4>
-                    <div onClick={(e) => {
-                        const target = e.target as HTMLElement;
-                        const label = target.closest('.legend-item')?.getAttribute('data-label');
-                        if (label) setDrillDown({ type: 'sub', value: label });
-                    }}>
-                        <DonutChart data={revenueBySub} colors={[
-                            { hex: '#3b82f6', className: 'bg-blue-500' },
-                            { hex: '#8b5cf6', className: 'bg-violet-500' },
-                            { hex: '#ec4899', className: 'bg-pink-500' },
-                            { hex: '#f59e0b', className: 'bg-amber-500' },
-                            { hex: '#10b981', className: 'bg-emerald-500' }
-                        ]} />
                     </div>
-                </div>
 
-                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-                    <h4 className="font-black text-slate-800 flex items-center justify-between mb-8 text-lg">
-                        <div className="flex items-center gap-3">
-                            <MapIcon size={24} className="text-orange-500" />
-                            Top Routes Performance
+                    {/* Drill-down Info Bar */}
+                    {drillDown.value && (
+                        <div className="flex items-center justify-between bg-blue-600 text-white px-8 py-3 rounded-2xl shadow-lg animate-in slide-in-from-top-4">
+                            <div className="flex items-center gap-3">
+                                <Filter size={18} />
+                                <span className="text-sm font-bold">แสดงข้อมูลเฉพาะ: <span className="underline decoration-2 underline-offset-4">{drillDown.value}</span></span>
+                            </div>
+                            <button
+                                onClick={() => setDrillDown({ type: null, value: null })}
+                                className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-1.5 rounded-xl text-xs font-black transition-all"
+                            >
+                                <RotateCcw size={14} /> ล้างการเจาะลึก
+                            </button>
                         </div>
-                        <span className="text-[9px] text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-lg">Interactive Chart</span>
-                    </h4>
-                    <div onClick={(e) => {
-                        const target = e.target as HTMLElement;
-                        const label = target.closest('.bar-item')?.getAttribute('data-label');
-                        if (label) setDrillDown({ type: 'route', value: label });
-                    }}>
-                        <SimpleBarChart data={revenueByRoute} color="bg-orange-500" />
-                    </div>
-                </div>
-            </div>
+                    )}
 
-            {/* Table: Performance Review */}
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-                <div className="p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                        <h4 className="text-lg font-black text-slate-900">การจัดกลุ่มและวิเคราะห์ประสิทธิภาพ (Performance Review)</h4>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Analysis Grouped by {groupBy === 'sub' ? 'Subcontractor' : 'Route'}</p>
+                    {/* KPI Cards Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {/* Total Billing (Revenue) */}
+                        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-xl transition-all">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Revenue</p>
+                            <h3 className="text-3xl font-black text-slate-900 tracking-tight">
+                                ฿{totalRev >= 1000000 ? `${(totalRev / 1000000).toFixed(2)}M` : totalRev.toLocaleString()}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-2">
+                                <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-black ${revenueGrowth >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                                    {revenueGrowth >= 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                                    {Math.abs(revenueGrowth).toFixed(1)}%
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-400">vs prev. period</span>
+                            </div>
+                        </div>
+
+                        {/* Profit KPI */}
+                        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-xl transition-all">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Gross Profit</p>
+                            <h3 className={`text-3xl font-black tracking-tight ${netProfit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                ฿{Math.abs(netProfit) >= 1000000 ? `${(netProfit / 1000000).toFixed(2)}M` : netProfit.toLocaleString()}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-2 text-[10px] font-black uppercase text-slate-400 tracking-tighter">
+                                Margin: <span className={profitMargin > 15 ? 'text-emerald-600' : 'text-amber-500'}>{profitMargin.toFixed(1)}%</span>
+                            </div>
+                        </div>
+
+                        {/* Total Trips */}
+                        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-xl transition-all">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Operational Flow</p>
+                            <h3 className="text-3xl font-black text-blue-600 tracking-tight">{totalTrips} <span className="text-lg font-bold text-slate-300">Jobs</span></h3>
+                            <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-500 bg-blue-50 w-fit px-2 py-0.5 rounded-md uppercase">
+                                {completedJobs} Confirmed
+                            </div>
+                        </div>
+
+                        {/* Avg Ticket */}
+                        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-xl transition-all">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ticket Quality</p>
+                            <h3 className="text-3xl font-black text-slate-800 tracking-tight">{completionRate.toFixed(1)}%</h3>
+                            <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-slate-400 uppercase">
+                                Completion Rate
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                        <button
-                            onClick={() => setGroupBy('sub')}
-                            className={`px-4 py-1.5 rounded-xl text-[10px] font-black transition-all ${groupBy === 'sub' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            ตามผู้ให้บริการ
-                        </button>
-                        <button
-                            onClick={() => setGroupBy('route')}
-                            className={`px-4 py-1.5 rounded-xl text-[10px] font-black transition-all ${groupBy === 'route' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            ตามเส้นทาง
-                        </button>
+
+                    {/* Charts Row 1: Trend */}
+                    <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                        <div className="flex justify-between items-center mb-8">
+                            <h4 className="font-black text-slate-800 flex items-center gap-3 text-lg">
+                                <TrendingUp size={24} className="text-blue-500" />
+                                {filterType === 'day' ? 'ยอดรายได้รายชั่วโมง (ประมาณการ)' : filterType === 'month' ? 'แนวโน้มรายได้รายวัน' : 'แนวโน้มรายได้รายเดือน'}
+                            </h4>
+                            <div className="text-xs font-black text-slate-400 bg-slate-50 px-4 py-1.5 rounded-full uppercase tracking-tighter">
+                                {filterType === 'day' ? filterDay : filterType === 'month' ? filterMonth : `ปี ${filterYear}`}
+                            </div>
+                        </div>
+                        <TrendLineChart data={revenueByPeriodTrend} color="#3b82f6" />
                     </div>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-slate-50/50 text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-100">
-                                <th className="px-8 py-5">{groupBy === 'sub' ? 'ผู้รับเหมา (Partner)' : 'เส้นทาง (Route)'}</th>
-                                <th className="px-8 py-5 text-center">จำนวนงาน</th>
-                                <th className="px-8 py-5 text-center">ความสำเร็จ %</th>
-                                <th className="px-8 py-5 text-right">ราคาจ้างรวม</th>
-                                <th className="px-8 py-5 text-right">ค่าใช้จ่ายพิเศษ</th>
-                                <th className="px-8 py-5 text-right">ยอดรวมประมวลผล</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {performanceData.length === 0 ? (
-                                <tr>
-                                    <td colSpan={6} className="px-8 py-20 text-center text-slate-300 font-bold italic">No performance data for this period.</td>
-                                </tr>
-                            ) : performanceData.map((item, idx) => {
-                                const total = item.revenue + item.extra;
-                                const sRate = (item.completed / item.jobs) * 100;
-                                return (
-                                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="px-8 py-5">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-1.5 h-8 rounded-full ${idx === 0 ? 'bg-blue-500' : idx === 1 ? 'bg-indigo-500' : 'bg-slate-200'}`}></div>
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-black text-slate-700">{item.label}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Rank #{idx + 1}</span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-5 text-center">
-                                            <span className="px-2 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-600">
-                                                {item.jobs} Jobs
-                                            </span>
-                                        </td>
-                                        <td className="px-8 py-5">
-                                            <div className="flex items-center justify-center gap-2">
-                                                <progress
-                                                    className={`margin-progress ${sRate >= 90 ? 'progress-emerald' : sRate >= 70 ? 'progress-blue' : 'progress-amber'}`}
-                                                    value={sRate}
-                                                    max="100"
-                                                    title={`${sRate.toFixed(1)}% Success`}
-                                                ></progress>
-                                                <span className={`text-[10px] font-black ${sRate >= 90 ? 'text-emerald-600' : 'text-blue-600'}`}>
-                                                    {sRate.toFixed(1)}%
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-5 text-right font-bold text-slate-600 text-sm">
-                                            ฿{item.revenue.toLocaleString()}
-                                        </td>
-                                        <td className="px-8 py-5 text-right text-xs text-orange-600 font-bold">
-                                            ฿{item.extra.toLocaleString()}
-                                        </td>
-                                        <td className="px-8 py-5 text-right">
-                                            <span className="text-sm font-black text-slate-900">
-                                                ฿{total.toLocaleString()}
-                                            </span>
-                                        </td>
+
+                    {/* Charts Row 2: Distribution */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                            <h4 className="font-black text-slate-800 flex items-center justify-between mb-8 text-lg">
+                                <div className="flex items-center gap-3">
+                                    <PieChart size={24} className="text-purple-500" />
+                                    Revenue by Subcontractor
+                                </div>
+                                <span className="text-[9px] text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-lg">Click to drill-down</span>
+                            </h4>
+                            <div onClick={(e) => {
+                                const target = e.target as HTMLElement;
+                                const label = target.closest('.legend-item')?.getAttribute('data-label');
+                                if (label) setDrillDown({ type: 'sub', value: label });
+                            }}>
+                                <DonutChart data={revenueBySub} colors={[
+                                    { hex: '#3b82f6', className: 'bg-blue-500' },
+                                    { hex: '#8b5cf6', className: 'bg-violet-500' },
+                                    { hex: '#ec4899', className: 'bg-pink-500' },
+                                    { hex: '#f59e0b', className: 'bg-amber-500' },
+                                    { hex: '#10b981', className: 'bg-emerald-500' }
+                                ]} />
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                            <h4 className="font-black text-slate-800 flex items-center justify-between mb-8 text-lg">
+                                <div className="flex items-center gap-3">
+                                    <MapIcon size={24} className="text-orange-500" />
+                                    Top Routes Performance
+                                </div>
+                                <span className="text-[9px] text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-lg">Interactive Chart</span>
+                            </h4>
+                            <div onClick={(e) => {
+                                const target = e.target as HTMLElement;
+                                const label = target.closest('.bar-item')?.getAttribute('data-label');
+                                if (label) setDrillDown({ type: 'route', value: label });
+                            }}>
+                                <SimpleBarChart data={revenueByRoute} color="bg-orange-500" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Table: Performance Review */}
+                    <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+                        <div className="p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <h4 className="text-lg font-black text-slate-900">การจัดกลุ่มและวิเคราะห์ประสิทธิภาพ (Performance Review)</h4>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Analysis Grouped by {groupBy === 'sub' ? 'Subcontractor' : 'Route'}</p>
+                            </div>
+                            <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                                <button
+                                    onClick={() => setGroupBy('sub')}
+                                    className={`px-4 py-1.5 rounded-xl text-[10px] font-black transition-all ${groupBy === 'sub' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    ตามผู้ให้บริการ
+                                </button>
+                                <button
+                                    onClick={() => setGroupBy('route')}
+                                    className={`px-4 py-1.5 rounded-xl text-[10px] font-black transition-all ${groupBy === 'route' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    ตามเส้นทาง
+                                </button>
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50/50 text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-100">
+                                        <th className="px-8 py-5">{groupBy === 'sub' ? 'ผู้รับเหมา (Partner)' : 'เส้นทาง (Route)'}</th>
+                                        <th className="px-8 py-5 text-center">จำนวนงาน</th>
+                                        <th className="px-8 py-5 text-center">ความสำเร็จ %</th>
+                                        <th className="px-8 py-5 text-right">ราคาจ้างรวม</th>
+                                        <th className="px-8 py-5 text-right">ค่าใช้จ่ายพิเศษ</th>
+                                        <th className="px-8 py-5 text-right">ยอดรวมประมวลผล</th>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {/* Distribution Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-                    <h4 className="font-black text-slate-800 flex items-center gap-3 mb-8 text-lg">
-                        <Activity size={24} className="text-emerald-500" />
-                        Operations Status Overview
-                    </h4>
-                    <DonutChart data={statusDist} unit=" Jobs" colors={[
-                        { hex: '#f59e0b', className: 'bg-amber-500' },
-                        { hex: '#3b82f6', className: 'bg-blue-500' },
-                        { hex: '#10b981', className: 'bg-emerald-500' },
-                        { hex: '#64748b', className: 'bg-slate-500' }
-                    ]} />
-                </div>
-
-                <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-xl flex flex-col justify-center items-center text-center text-white relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-                        <div className="absolute -top-10 -right-10 w-40 h-40 bg-white rounded-full blur-3xl"></div>
-                        <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-blue-500 rounded-full blur-3xl"></div>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {performanceData.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="px-8 py-20 text-center text-slate-300 font-bold italic">No performance data for this period.</td>
+                                        </tr>
+                                    ) : performanceData.map((item, idx) => {
+                                        const total = item.revenue + item.extra;
+                                        const sRate = (item.completed / item.jobs) * 100;
+                                        return (
+                                            <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                                                <td className="px-8 py-5">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-1.5 h-8 rounded-full ${idx === 0 ? 'bg-blue-500' : idx === 1 ? 'bg-indigo-500' : 'bg-slate-200'}`}></div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-black text-slate-700">{item.label}</span>
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Rank #{idx + 1}</span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-5 text-center">
+                                                    <span className="px-2 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-600">
+                                                        {item.jobs} Jobs
+                                                    </span>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <progress
+                                                            className={`margin-progress ${sRate >= 90 ? 'progress-emerald' : sRate >= 70 ? 'progress-blue' : 'progress-amber'}`}
+                                                            value={sRate}
+                                                            max="100"
+                                                            title={`${sRate.toFixed(1)}% Success`}
+                                                        ></progress>
+                                                        <span className={`text-[10px] font-black ${sRate >= 90 ? 'text-emerald-600' : 'text-blue-600'}`}>
+                                                            {sRate.toFixed(1)}%
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-5 text-right font-bold text-slate-600 text-sm">
+                                                    ฿{item.revenue.toLocaleString()}
+                                                </td>
+                                                <td className="px-8 py-5 text-right text-xs text-orange-600 font-bold">
+                                                    ฿{item.extra.toLocaleString()}
+                                                </td>
+                                                <td className="px-8 py-5 text-right">
+                                                    <span className="text-sm font-black text-slate-900">
+                                                        ฿{total.toLocaleString()}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                    <Truck size={48} className="text-blue-400 mb-4" />
-                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mb-1">Active Routes</p>
-                    <p className="text-5xl font-black text-white mb-2">{revenueByRoute.length}</p>
-                    <p className="text-xs text-slate-400 font-bold">Total distinct routes operated in {filterYear}</p>
-                </div>
-            </div>
 
-            <div className="text-center pt-12 opacity-40">
-                <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.3em]">Neo Siam Logistics • Intelligent Data Analytics • 2026</p>
-            </div>
+                    {/* Distribution Charts */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                            <h4 className="font-black text-slate-800 flex items-center gap-3 mb-8 text-lg">
+                                <Activity size={24} className="text-emerald-500" />
+                                Operations Status Overview
+                            </h4>
+                            <DonutChart data={statusDist} unit=" Jobs" colors={[
+                                { hex: '#f59e0b', className: 'bg-amber-500' },
+                                { hex: '#3b82f6', className: 'bg-blue-500' },
+                                { hex: '#10b981', className: 'bg-emerald-500' },
+                                { hex: '#64748b', className: 'bg-slate-500' }
+                            ]} />
+                        </div>
+
+                        <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-xl flex flex-col justify-center items-center text-center text-white relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+                                <div className="absolute -top-10 -right-10 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+                                <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-blue-500 rounded-full blur-3xl"></div>
+                            </div>
+                            <Truck size={48} className="text-blue-400 mb-4" />
+                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mb-1">Active Routes</p>
+                            <p className="text-5xl font-black text-white mb-2">{revenueByRoute.length}</p>
+                            <p className="text-xs text-slate-400 font-bold">Total distinct routes operated in {filterYear}</p>
+                        </div>
+                    </div>
+
+                    <div className="text-center pt-12 opacity-40">
+                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.3em]">Neo Siam Logistics • Intelligent Data Analytics • 2026</p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

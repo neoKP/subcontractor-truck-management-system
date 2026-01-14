@@ -85,6 +85,8 @@ export interface Job {
   accountingRemark?: string;
   extraCharges?: ExtraChargeDetail[];
   isBaseCostLocked?: boolean;
+  billingDate?: string;
+  billingDocNo?: string;
 }
 
 export interface AuditLog {

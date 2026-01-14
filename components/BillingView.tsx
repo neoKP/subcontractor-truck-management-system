@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Job, JobStatus, UserRole, AccountingStatus, AuditLog, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS } from '../types';
 import { DollarSign, ExternalLink, FileCheck, Info, TrendingUp, CheckCircle, XCircle, Lock, AlertCircle, History, Receipt } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
@@ -17,7 +17,16 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
   const [selectedInvoiceJobs, setSelectedInvoiceJobs] = useState<Job[]>([]);
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+
+  // New Filters
+  const [filterDateStart, setFilterDateStart] = useState('');
+  const [filterDateEnd, setFilterDateEnd] = useState('');
+  const [filterSub, setFilterSub] = useState('ALL');
+
   const itemsPerPage = 10;
+
+  const uniqueSubs = useMemo(() => Array.from(new Set(jobs.map(j => j.subcontractor))).filter(Boolean).sort(), [jobs]);
+
 
   const filteredJobs = jobs.filter(j => {
     if (j.status === JobStatus.CANCELLED) return false;
@@ -29,6 +38,14 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
       (j.subcontractor || '').toLowerCase().includes(searchTerm.toLowerCase());
 
     if (!searchMatch) return false;
+
+    // Date Range Filter
+    const jobDate = j.dateOfService.split('T')[0];
+    if (filterDateStart && jobDate < filterDateStart) return false;
+    if (filterDateEnd && jobDate > filterDateEnd) return false;
+
+    // Subcontractor Filter
+    if (filterSub !== 'ALL' && j.subcontractor !== filterSub) return false;
 
     if (activeFilter === 'ALL') return true;
     if (activeFilter === 'PENDING_BILL') return j.status === JobStatus.COMPLETED && j.accountingStatus === AccountingStatus.APPROVED;
@@ -245,23 +262,69 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
 
       {/* Detailed Table */}
       <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm">
-        <div className="px-8 py-6 border-b border-slate-100 bg-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sticky top-0 z-20 backdrop-blur-md bg-white/90">
-          <div className="flex items-center gap-3">
-            <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">การตรวจสอบและควบคุมการเงิน (Financial Audit Control)</h3>
-            <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">SoD Enabled</span>
-          </div>
-          <div className="flex items-center gap-4 w-full md:w-auto">
-            <div className="relative flex-1 md:w-64">
-              <input
-                type="text"
-                placeholder="ค้นหา Job ID หรือบริษัท..."
-                className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-sm font-bold"
-                value={searchTerm}
-                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              />
-              <TrendingUp className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={16} />
+        <div className="px-8 py-6 border-b border-slate-100 bg-white sticky top-0 z-20 backdrop-blur-md bg-white/90 flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">การตรวจสอบและควบคุมการเงิน (Financial Audit Control)</h3>
+              <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">SoD Enabled</span>
             </div>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:inline">{filteredJobs.length} ใบงาน (Jobs)</span>
+            <div className="flex items-center gap-4 w-full md:w-auto">
+              <div className="relative flex-1 md:w-64">
+                <input
+                  type="text"
+                  placeholder="ค้นหา Job ID หรือบริษัท..."
+                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-sm font-bold"
+                  value={searchTerm}
+                  onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                />
+                <TrendingUp className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={16} />
+              </div>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:inline">{filteredJobs.length} ใบงาน (Jobs)</span>
+            </div>
+          </div>
+
+          {/* Extended Filters Bar */}
+          <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+            <div className="flex items-center gap-2 px-3 bg-white py-1.5 rounded-xl border border-slate-200">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">From</span>
+              <input
+                type="date"
+                value={filterDateStart}
+                onChange={(e) => setFilterDateStart(e.target.value)}
+                aria-label="Filter Start Date"
+                className="bg-transparent text-xs font-black text-slate-700 outline-none cursor-pointer"
+              />
+            </div>
+            <div className="flex items-center gap-2 px-3 bg-white py-1.5 rounded-xl border border-slate-200">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">To</span>
+              <input
+                type="date"
+                value={filterDateEnd}
+                onChange={(e) => setFilterDateEnd(e.target.value)}
+                aria-label="Filter End Date"
+                className="bg-transparent text-xs font-black text-slate-700 outline-none cursor-pointer"
+              />
+            </div>
+            <div className="h-6 w-px bg-slate-200 mx-1"></div>
+            <select
+              value={filterSub}
+              onChange={(e) => setFilterSub(e.target.value)}
+              aria-label="Filter Subcontractor"
+              className="px-4 py-1.5 rounded-xl border border-slate-200 text-xs font-black text-slate-700 outline-none cursor-pointer bg-white hover:border-blue-500 transition-colors"
+            >
+              <option value="ALL">All Subcontractors (ทั้งหมด)</option>
+              {uniqueSubs.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            {(filterDateStart || filterDateEnd || filterSub !== 'ALL') && (
+              <button
+                onClick={() => { setFilterDateStart(''); setFilterDateEnd(''); setFilterSub('ALL'); }}
+                className="ml-auto text-[10px] font-bold text-rose-500 hover:text-rose-700 flex items-center gap-1 bg-white px-3 py-1.5 rounded-xl border border-rose-100 hover:border-rose-300 transition-all shadow-sm"
+              >
+                <History size={12} /> Clear Filters
+              </button>
+            )}
           </div>
         </div>
         <div className="overflow-x-auto max-h-[700px] scrollbar-thin">
