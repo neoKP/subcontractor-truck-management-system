@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { UserRole, Job, JobStatus, AuditLog, PriceMatrix, AccountingStatus } from './types';
 import JobRequestForm from './components/JobRequestForm';
@@ -14,6 +13,7 @@ import AccountingVerificationView from './components/AccountingVerificationView'
 import UserManagementView from './components/UserManagementView';
 import ProfitAnalysisView from './components/ProfitAnalysisView';
 import JobSummaryBoard from './components/JobSummaryBoard';
+import JobTrackingModal from './components/JobTrackingModal';
 import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop } from 'lucide-react';
 import { db, ref, onValue, set, remove } from './firebaseConfig';
 
@@ -50,6 +50,9 @@ const App: React.FC = () => {
   // State for Pending Pricing Modal (Lifted from JobBoard) - Refreshed Logic
   const [showPendingPricingModal, setShowPendingPricingModal] = useState(false);
 
+  // Scanned Job for Tracking Modal
+  const [scannedJob, setScannedJob] = useState<Job | null>(null);
+
   // State for passing data to Pricing Table Modal
   const [pricingModalData, setPricingModalData] = useState<Partial<PriceMatrix> | undefined>(undefined);
 
@@ -69,6 +72,24 @@ const App: React.FC = () => {
     // Actually PricingTableView will react to the prop change. 
     // We might need to clear it when modal closes, handled in PricingTableView? 
     // For now this is fine, the useEffect in PricingTableView handles the trigger.
+  };
+
+  const handleSearchJob = (query: string) => {
+    if (!query) return;
+    const targetJob = jobs.find(j => j.id.toLowerCase() === query.toLowerCase() || j.billingDocNo?.toLowerCase() === query.toLowerCase());
+    if (targetJob) {
+      setScannedJob(targetJob);
+    } else {
+      if ((window as any).Swal) {
+        (window as any).Swal.fire({
+          icon: 'error',
+          title: 'Job Not Found',
+          text: `No job found with ID or Billing Ref: ${query}`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+      }
+    }
   };
 
   // Sync with Firebase on mount
@@ -253,6 +274,7 @@ const App: React.FC = () => {
           logs={logs}
           onShowPendingPricing={() => setShowPendingPricingModal(true)}
           onNavigateToLogs={() => setActiveTab('logs')}
+          onSearchJob={handleSearchJob}
         />
 
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full box-border">
@@ -502,6 +524,15 @@ const App: React.FC = () => {
               isOpen={showSummaryBoard}
               onClose={() => setShowSummaryBoard(false)}
               user={currentUser}
+            />
+          )}
+
+          {/* Global Tracking Modal */}
+          {scannedJob && (
+            <JobTrackingModal
+              job={scannedJob}
+              onClose={() => setScannedJob(null)}
+              currentUser={currentUser || undefined}
             />
           )}
         </div>
