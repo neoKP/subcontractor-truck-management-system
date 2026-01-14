@@ -260,7 +260,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
         });
     };
 
-    const ITEMS_PER_PAGE = 12;
+    const ITEMS_PER_PAGE = 10;
     const jobChunks = [];
     for (let i = 0; i < jobs.length; i += ITEMS_PER_PAGE) {
         jobChunks.push(jobs.slice(i, i + ITEMS_PER_PAGE));
@@ -569,7 +569,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                                     </div>
                                 )}
 
-                                <div className="absolute bottom-4 right-[15mm] text-[9.5px] font-bold text-slate-400 italic">PAGE {pageIndex + 1} OF {jobChunks.length}</div>
+                                <div className="absolute bottom-4 right-[15mm] text-[10px] font-bold text-slate-500">หน้า {pageIndex + 1} จาก {jobChunks.length}</div>
                             </div>
                         ))}
                     </div>
