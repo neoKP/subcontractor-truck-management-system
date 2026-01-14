@@ -148,9 +148,11 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
     const missingPod = selectedJobs.filter(j => !j.podImageUrls || j.podImageUrls.length === 0);
     if (missingPod.length > 0) {
       (window as any).Swal.fire({
-        title: 'Missing Documentation',
-        text: `Some selected jobs (${missingPod.length}) are missing POD documents.`,
-        icon: 'error'
+        title: 'Missing Documentation / เอกสารไม่ครบ',
+        text: `Some selected jobs (${missingPod.length}) are missing POD documents.\n(งานจำนวน ${missingPod.length} รายการ ขาดเอกสารประกอบ POD)`,
+        icon: 'error',
+        confirmButtonText: 'OK / รับทราบ',
+        customClass: { popup: 'rounded-[1.5rem]' }
       });
       return;
     }
@@ -159,9 +161,11 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
     const subcontractors = new Set(selectedJobs.map(j => j.subcontractor));
     if (subcontractors.size > 1) {
       (window as any).Swal.fire({
-        title: 'Multiple Subcontractors',
-        text: 'You can only batch invoice jobs from the same subcontractor.',
-        icon: 'warning'
+        title: 'Multiple Subcontractors / เลือกผู้รับเหมาหลายราย',
+        text: 'You can only batch invoice jobs from the same subcontractor.\n(ไม่สามารถทำรายการพร้อมกันได้ กรุณาเลือกงานจากผู้รับเหมาเจ้าเดียวกันเท่านั้น)',
+        icon: 'warning',
+        confirmButtonText: 'OK / รับทราบ',
+        customClass: { popup: 'rounded-[1.5rem]' }
       });
       return;
     }
