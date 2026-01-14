@@ -408,6 +408,12 @@ const App: React.FC = () => {
                                     <>แก้ไขประเภทรถ จาก <span className="text-slate-400 line-through">{log.oldValue}</span> เป็น <span className="text-blue-600 font-black">{log.newValue}</span> โดย <span className="font-black text-slate-900">{log.userName}</span></>
                                   ) : log.field === 'Status' && log.newValue === 'Cancelled' ? (
                                     <>ยกเลิกใบงาน โดย <span className="text-rose-600 font-black">{log.userName}</span></>
+                                  ) : log.field === 'Accounting Status' ? (
+                                    log.newValue === 'Rejected' ? (
+                                      <>บัญชี <span className="text-rose-600 font-black">ตีกลับ/ไม่อนุมัติ (Rejected)</span> โดย <span className="font-bold text-slate-900">{log.userName}</span></>
+                                    ) : (
+                                      <>บัญชี <span className="text-emerald-600 font-black">อนุมัติ (Approved)</span> โดย <span className="font-bold text-slate-900">{log.userName}</span></>
+                                    )
                                   ) : (
                                     <>แก้ไข {log.field} จาก "{log.oldValue}" เป็น "{log.newValue}" โดย {log.userName}</>
                                   )}
