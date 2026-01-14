@@ -1,20 +1,17 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Job, JobStatus } from '../types';
-import { X, Printer, CheckCircle, Receipt, Edit2 } from 'lucide-react';
+import { X, Printer, CheckCircle, Receipt, Calendar, FileText, MapPin } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 /**
- * Converts a number to Thai Baht text.
- * Logic: 
- * - If no satang (decimal is .00), append "บาทถ้วน".
- * - If there are satang, read the satang and omit "ถ้วน".
+ * Helper: Converts a number to Thai Baht text.
+ * (Moved outside component for better performance)
  */
 const bahtText = (num: number): string => {
     if (!num || num <= 0) return "ศูนย์บาทถ้วน";
-
     const ThaiNumber = ["ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
     const ThaiUnit = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน", "ล้าน"];
-
     const read = (nStr: string): string => {
         let res = "";
         for (let i = 0; i < nStr.length; i++) {
@@ -30,8 +27,6 @@ const bahtText = (num: number): string => {
         }
         return res;
     };
-
-    // Split millions for large numbers
     const convert = (numStr: string): string => {
         let res = "";
         let parts = [];
@@ -45,28 +40,16 @@ const bahtText = (num: number): string => {
         }
         return res;
     };
-
     const str = num.toFixed(2);
     const [intPart, decPart] = str.split('.');
-
     let result = "";
     const intNum = parseInt(intPart);
     const decNum = parseInt(decPart);
-
-    if (intNum > 0) {
-        result += convert(intPart) + "บาท";
-    }
-
-    if (decNum > 0) {
-        result += convert(decPart) + "สตางค์";
-    } else if (intNum > 0) {
-        result += "ถ้วน";
-    } else if (decNum === 0 && intNum === 0) {
-        return "ศูนย์บาทถ้วน";
-    } else if (intNum === 0 && decNum > 0) {
-        result = convert(decPart) + "สตางค์";
-    }
-
+    if (intNum > 0) result += convert(intPart) + "บาท";
+    if (decNum > 0) result += convert(decPart) + "สตางค์";
+    else if (intNum > 0) result += "ถ้วน";
+    else if (decNum === 0 && intNum === 0) return "ศูนย์บาทถ้วน";
+    else if (intNum === 0 && decNum > 0) result = convert(decPart) + "สตางค์";
     return result;
 };
 
@@ -88,374 +71,541 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
     readOnly = false
 }) => {
     const mainJob = jobs[0];
-    const printRef = useRef<HTMLDivElement>(null);
-
-    const [vatRate, setVatRate] = useState<string | number>(7);
     const [applyVat, setApplyVat] = useState(false);
-    const [isEditingVat, setIsEditingVat] = useState(false);
-    const [whtRate, setWhtRate] = useState<string | number>(1);
-    const [applyWht, setApplyWht] = useState(true);
-    const [isEditingWht, setIsEditingWht] = useState(false);
-    const [dueDate, setDueDate] = useState(() => {
-        if (existingDate) {
-            const d = new Date(existingDate);
-            d.setDate(d.getDate() + 30);
-            return d;
+    const [vatRate] = useState(7);
+    const [whtRate] = useState(1);
+    const [applyWht, setApplyWht] = useState(false);
+    const isPrintingRef = React.useRef(false);
+
+    // Guard: If no jobs, show a friendly message (User's suggestion #1)
+    if (!jobs || jobs.length === 0 || !mainJob) {
+        return (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
+                <div className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-sm mx-4">
+                    <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <X size={32} />
+                    </div>
+                    <h2 className="text-xl font-black text-slate-900 mb-2">ไม่พบข้อมูลงาน</h2>
+                    <p className="text-slate-500 mb-6">กรุณาเลือกงานที่ต้องการวางบิลก่อนทำรายการ</p>
+                    <button onClick={onClose} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all">
+                        ตกลง / ปิดหน้าต่าง
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // Direct Print Command - Using New Window for Isolation
+    const doPrint = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (isPrintingRef.current) return;
+        isPrintingRef.current = true;
+
+        // Get the print content
+        const printContent = document.querySelector('.print-section');
+        if (!printContent) {
+            alert('ไม่พบเนื้อหาที่จะพิมพ์');
+            isPrintingRef.current = false;
+            return;
         }
-        const d = new Date();
-        d.setDate(d.getDate() + 30);
-        return d;
-    });
-    const [isEditingDueDate, setIsEditingDueDate] = useState(false);
 
-    if (!mainJob) return null;
+        // Create new window for printing
+        const printWindow = window.open('', '_blank', 'width=800,height=600');
+        if (!printWindow) {
+            alert('กรุณาอนุญาตให้เบราว์เซอร์เปิดหน้าต่างใหม่');
+            isPrintingRef.current = false;
+            return;
+        }
 
-    const handlePrint = () => {
-        if (!printRef.current) return;
-        window.print();
+        // Write content to new window
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>ใบรับวางบิล - ${documentNumber}</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+                <link rel="preconnect" href="https://fonts.googleapis.com">
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+                <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+                <style>
+                    @page {
+                        size: A4 portrait;
+                        margin: 0mm;
+                    }
+                    * {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
+                    }
+                    body {
+                        font-family: 'Sarabun', 'Noto Sans Thai', sans-serif;
+                        background: white;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    table {
+                        border-collapse: collapse;
+                        width: 100%;
+                    }
+                    .page-break {
+                        page-break-after: always;
+                        break-after: page;
+                    }
+                    .no-print {
+                        display: none !important;
+                    }
+                    @media print {
+                        body {
+                            width: 210mm;
+                            margin: 0;
+                        }
+                        .no-print {
+                            display: none !important;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                ${printContent.innerHTML}
+                <script>
+                    window.onload = function() {
+                        setTimeout(function() {
+                            window.print();
+                        }, 800);
+                    };
+                </script>
+            </body>
+            </html>
+        `);
+
+        printWindow.document.close();
+
+        // Wait for content to load, then print
+        setTimeout(() => {
+            printWindow.focus();
+            printWindow.print();
+            setTimeout(() => {
+                printWindow.close();
+                isPrintingRef.current = false;
+            }, 500);
+        }, 250);
     };
 
-    // Calculate Totals for all jobs
+    const [referenceNo, setReferenceNo] = useState('');
+    const [customDueDate, setCustomDueDate] = useState(() => {
+        const d = new Date(existingDate ? new Date(existingDate) : new Date());
+        d.setDate(d.getDate() + 30);
+        return d.toISOString().split('T')[0];
+    });
+
     const subtotal = jobs.reduce((sum, j) => sum + (Number(j.cost) || 0) + (Number(j.extraCharge) || 0), 0);
-    const vatAmount = applyVat ? (subtotal * Number(vatRate)) / 100 : 0;
-    const whtAmount = applyWht ? (subtotal * Number(whtRate)) / 100 : 0;
-    const billTotal = subtotal + vatAmount;
+    const vatAmount = applyVat ? (subtotal * vatRate) / 100 : 0;
+    const whtAmount = applyWht ? (subtotal * whtRate) / 100 : 0;
     const netTotal = subtotal + vatAmount - whtAmount;
 
-    // Generate Document Number (e.g., BA-202601-048) OR use existing
-    const now = existingDate ? new Date(existingDate) : new Date();
-    const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const documentNumber = existingDocNo || `BA-${yearMonth}-${mainJob.id.split('-').pop()}`;
     const issueDate = existingDate ? new Date(existingDate) : new Date();
+    const documentNumber = existingDocNo || `BA-${issueDate.getFullYear()}${String(issueDate.getMonth() + 1).padStart(2, '0')}-${mainJob.id.split('-').pop()}`;
+    const currentDate = issueDate.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const dueDateStr = new Date(customDueDate).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     const finalizeBilled = () => {
         if (readOnly || !onBatchConfirm) return;
-        const updatedJobs = jobs.map(j => ({
-            ...j,
-            status: JobStatus.BILLED,
-            billingDocNo: documentNumber,
-            billingDate: issueDate.toISOString()
-        }));
-        onBatchConfirm(updatedJobs);
-        onClose();
+
+        if (!referenceNo) {
+            Swal.fire({
+                icon: 'error',
+                title: 'ข้อมูลไม่ครบถ้วน',
+                text: 'กรุณาระบุเลขที่ใบวางบิลเอกสารอ้างอิง (Reference No) ก่อนยืนยัน',
+                confirmButtonColor: '#3085d6',
+                confirmButtonText: 'ตกลง'
+            });
+            return;
+        }
+
+        Swal.fire({
+            title: 'ยืนยันการบันทึก?',
+            text: `ต้องการบันทึกการวางบิลเลขที่ ${documentNumber} หรือไม่?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ยืนยันและบันทึก',
+            cancelButtonText: 'ยกเลิก',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const updatedJobs = jobs.map(j => ({
+                    ...j,
+                    status: JobStatus.BILLED,
+                    billingDocNo: documentNumber,
+                    billingDate: issueDate.toISOString(),
+                    referenceNo: referenceNo
+                }));
+                onBatchConfirm(updatedJobs);
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'บันทึกสำเร็จ!',
+                    text: 'ระบบได้บันทึกข้อมูลการวางบิลเรียบร้อยแล้ว',
+                    timer: 2000,
+                    showConfirmButton: false
+                }).then(() => {
+                    onClose();
+                });
+            }
+        });
     };
 
+    const ITEMS_PER_PAGE = 12;
+    const jobChunks = [];
+    for (let i = 0; i < jobs.length; i += ITEMS_PER_PAGE) {
+        jobChunks.push(jobs.slice(i, i + ITEMS_PER_PAGE));
+    }
+
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-0 md:p-4 bg-slate-900/70 backdrop-blur-sm print:bg-white print:p-0 print:block print:static print:h-auto print:backdrop-blur-none">
             <style>{`
                 @media print {
-                    @page {
-                        size: A4;
-                        margin: 0mm; /* Use 0mm to let custom padding handle it */
+                    @page { 
+                        size: A4 portrait; 
+                        margin: 0mm; 
                     }
-                    html, body {
-                        height: 100%;
-                        overflow: visible !important;
-                        background: white;
-                    }
-                    /* Disable transforms/animations to preventing clipping context issues */
+                    
                     * {
-                        transition: none !important;
-                        transform: none !important;
-                        animation: none !important;
-                        visibility: hidden; /* Default hide */
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
                     }
                     
-                    /* Show only print area */
-                    .print-area, .print-area * { 
-                        visibility: visible; 
-                    }
-                    
-                    .print-area {
-                        position: absolute;
-                        left: 0;
-                        top: 0;
-                        width: 100%;
-                        min-height: 100%;
-                        background: white !important;
-                        padding: 10mm !important; /* Standard print padding */
+                    html, body {
                         margin: 0 !important;
-                        box-shadow: none !important;
-                        border: none !important;
-                        zoom: 1; /* Reset zoom to standard */
-                    }
-                    
-                    .no-print { display: none !important; }
-                    
-                    /* Typography fixes for print */
-                    p, div, span, td, th {
-                        color: black !important;
-                        -webkit-print-color-adjust: exact;
+                        padding: 0 !important;
+                        background: white !important;
+                        width: 210mm !important;
+                        height: 297mm !important;
+                        overflow: visible !important;
                     }
 
-                    /* Table handling */
-                    tr { page-break-inside: avoid; }
-                    thead { display: table-header-group; }
-                    tfoot { display: table-footer-group; }
+                    /* Hide all except print section */
+                    body > div:first-child {
+                        background: white !important;
+                        backdrop-filter: none !important;
+                    }
+                    
+                    .no-print {
+                        display: none !important;
+                    }
+                    
+                    /* Ensure print section is visible */
+                    .print-section {
+                        display: block !important;
+                        visibility: visible !important;
+                        position: relative !important;
+                        margin: 0 auto !important;
+                        width: 210mm !important;
+                        background: white !important;
+                    }
+                    
+                    .print-section * {
+                        visibility: visible !important;
+                    }
+                    
+                    .page-break {
+                        page-break-after: always !important;
+                        break-after: page !important;
+                    }
                 }
             `}</style>
 
-            <div className="bg-white w-full max-w-5xl max-h-[95vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
-                {/* Top Bar (No Print) */}
-                <div className="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-white no-print">
+            <div className="bg-white md:rounded-2xl shadow-2xl w-full max-w-5xl h-full md:h-[95vh] flex flex-col overflow-hidden print:shadow-none print:h-auto print:overflow-visible print:bg-transparent">
+                {/* Header Toolbar */}
+                <div className="bg-slate-800 text-white px-6 py-4 flex justify-between items-center shadow-lg no-print">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-slate-100 text-slate-600 rounded-xl">
-                            <Receipt size={24} />
-                        </div>
+                        <div className="bg-blue-600 p-2 rounded-lg shadow-inner"><Receipt size={24} /></div>
                         <div>
-                            <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Billing Acknowl. Preview</h2>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
-                                {jobs.length} Items Selected
-                            </p>
+                            <h2 className="font-bold text-lg leading-none uppercase tracking-wide">Billing Preview</h2>
+                            <p className="text-[10px] text-slate-400 mt-1">{jobs.length} items • {jobChunks.length} pages</p>
                         </div>
-                    </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400" title="Close Preview">
-                        <X size={20} />
-                    </button>
-                </div>
-
-                {/* Content - Size A4 Layout */}
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50 scrollbar-thin">
-                    <div ref={printRef} className="print-area bg-white shadow-2xl overflow-hidden border border-slate-200 mx-auto max-w-[210mm] min-h-[297mm] flex flex-col font-sans p-[10mm]">
-
-                        {/* 1. Header: Logo Right, Company Info Left */}
-                        <div className="flex justify-between items-start mb-2 pb-4 border-b-2 border-slate-900">
-                            <div className="space-y-1">
-                                <h1 className="text-lg font-bold text-slate-900 leading-tight">บริษัท นีโอสยาม โลจิสติกส์ แอนด์ ทรานสปอร์ต จำกัด</h1>
-                                <p className="text-xs font-bold text-slate-600 uppercase">NEOSIAM LOGISTICS & TRANSPORT CO., LTD.</p>
-                                <div className="text-[10px] text-slate-500 leading-relaxed font-medium pt-1">
-                                    <p>159/9-10 หมู่ 7 ต.บางม่วง อ.เมืองนครสวรรค์ จ.นครสวรรค์ 60000</p>
-                                    <p>159/9-10 Village No.7, Bang Muang, Muang Nakhon Sawan, Nakhon Sawan 60000</p>
-                                    <p>Tax ID: 0105552087673</p>
-                                    <p>Tel: 056-275-841 Email: info@neosiamlogistics.com</p>
-                                </div>
-                            </div>
-                            <img src="/logo.png" alt="NEOSIAM" className="h-[45px] w-auto object-contain mt-2" />
-                        </div>
-
-                        {/* 2. Document Title & Key Details Box */}
-                        <div className="flex justify-between items-start mb-6 mt-4">
-                            <div className="space-y-1 mt-2">
-                                <h2 className="text-2xl font-bold text-slate-900 leading-none">ใบรับวางบิล</h2>
-                                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">BILLING ACKNOWLEDGEMENT</h3>
-                            </div>
-
-                            <div className="border border-slate-400 rounded-sm text-xs w-[300px]">
-                                <div className="grid grid-cols-[80px_1fr] border-b border-slate-200">
-                                    <div className="bg-slate-100 p-1 pl-2 font-bold text-slate-700">เลขที่ No:</div>
-                                    <div className="p-1 pl-2 font-medium text-slate-900">{documentNumber}</div>
-                                </div>
-                                <div className="grid grid-cols-[80px_1fr] border-b border-slate-200">
-                                    <div className="bg-slate-100 p-1 pl-2 font-bold text-slate-700">วันที่ Date:</div>
-                                    <div className="p-1 pl-2 font-medium text-slate-900">{issueDate.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
-                                </div>
-                                <div className="grid grid-cols-[80px_1fr] border-b border-slate-200">
-                                    <div className="bg-slate-100 p-1 pl-2 font-bold text-slate-700">ครบกำหนด Due:</div>
-                                    <div className="p-1 pl-2 font-medium text-slate-900 flex items-center gap-2 group relative">
-                                        {dueDate.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                        <button onClick={() => setIsEditingDueDate(true)} className="no-print opacity-0 group-hover:opacity-100" aria-label="Edit Due Date"><Edit2 size={10} /></button>
-                                        {isEditingDueDate && (
-                                            <input type="date" aria-label="Due Date Input" className="no-print absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer" onKeyDown={(e) => e.preventDefault()} onChange={e => { setDueDate(new Date(e.target.value)); setIsEditingDueDate(false); }} />
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-[80px_1fr]">
-                                    <div className="bg-slate-100 p-1 pl-2 font-bold text-slate-700">อ้างอิง Ref:</div>
-                                    <div className="p-1 pl-2 font-medium text-slate-900">-</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* 3. Info Boxes: Vendor vs Branch Info */}
-                        <div className="flex gap-4 mb-4 text-xs">
-                            {/* Left Box: Vendor Info */}
-                            <div className="flex-1 border border-slate-300 rounded-sm min-h-[120px]">
-                                <div className="bg-slate-100 px-3 py-1 font-bold text-slate-700 border-b border-slate-300">
-                                    ผู้รับจ้าง (Subcontractor)
-                                </div>
-                                <div className="p-3 space-y-2">
-                                    <p className="font-bold text-slate-900 text-sm">{mainJob.subcontractor || 'General Subcontractor'}</p>
-                                    <div className="text-slate-400 text-[10px] space-y-4 pt-1">
-                                        <p>ที่อยู่ (Address): ....................................................................................................</p>
-                                        <p>...................................................................................................................................</p>
-                                        <p>เลขประจำตัวผู้เสียภาษี (Tax ID): ..............................................................</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Right Box: Branch/Logistics Info */}
-                            <div className="flex-1 border border-slate-300 rounded-sm min-h-[120px]">
-                                <div className="bg-slate-100 px-3 py-1 font-bold text-slate-700 border-b border-slate-300">
-                                    เงื่อนไข / สถานที่ (Conditions / Location)
-                                </div>
-                                <div className="p-3 space-y-1">
-                                    <p className="font-bold text-slate-900">สำนักงานใหญ่ (Head Office)</p>
-                                    <p className="text-slate-500">159/9-10 หมู่ 7 ต.บางม่วง อ.เมืองนครสวรรค์ จ.นครสวรรค์ 60000</p>
-                                    <p className="text-slate-500 pt-2 font-bold">เงื่อนไขการวางบิล:</p>
-                                    <p className="text-slate-500">ทุกวันจันทร์ - ศุกร์ (08:30 - 16:30)</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* 4. Table with Borders */}
-                        <div className="flex-1 mb-4">
-                            <table className="w-full border-collapse border border-slate-300 text-xs">
-                                <thead>
-                                    <tr className="bg-slate-50 text-slate-900 text-center font-bold">
-                                        <th className="border border-slate-300 py-2 w-12">ลำดับ<br /><span className="text-[9px] font-normal uppercase">No.</span></th>
-                                        <th className="border border-slate-300 py-2">รายการสินค้า / รายละเอียด<br /><span className="text-[9px] font-normal uppercase">Description</span></th>
-                                        <th className="border border-slate-300 py-2 w-16">จำนวน<br /><span className="text-[9px] font-normal uppercase">Qty</span></th>
-                                        <th className="border border-slate-300 py-2 w-16">หน่วย<br /><span className="text-[9px] font-normal uppercase">Unit</span></th>
-                                        <th className="border border-slate-300 py-2 w-24">ราคา/หน่วย<br /><span className="text-[9px] font-normal uppercase">Unit Price</span></th>
-                                        <th className="border border-slate-300 py-2 w-28">จำนวนเงิน<br /><span className="text-[9px] font-normal uppercase">Amount</span></th>
-                                    </tr>
-                                </thead>
-                                <tbody className="align-top text-slate-700">
-                                    {jobs.map((j, idx) => (
-                                        <React.Fragment key={j.id}>
-                                            <tr className="hover:bg-slate-50/50">
-                                                <td className="border-r border-slate-300 px-2 py-2 text-center">{idx + 1}</td>
-                                                <td className="border-r border-slate-300 px-2 py-2">
-                                                    <p className="font-bold text-slate-900">ค่าขนส่งสินค้า (Transportation Fee)</p>
-                                                    <p className="text-[10px] text-slate-500 pt-1">Route: {j.origin} - {j.destination}</p>
-                                                    <p className="text-[10px] text-slate-500">Date: {new Date(j.dateOfService).toLocaleDateString('th-TH')}</p>
-                                                    <p className="text-[10px] text-slate-500">Truck: {j.truckType} {j.licensePlate ? `(${j.licensePlate})` : ''}</p>
-                                                </td>
-                                                <td className="border-r border-slate-300 px-2 py-2 text-center">1</td>
-                                                <td className="border-r border-slate-300 px-2 py-2 text-center">เที่ยว</td>
-                                                <td className="border-r border-slate-300 px-2 py-2 text-right">{Number(j.cost).toFixed(2)}</td>
-                                                <td className="px-2 py-2 text-right font-medium">{Number(j.cost).toFixed(2)}</td>
-                                            </tr>
-                                            {Number(j.extraCharge) > 0 && (
-                                                <tr className="hover:bg-slate-50/50">
-                                                    <td className="border-r border-slate-300 text-center py-1"></td>
-                                                    <td className="border-r border-slate-300 px-2 py-1 text-slate-600 italic">
-                                                        - ค่าใช้จ่ายเพิ่มเติม (Extra Charge)
-                                                    </td>
-                                                    <td className="border-r border-slate-300 px-2 py-1 text-center">1</td>
-                                                    <td className="border-r border-slate-300 px-2 py-1 text-center">รายการ</td>
-                                                    <td className="border-r border-slate-300 px-2 py-1 text-right">{Number(j.extraCharge).toFixed(2)}</td>
-                                                    <td className="px-2 py-1 text-right font-medium">{Number(j.extraCharge).toFixed(2)}</td>
-                                                </tr>
-                                            )}
-                                        </React.Fragment>
-                                    ))}
-                                    {/* Spacer Row to fill height if needed or keep structure */}
-                                    <tr className="h-full"><td className="border-r border-slate-300"></td><td className="border-r border-slate-300"></td><td className="border-r border-slate-300"></td><td className="border-r border-slate-300"></td><td className="border-r border-slate-300"></td><td></td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* 5. Footer Summary */}
-                        <div className="grid grid-cols-[1fr_300px] gap-6 text-xs mb-8">
-                            <div className="space-y-4">
-                                <div>
-                                    <p className="font-bold text-slate-900 mb-1">หมายเหตุ / Remarks:</p>
-                                    <div className="p-2 border border-slate-200 rounded-sm min-h-[60px] text-slate-500 text-[10px]">
-                                        - ได้รับใบแจ้งหนี้/ใบกำกับภาษี ครบถ้วนถูกต้อง<br />
-                                        - การจ่ายเงินโอนเข้าบัญชีผู้รับจ้าง ตามรอบการจ่ายเงินของบริษัท
-                                    </div>
-                                </div>
-                                {/* Baht Text Box */}
-                                <div className="border border-slate-300 rounded-md p-2 text-center bg-slate-50">
-                                    <p className="font-bold text-slate-800 text-sm">({bahtText(netTotal)})</p>
-                                </div>
-                            </div>
-
-                            <div className="space-y-0 text-right">
-                                <div className="flex justify-between items-center py-2 px-1 border-b border-slate-200">
-                                    <span className="font-medium text-slate-600">รวมเป็นเงิน (Subtotal)</span>
-                                    <span className="font-bold text-slate-900">{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                </div>
-                                <div className="flex justify-between items-center py-2 px-1 border-b border-slate-200 group relative">
-                                    <div className="flex items-center gap-1 font-medium text-slate-600">
-                                        <input type="checkbox" aria-label="Apply VAT" checked={applyVat} onChange={(e) => setApplyVat(e.target.checked)} className="no-print accent-blue-600" />
-                                        <span onClick={() => { if (applyVat) setIsEditingVat(true) }} className="cursor-pointer">ภาษีมูลค่าเพิ่ม (VAT {applyVat ? vatRate : 0}%)</span>
-                                        {isEditingVat && (
-                                            <div className="absolute left-0 bottom-8 z-10 bg-white border shadow-md p-2 flex gap-2 no-print">
-                                                <input value={vatRate} aria-label="VAT Rate" onChange={e => setVatRate(e.target.value)} className="w-10 border text-center" />
-                                                <button onClick={() => setIsEditingVat(false)} className="text-blue-600 font-bold">OK</button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <span className="font-bold text-slate-900">{vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                </div>
-                                <div className="flex justify-between items-center py-2 px-1 border-b border-slate-200 group relative">
-                                    <div className="flex items-center gap-1 font-medium text-slate-600">
-                                        <input type="checkbox" aria-label="Apply WHT" checked={applyWht} onChange={(e) => setApplyWht(e.target.checked)} className="no-print accent-red-600" />
-                                        <span onClick={() => { if (applyWht) setIsEditingWht(true) }} className="cursor-pointer">หัก ณ ที่จ่าย (WHT {applyWht ? whtRate : 0}%)</span>
-                                        {isEditingWht && (
-                                            <div className="absolute left-0 bottom-8 z-10 bg-white border shadow-md p-2 flex gap-2 no-print">
-                                                <input value={whtRate} aria-label="WHT Rate" onChange={e => setWhtRate(e.target.value)} className="w-10 border text-center" />
-                                                <button onClick={() => setIsEditingWht(false)} className="text-blue-600 font-bold">OK</button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <span className="font-bold text-slate-900">{whtAmount > 0 ? `- ${whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ` : '0.00'}</span>
-                                </div>
-                                <div className="flex justify-between items-center py-2 px-1 bg-slate-100 mt-2 rounded-sm border border-slate-200">
-                                    <span className="font-black text-slate-900 uppercase text-xs">ยอดเงินสุทธิ (Net Total)</span>
-                                    <span className="font-black text-slate-900 text-sm underline decoration-double underline-offset-2">{netTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* 6. Signatures */}
-                        <div className="grid grid-cols-2 gap-10 mt-auto pt-4 text-xs">
-                            <div className="text-center space-y-8">
-                                <div className="relative pt-6">
-                                    <p className="font-medium text-slate-900">ผู้จัดทำ (Prepared By)</p>
-                                </div>
-                                <div className="space-y-1 pt-6">
-                                    <p className="text-slate-400">...........................................................</p>
-                                    <p className="font-medium text-slate-900 mt-2">วันที่  ........./........./..........</p>
-                                </div>
-                            </div>
-                            <div className="text-center space-y-8">
-                                <div className="relative pt-6">
-                                    <p className="font-medium text-slate-900">ผู้มีอำนาจลงนาม / ผู้อนุมัติ (Authorized Signature)</p>
-                                </div>
-                                <div className="space-y-1 pt-6">
-                                    <p className="text-slate-400">...........................................................</p>
-                                    <p className="font-medium text-slate-900 mt-2">วันที่  ........./........./..........</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="text-[9px] text-right text-slate-300 mt-4">
-                            FM-AC01-02 Billing Acceptance Form
-                        </div>
-
-                    </div>
-                </div>
-
-                {/* Footer UI Actions */}
-                <div className="px-8 py-6 bg-white border-t border-slate-100 flex justify-between items-center no-print">
-                    <div className="flex flex-col gap-1">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            {jobs.length} Job References Linked to this Acknowledgement (BA)
-                        </p>
-                        {!readOnly && (
-                            <p className="text-[9px] font-bold text-blue-500">
-                                * คลิกไอคอน <Edit2 size={10} className="inline mx-1" /> ในตัวเอกสารเพื่อแก้ไข เลขที่ใบวางบิล/ใบกำกับภาษี ของรถร่วมก่อนพิมพ์
-                            </p>
-                        )}
                     </div>
                     <div className="flex items-center gap-3">
-                        <button onClick={handlePrint} className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl text-xs font-black uppercase hover:bg-slate-800 transition-all shadow-xl shadow-slate-200">
-                            <Printer size={16} /> Print / Save PDF
+                        <div className="flex items-center gap-4 bg-slate-700/50 px-4 py-2 rounded-xl border border-white/10 mr-4">
+                            <div className="flex flex-col">
+                                <label className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Reference No (พิมพ์เข้า)</label>
+                                <input
+                                    type="text"
+                                    title="เลขที่ใบวางบิลเอกสารอ้างอิง"
+                                    placeholder="ระบุเลขที่ใบวางบิล..."
+                                    value={referenceNo}
+                                    onChange={(e) => setReferenceNo(e.target.value)}
+                                    className="bg-transparent text-white font-bold text-sm focus:outline-none placeholder:text-slate-500 w-44"
+                                />
+                            </div>
+                            <div className="h-8 w-px bg-white/10"></div>
+                            <div className="flex flex-col">
+                                <label className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Due Date (แก้ไขได้)</label>
+                                <input
+                                    type="date"
+                                    title="กำหนดชำระเงิน"
+                                    value={customDueDate}
+                                    onChange={(e) => setCustomDueDate(e.target.value)}
+                                    className="bg-transparent text-white font-bold text-sm focus:outline-none [color-scheme:dark]"
+                                />
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={doPrint}
+                            className="bg-white text-slate-900 px-6 py-2 rounded-lg font-black flex items-center gap-2 hover:bg-slate-100 transition-all active:scale-95 shadow-xl scale-105"
+                        >
+                            <Printer size={20} /> PRINT / SAVE PDF
                         </button>
-                        {!readOnly && onBatchConfirm && (
-                            <button onClick={finalizeBilled} className="flex items-center gap-2 px-8 py-3 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100">
-                                <CheckCircle size={16} /> Confirm & Issue Acknowledgement ({jobs.length})
-                            </button>
-                        )}
-                        {readOnly && (
-                            <button onClick={onClose} className="flex items-center gap-2 px-8 py-3 bg-slate-100 text-slate-600 rounded-xl text-xs font-black uppercase hover:bg-slate-200 transition-all">
-                                Close
-                            </button>
-                        )}
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="p-1 hover:bg-white/10 rounded-full transition-colors"
+                            aria-label="Close"
+                        >
+                            <X size={32} />
+                        </button>
                     </div>
+                </div>
+
+                {/* Preview Paper Area */}
+                <div className="flex-1 overflow-y-auto bg-slate-200 p-4 md:p-8 print:p-0 print:bg-white print:overflow-visible border-0">
+                    <div className="print-section mx-auto">
+                        {jobChunks.map((chunk, pageIndex) => (
+                            <div key={pageIndex} className={`w-[210mm] h-[297mm] overflow-hidden bg-white mx-auto shadow-sm p-[15mm] flex flex-col relative mb-8 last:mb-0 print:mb-0 print:shadow-none print:w-[210mm] print:h-[297mm] ${pageIndex < jobChunks.length - 1 ? 'page-break' : ''}`}>
+
+                                {/* Header */}
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="flex-1">
+                                        <h1 className="text-xl font-black text-slate-900 leading-tight whitespace-nowrap">บริษัท นีโอสยาม โลจิสติกส์ แอนด์ ทรานสปอร์ต จำกัด</h1>
+                                        <p className="text-[11px] font-bold text-slate-500 mb-1">NEOSIAM LOGISTICS & TRANSPORT CO., LTD.</p>
+                                        <div className="text-[10px] text-slate-500 leading-tight">
+                                            <p>159/9-10 หมู่ 7 ต.บางม่วง อ.เมืองนครสวรรค์ จ.นครสวรรค์ 60000</p>
+                                            <p>Tax ID: 0105552087673 | Tel: 056-275-841</p>
+                                        </div>
+                                    </div>
+                                    <div className="w-32">
+                                        <img
+                                            src="/logo.png"
+                                            alt="Logo"
+                                            className="w-full object-contain"
+                                            loading="eager"
+                                            onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="border-b-2 border-slate-950 mb-6"></div>
+
+                                {/* Title & Meta */}
+                                <div className="flex justify-between items-end mb-6">
+                                    <div>
+                                        <h2 className="text-2xl font-black text-slate-900 uppercase">ใบรับวางบิล</h2>
+                                        <p className="text-[10px] font-bold text-slate-400 tracking-[0.2em] uppercase">Billing Acknowledgement</p>
+                                    </div>
+                                    <div className="border-l-4 border-slate-900 pl-4 py-1 text-[11px] min-w-[200px]">
+                                        <div className="flex justify-between mb-1">
+                                            <span className="text-slate-500 font-bold">เลขที่ No:</span>
+                                            <span className="font-black underline">{documentNumber}</span>
+                                        </div>
+                                        <div className="flex justify-between mb-1">
+                                            <span className="text-slate-500 font-bold">เอกสารอ้างอิง Ref:</span>
+                                            <span className="font-black text-red-600 underline">{referenceNo || '________________'}</span>
+                                        </div>
+                                        <div className="flex justify-between mb-1">
+                                            <span className="text-slate-500 font-bold">วันที่ Date:</span>
+                                            <span className="font-medium">{currentDate}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-500 font-bold">กำหนด Due:</span>
+                                            <span className="font-black text-blue-700">{dueDateStr}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Subcon Info */}
+                                <div className="grid grid-cols-2 gap-4 mb-6 text-[11px]">
+                                    <div className="bg-slate-50 border border-slate-200 rounded p-3">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Subcontractor</p>
+                                        <p className="text-sm font-black text-slate-900">{mainJob.subcontractor || '-'}</p>
+                                    </div>
+                                    <div className="bg-slate-50 border border-slate-200 rounded p-3">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Company Info</p>
+                                        <p className="font-bold text-[10px]">บริษัท นีโอสยาม โลจิสติกส์ แอนด์ ทรานสปอร์ต จำกัด</p>
+                                        <p className="text-[9px] text-slate-500 leading-tight">159/9-10 หมู่ 7 ต.บางม่วง อ.เมืองนครสวรรค์ จ.นครสวรรค์ 60000</p>
+                                    </div>
+                                </div>
+
+                                {/* Table */}
+                                <div className="flex-1">
+                                    <table className="w-full border-collapse text-[10.5px]">
+                                        <thead>
+                                            <tr className="bg-slate-800 text-white text-center print:bg-slate-800 print:text-white">
+                                                <th className="border border-slate-600 p-2 w-10">#</th>
+                                                <th className="border border-slate-600 p-2 text-left">รายละเอียดบริการ (Description)</th>
+                                                <th className="border border-slate-600 p-2 w-14">จำนวน</th>
+                                                <th className="border border-slate-600 p-2 w-24">ราคาต่อหน่วย</th>
+                                                <th className="border border-slate-600 p-2 w-24">รวมเงิน</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {chunk.map((j, idx) => (
+                                                <React.Fragment key={j.id}>
+                                                    <tr className="even:bg-slate-50 print:even:bg-slate-50">
+                                                        <td className="border border-slate-200 p-2 text-center text-slate-400">{(pageIndex * ITEMS_PER_PAGE) + idx + 1}</td>
+                                                        <td className="border border-slate-200 p-2 leading-relaxed">
+                                                            <div className="font-bold text-slate-900 underline decoration-slate-200">ค่าระวางขนส่ง: {j.origin} - {j.destination}</div>
+                                                            <div className="text-[9px] text-slate-500 font-medium">
+                                                                Service: {new Date(j.dateOfService).toLocaleDateString()} | Truck: {j.licensePlate} ({j.truckType})
+                                                            </div>
+                                                        </td>
+                                                        <td className="border border-slate-200 p-2 text-center">1 Trip</td>
+                                                        <td className="border border-slate-200 p-2 text-right">{Number(j.cost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                        <td className="border border-slate-200 p-2 text-right font-black">{Number(j.cost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                    </tr>
+                                                    {Number(j.extraCharge) > 0 && (
+                                                        <tr className="bg-yellow-50/30 print:bg-yellow-50">
+                                                            <td className="border border-slate-200 p-2"></td>
+                                                            <td className="border border-slate-200 p-2 italic text-slate-600">- Extra Charge / ค่าใช้จ่ายเพิ่มเติม</td>
+                                                            <td className="border border-slate-200 p-2 text-center">1 Job</td>
+                                                            <td className="border border-slate-200 p-2 text-right">{Number(j.extraCharge).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                            <td className="border border-slate-200 p-2 text-right font-bold text-slate-800">{Number(j.extraCharge).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Summary */}
+                                {pageIndex === jobChunks.length - 1 && (
+                                    <div className="mt-6 border-t-2 border-slate-900 pt-6">
+                                        <div className="flex justify-between items-start gap-12">
+                                            <div className="flex-1 space-y-4">
+                                                <div className="bg-slate-50 border border-slate-200 rounded p-3 min-h-[80px]">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Remarks / หมายเหตุ</p>
+                                                    <p className="text-[10px] text-slate-500 leading-relaxed italic">
+                                                        1. ได้รับเอกสารพัสดุเป็นที่เรียบร้อยและถูกต้องตามเงื่อนไขการวางบิล<br />
+                                                        2. การรับชำระเงินจะดำเนินการตามรอบบัญชีที่บริษัทกำหนดไว้
+                                                    </p>
+                                                </div>
+                                                <div className="p-3 bg-slate-900 text-white rounded text-center font-black text-xs shadow-md tracking-wider print:bg-slate-900 print:text-white">
+                                                    ({bahtText(netTotal)})
+                                                </div>
+                                            </div>
+                                            <div className="w-[220px] text-[11px] space-y-2">
+                                                <div className="flex justify-between text-slate-600">
+                                                    <span className="font-bold">รวมเงินก่อนภาษี (Subtotal)</span>
+                                                    <span className="font-black text-slate-900">{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                </div>
+
+                                                {/* UI Only Switches */}
+                                                <div className="no-print space-y-2 pb-2 mb-2 border-b border-dashed">
+                                                    <label className="flex items-center justify-between text-slate-500 cursor-pointer hover:bg-slate-100 p-1 rounded">
+                                                        <div className="flex items-center gap-2">
+                                                            <input type="checkbox" checked={applyVat} onChange={e => setApplyVat(e.target.checked)} className="w-4 h-4 rounded text-blue-600" />
+                                                            <span className="font-bold">VAT {vatRate}%</span>
+                                                        </div>
+                                                        <span className="font-black text-slate-900 underline decoration-dotted">{vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                    </label>
+                                                    <label className="flex items-center justify-between text-slate-500 cursor-pointer hover:bg-slate-100 p-1 rounded">
+                                                        <div className="flex items-center gap-2">
+                                                            <input type="checkbox" checked={applyWht} onChange={e => setApplyWht(e.target.checked)} className="w-4 h-4 rounded text-red-600" />
+                                                            <span className="font-bold text-red-600">WHT {whtRate}%</span>
+                                                        </div>
+                                                        <span className="font-black text-red-600">-{whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                    </label>
+                                                </div>
+
+                                                {/* Print Static Values */}
+                                                <div className="hidden print:block space-y-1">
+                                                    {applyVat && (
+                                                        <div className="flex justify-between text-slate-600">
+                                                            <span>VAT {vatRate}%</span>
+                                                            <span className="font-bold">{vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                    )}
+                                                    {applyWht && (
+                                                        <div className="flex justify-between text-slate-600">
+                                                            <span>WHT {whtRate}%</span>
+                                                            <span className="font-bold text-slate-900">-{whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                    )}
+                                                    {!applyVat && !applyWht && (
+                                                        <div className="flex justify-between text-slate-400 italic text-[10px]">
+                                                            <span>ไม่มีภาษี (No Tax Applied)</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex justify-between border-t-2 border-slate-900 pt-3 mt-2 bg-slate-50 p-2 rounded shadow-inner print:bg-slate-50">
+                                                    <div className="flex flex-col text-left">
+                                                        <span className="font-black text-slate-900 text-xs text-blue-800 print:text-blue-800 leading-tight">ยอดเงินสุทธิ</span>
+                                                        <span className="text-[10px] font-black text-blue-800 print:text-blue-800 leading-none">(NET TOTAL)</span>
+                                                    </div>
+                                                    <span className="text-sm font-black text-blue-800 underline decoration-double underline-offset-4 print:text-blue-800">{netTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-16 mt-16 text-center text-[11px]">
+                                            <div className="space-y-4">
+                                                <div className="border-b-2 border-slate-300 w-full mb-2 h-10"></div>
+                                                <p className="font-black text-slate-900 uppercase">ผู้รับวางบิล (Receiver Signature)</p>
+                                                <p className="text-[10px] text-slate-400">Date: ______/______/______</p>
+                                            </div>
+                                            <div className="space-y-4">
+                                                <div className="border-b-2 border-slate-300 w-full mb-2 h-10"></div>
+                                                <p className="font-black text-slate-900 uppercase">ผู้วางบิล / ผู้รับเงิน (Authorized By)</p>
+                                                <p className="text-[10px] text-slate-400">Date: {currentDate}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="absolute bottom-4 right-[15mm] text-[9.5px] font-bold text-slate-400 italic">PAGE {pageIndex + 1} OF {jobChunks.length}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Footer Toolbar */}
+                <div className="bg-slate-100 border-t border-slate-200 px-8 py-6 flex justify-between items-center no-print">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-8 py-3 bg-white border border-slate-300 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all active:scale-95"
+                    >
+                        CANCEL / CLOSE
+                    </button>
+
+                    {!readOnly && (
+                        <div className="flex gap-4">
+                            <button
+                                type="button"
+                                onClick={doPrint}
+                                className="px-8 py-3 bg-slate-800 text-white rounded-xl font-black flex items-center gap-3 hover:bg-slate-900 transition-all shadow-xl active:scale-95 border-b-4 border-slate-950"
+                            >
+                                <Printer size={22} />
+                                PRINT DOCUMENT
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={finalizeBilled}
+                                className="px-8 py-3 bg-emerald-600 text-white rounded-xl font-black flex items-center gap-3 hover:bg-emerald-700 transition-all shadow-xl active:scale-95 border-b-4 border-emerald-900"
+                            >
+                                <CheckCircle size={22} />
+                                CONFIRM & RECORD ({jobs.length})
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
