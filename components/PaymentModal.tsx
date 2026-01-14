@@ -18,15 +18,18 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSubmit, 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        console.log('📝 PaymentModal: Form submitted', { date, hasFile: !!file });
         setIsSubmitting(true);
         try {
+            console.log('📤 PaymentModal: Calling onSubmit...');
             await onSubmit(date, file);
-            onClose();
+            console.log('✅ PaymentModal: onSubmit completed successfully');
+            // DO NOT call onClose() here - let parent handle it
         } catch (error) {
-            console.error('Payment Error', error);
-        } finally {
-            setIsSubmitting(false);
+            console.error('❌ PaymentModal: Payment Error', error);
+            setIsSubmitting(false); // Only reset on error
         }
+        // Note: Don't set isSubmitting to false on success - modal will close
     };
 
     return (

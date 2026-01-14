@@ -13,8 +13,8 @@ interface BillingViewProps {
 }
 
 const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) => {
-  const [viewTab, setViewTab] = useState<'VERIFICATION' | 'BILLING' | 'PAYMENT'>('VERIFICATION');
-  const [activeFilter, setActiveFilter] = useState<'ALL' | 'REJECTED' | 'READY' | 'HISTORY' | 'PAID'>('ALL'); // Sub-filter
+  const [viewTab, setViewTab] = useState<'VERIFICATION' | 'TO_BILL' | 'TO_PAY' | 'PAID'>('VERIFICATION');
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'REJECTED'>('ALL'); // Only for VERIFICATION tab
 
   // Invoice Modal State
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -59,43 +59,30 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
     // Subcontractor Filter
     if (filterSub !== 'ALL' && j.subcontractor !== filterSub) return false;
 
-    // --- TAB LOGIC ---
+    // --- NEW 4-TAB LOGIC ---
     if (viewTab === 'VERIFICATION') {
-      // Show jobs waiting for review (Pending or Rejected). Exclude Approved/Locked/Billed.
-      // Criteria: Completed AND (No Accounting Status OR Pending OR Rejected)
+      // Tab 1: VERIFICATION - Show jobs waiting for review (Pending or Rejected)
       const isPending = j.status === JobStatus.COMPLETED &&
         (j.accountingStatus === AccountingStatus.PENDING_REVIEW || !j.accountingStatus || j.accountingStatus === AccountingStatus.REJECTED);
 
       if (!isPending) return false;
 
-      // Sub-filter: Rejected
+      // Sub-filter: Show only rejected if selected
       if (activeFilter === 'REJECTED') return j.accountingStatus === AccountingStatus.REJECTED;
 
       return true;
-    } else if (viewTab === 'BILLING') {
-      // BILLING TAB
-      // Show jobs ready to bill (Approved) or History (Billed/Locked).
-      const isBilling = (j.status === JobStatus.COMPLETED && j.accountingStatus === AccountingStatus.APPROVED) ||
-        (j.status === JobStatus.BILLED) ||
-        (j.accountingStatus === AccountingStatus.LOCKED);
 
-      if (!isBilling) return false;
+    } else if (viewTab === 'TO_BILL') {
+      // Tab 2: TO BILL - Show only APPROVED jobs ready to bill (not yet BILLED)
+      return j.status === JobStatus.COMPLETED && j.accountingStatus === AccountingStatus.APPROVED;
 
-      // Sub-filters
-      if (activeFilter === 'READY') return j.accountingStatus === AccountingStatus.APPROVED && j.status === JobStatus.COMPLETED;
-      if (activeFilter === 'HISTORY') return j.status === JobStatus.BILLED || j.accountingStatus === AccountingStatus.LOCKED;
+    } else if (viewTab === 'TO_PAY') {
+      // Tab 3: TO PAY - Show only BILLED jobs that haven't been PAID yet
+      return j.status === JobStatus.BILLED && j.accountingStatus !== AccountingStatus.PAID && j.accountingStatus !== AccountingStatus.LOCKED;
 
-      return true;
     } else {
-      // PAYMENT TAB
-      // Show jobs that are BILLED (ready to pay) or PAID/LOCKED (History)
-      const isPayment = j.status === JobStatus.BILLED || j.accountingStatus === AccountingStatus.PAID || j.accountingStatus === AccountingStatus.LOCKED;
-      if (!isPayment) return false;
-
-      if (activeFilter === 'READY') return j.status === JobStatus.BILLED && j.accountingStatus !== AccountingStatus.PAID && j.accountingStatus !== AccountingStatus.LOCKED;
-      if (activeFilter === 'PAID') return j.accountingStatus === AccountingStatus.PAID || j.accountingStatus === AccountingStatus.LOCKED;
-
-      return true;
+      // Tab 4: PAID - Show only jobs that have been PAID or LOCKED
+      return j.accountingStatus === AccountingStatus.PAID || j.accountingStatus === AccountingStatus.LOCKED;
     }
   });
 
@@ -306,6 +293,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
   };
 
   const handleConfirmPayment = async (date: string, file: File | null) => {
+    console.log('🔵 PAYMENT STARTED:', { jobCount: paymentTargetJobs.length, jobIds: paymentTargetJobs.map(j => j.id), date });
     let slipUrl = '';
     if (file) {
       // Use the new compression function
@@ -320,6 +308,8 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
     const logs: AuditLog[] = [];
 
     paymentTargetJobs.forEach(job => {
+      console.log(`🔄 Processing Job ${job.id}: Current status=${job.status}, AccStatus=${job.accountingStatus}`);
+
       const updatedJob: Job = {
         ...job,
         accountingStatus: AccountingStatus.PAID,
@@ -327,6 +317,8 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
         paymentSlipUrl: slipUrl,
         isBaseCostLocked: true
       };
+
+      console.log(`✅ Updated Job ${job.id}: New AccStatus=${updatedJob.accountingStatus}, PaymentDate=${updatedJob.paymentDate}`);
 
       const log: AuditLog = {
         id: `LOG-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -345,11 +337,19 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
       onUpdateJob(updatedJob, [log]);
     });
 
+    // Close modal and reset state
+    setShowPaymentModal(false);
+    setPaymentTargetJobs([]);
+
+    // Auto-switch to READY filter to show only unpaid jobs
+    setActiveFilter('READY');
+
     (window as any).Swal.fire({
       icon: 'success',
-      title: 'Payment Recorded',
-      text: `Successfully recorded payment for ${paymentTargetJobs.length} jobs.`,
-      timer: 1500
+      title: 'บันทึกสำเร็จ!',
+      text: `บันทึกการจ่ายเงินสำหรับ ${paymentTargetJobs.length} รายการเรียบร้อยแล้ว`,
+      timer: 2000,
+      showConfirmButton: false
     });
   };
 
@@ -398,80 +398,57 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
             onClick={() => { setViewTab('VERIFICATION'); setActiveFilter('ALL'); setCurrentPage(1); }}
             className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'VERIFICATION' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            🟢 Verification Center (รอตรวจสอบ)
+            🔍 VERIFICATION (รอตรวจสอบ)
           </button>
           <button
-            onClick={() => { setViewTab('BILLING'); setActiveFilter('ALL'); setCurrentPage(1); }}
-            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'BILLING' ? 'bg-white text-indigo-600 shadow-sm border border-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
+            onClick={() => { setViewTab('TO_BILL'); setActiveFilter('ALL'); setCurrentPage(1); }}
+            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'TO_BILL' ? 'bg-white text-indigo-600 shadow-sm border border-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            🔵 Billing Center (รอวางบิล)
+            📝 TO BILL (พร้อมวางบิล)
           </button>
           <button
-            onClick={() => { setViewTab('PAYMENT'); setActiveFilter('ALL'); setCurrentPage(1); }}
-            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'PAYMENT' ? 'bg-white text-emerald-600 shadow-sm border border-emerald-100' : 'text-slate-400 hover:text-slate-600'}`}
+            onClick={() => { setViewTab('TO_PAY'); setActiveFilter('ALL'); setCurrentPage(1); }}
+            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'TO_PAY' ? 'bg-white text-amber-600 shadow-sm border border-amber-100' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            💳 Payment Center (รอจ่ายเงิน)
+            💰 TO PAY (รอจ่ายเงิน)
+          </button>
+          <button
+            onClick={() => { setViewTab('PAID'); setActiveFilter('ALL'); setCurrentPage(1); }}
+            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'PAID' ? 'bg-white text-emerald-600 shadow-sm border border-emerald-100' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            ✅ PAID (จ่ายแล้ว)
           </button>
         </div>
 
-        {/* Sub-Filters */}
-        <div className="flex flex-wrap items-center gap-3 w-full">
-          <button
-            onClick={() => setActiveFilter('ALL')}
-            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'ALL' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
-          >
-            Show All (ทั้งหมด)
-          </button>
-
-          {viewTab === 'VERIFICATION' && (
+        {/* Sub-Filters - Only for VERIFICATION tab */}
+        {viewTab === 'VERIFICATION' && (
+          <div className="flex flex-wrap items-center gap-3 w-full">
+            <button
+              onClick={() => setActiveFilter('ALL')}
+              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'ALL' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+            >
+              Show All (ทั้งหมด)
+            </button>
             <button
               onClick={() => setActiveFilter('REJECTED')}
               className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'REJECTED' ? 'bg-rose-600 text-white border-rose-600 shadow-lg' : 'bg-white text-rose-400 border-rose-100 hover:border-rose-300'}`}
             >
               Rejected Only (งานถูกตีกลับ)
             </button>
-          )}
+          </div>
+        )}
 
-          {viewTab === 'BILLING' && (
-            <>
-              <button
-                onClick={() => setActiveFilter('READY')}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'READY' ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-white text-emerald-600 border-emerald-100 hover:border-emerald-300'}`}
-              >
-                Ready to Bill (รอวางบิล)
-              </button>
-              <button
-                onClick={() => setActiveFilter('HISTORY')}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'HISTORY' ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
-              >
-                Billing History (ประวัติการวางบิล)
-              </button>
-            </>
-          )}
-
-          {viewTab === 'PAYMENT' && (
-            <>
-              <button
-                onClick={() => setActiveFilter('READY')}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'READY' ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-white text-indigo-600 border-indigo-100 hover:border-indigo-300'}`}
-              >
-                To Pay (รอจ่ายเงิน)
-              </button>
-              <button
-                onClick={() => setActiveFilter('PAID')}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'PAID' ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-white text-emerald-600 border-emerald-100 hover:border-emerald-300'}`}
-              >
-                Paid History (ประวัติจ่ายแล้ว)
-              </button>
-              <button
-                onClick={downloadPaymentReport}
-                className="ml-auto px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border bg-white text-slate-600 border-slate-200 hover:border-slate-400 flex items-center gap-2"
-              >
-                <Download size={14} /> Export Report
-              </button>
-            </>
-          )}
-        </div>
+        {/* Export button for PAID tab */}
+        {viewTab === 'PAID' && (
+          <div className="flex items-center gap-3 w-full">
+            <button
+              onClick={downloadPaymentReport}
+              className="ml-auto px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border bg-white text-slate-600 border-slate-200 hover:border-slate-400 flex items-center gap-2"
+            >
+              <Download size={14} /> Export Report
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Stats Row */}
@@ -764,6 +741,51 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
                             </div>
                           </div>
                         )}
+
+                        {/* Payment Slip - Show in PAID tab */}
+                        {viewTab === 'PAID' && job.paymentSlipUrl && (
+                          <div className="mt-1 pt-2 border-t border-slate-100">
+                            <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider block mb-1">Payment Slip:</span>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const response = await fetch(job.paymentSlipUrl!);
+                                  const blob = await response.blob();
+                                  const url = URL.createObjectURL(blob);
+
+                                  (window as any).Swal.fire({
+                                    title: 'สลิปการจ่ายเงิน',
+                                    html: `
+                                      <div class="space-y-2">
+                                        <p class="text-sm text-slate-600">Job ID: <strong>${job.id}</strong></p>
+                                        <p class="text-sm text-slate-600">Payment Date: <strong>${job.paymentDate ? new Date(job.paymentDate).toLocaleDateString('th-TH') : 'N/A'}</strong></p>
+                                        <img src="${url}" class="max-w-full h-auto rounded-lg shadow-lg" />
+                                      </div>
+                                    `,
+                                    width: '600px',
+                                    showCloseButton: true,
+                                    showConfirmButton: false,
+                                    customClass: { popup: 'rounded-[2rem]' },
+                                    didClose: () => {
+                                      URL.revokeObjectURL(url);
+                                    }
+                                  });
+                                } catch (error) {
+                                  console.error('Error loading payment slip:', error);
+                                  (window as any).Swal.fire({
+                                    icon: 'error',
+                                    title: 'ไม่สามารถโหลดสลิปได้',
+                                    text: 'กรุณาลองใหม่อีกครั้ง',
+                                  });
+                                }
+                              }}
+                              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-bold hover:bg-emerald-100 transition-colors border border-emerald-200"
+                              title="View Payment Slip"
+                            >
+                              <CreditCard size={14} /> ดูสลิปการจ่าย
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-8 py-6 text-right">
@@ -771,24 +793,26 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
                         {/* Accounting Actions (Only for PENDING or REJECTED) */}
                         {user.role === UserRole.ACCOUNTANT || user.role === UserRole.ADMIN ? (
                           <div className="flex items-center gap-2">
-                            {job.accountingStatus !== AccountingStatus.APPROVED && job.accountingStatus !== AccountingStatus.LOCKED && (
-                              <>
-                                <button
-                                  onClick={() => handleAccountingAction(job, AccountingStatus.APPROVED)}
-                                  className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100 flex items-center justify-center shadow-sm"
-                                  title="Approve / อนุมัติ"
-                                >
-                                  <CheckCircle size={20} />
-                                </button>
-                                <button
-                                  onClick={() => handleAccountingAction(job, AccountingStatus.REJECTED)}
-                                  className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all border border-rose-100 flex items-center justify-center shadow-sm"
-                                  title="Reject / ปฏิเสธ"
-                                >
-                                  <XCircle size={20} />
-                                </button>
-                              </>
-                            )}
+                            {job.accountingStatus !== AccountingStatus.APPROVED &&
+                              job.accountingStatus !== AccountingStatus.LOCKED &&
+                              job.accountingStatus !== AccountingStatus.PAID && (
+                                <>
+                                  <button
+                                    onClick={() => handleAccountingAction(job, AccountingStatus.APPROVED)}
+                                    className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100 flex items-center justify-center shadow-sm"
+                                    title="Approve / อนุมัติ"
+                                  >
+                                    <CheckCircle size={20} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleAccountingAction(job, AccountingStatus.REJECTED)}
+                                    className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all border border-rose-100 flex items-center justify-center shadow-sm"
+                                    title="Reject / ปฏิเสธ"
+                                  >
+                                    <XCircle size={20} />
+                                  </button>
+                                </>
+                              )}
 
                             {job.accountingStatus === AccountingStatus.APPROVED && job.status === JobStatus.COMPLETED && (
                               <button
@@ -806,14 +830,14 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
                           <span className="text-[10px] font-black text-slate-300 uppercase italic">Access Restricted (Audit Only)</span>
                         )}
 
-                        {/* Payment Actions */}
-                        {viewTab === 'PAYMENT' && job.accountingStatus !== AccountingStatus.PAID && job.accountingStatus !== AccountingStatus.LOCKED && (
+                        {/* Payment Actions - Show in TO_PAY tab */}
+                        {viewTab === 'TO_PAY' && job.status === JobStatus.BILLED && job.accountingStatus !== AccountingStatus.PAID && job.accountingStatus !== AccountingStatus.LOCKED && (
                           <button
                             onClick={() => handleOpenPaymentModal([job])}
                             className="px-6 py-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 flex flex-col items-center gap-1 min-w-[120px]"
                           >
                             <span>แจ้งชำระเงิน</span>
-                            <span className="opacity-80">(Mark Paid)</span>
+                            <span className="opacity-80">(TO PAY)</span>
                           </button>
                         )}
 
@@ -878,51 +902,55 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
       </div>
 
       {/* Floating Batch Action */}
-      {selectedJobIds.length > 0 && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[50] animate-in slide-in-from-bottom-10 duration-500">
-          <div className="bg-slate-900 text-white px-8 py-4 rounded-[2rem] shadow-2xl flex items-center gap-6 border border-slate-700 backdrop-blur-xl bg-slate-900/90">
-            <div className="flex flex-col">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selected Jobs</span>
-              <span className="text-lg font-black">{selectedJobIds.length} ใบงาน</span>
+      {
+        selectedJobIds.length > 0 && (
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[50] animate-in slide-in-from-bottom-10 duration-500">
+            <div className="bg-slate-900 text-white px-8 py-4 rounded-[2rem] shadow-2xl flex items-center gap-6 border border-slate-700 backdrop-blur-xl bg-slate-900/90">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selected Jobs</span>
+                <span className="text-lg font-black">{selectedJobIds.length} ใบงาน</span>
+              </div>
+              <div className="h-8 w-px bg-slate-700"></div>
+              <button
+                onClick={handleBatchBill}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 flex items-center gap-2"
+              >
+                <Receipt size={16} /> Acknowledge Batch Billing
+              </button>
+              <button
+                onClick={() => setSelectedJobIds([])}
+                className="text-[10px] font-black uppercase text-slate-500 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
             </div>
-            <div className="h-8 w-px bg-slate-700"></div>
-            <button
-              onClick={handleBatchBill}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 flex items-center gap-2"
-            >
-              <Receipt size={16} /> Acknowledge Batch Billing
-            </button>
-            <button
-              onClick={() => setSelectedJobIds([])}
-              className="text-[10px] font-black uppercase text-slate-500 hover:text-white transition-colors"
-            >
-              Cancel
-            </button>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Invoice Preview Modal */}
-      {showInvoiceModal && selectedInvoiceJobs.length > 0 && (
-        <InvoicePreviewModal
-          jobs={selectedInvoiceJobs}
-          readOnly={isInvoiceViewMode}
-          existingDocNo={isInvoiceViewMode ? selectedInvoiceJobs[0]?.billingDocNo : undefined}
-          existingDate={isInvoiceViewMode ? selectedInvoiceJobs[0]?.billingDate : undefined}
-          onClose={() => {
-            setShowInvoiceModal(false);
-            setSelectedInvoiceJobs([]);
-            setIsInvoiceViewMode(false);
-          }}
-          onBatchConfirm={(updatedJobs) => {
-            updatedJobs.forEach(uj => onUpdateJob(uj));
-            setShowInvoiceModal(false);
-            setSelectedInvoiceJobs([]);
-            setSelectedJobIds([]);
-            setIsInvoiceViewMode(false);
-          }}
-        />
-      )}
+      {
+        showInvoiceModal && selectedInvoiceJobs.length > 0 && (
+          <InvoicePreviewModal
+            jobs={selectedInvoiceJobs}
+            readOnly={isInvoiceViewMode}
+            existingDocNo={isInvoiceViewMode ? selectedInvoiceJobs[0]?.billingDocNo : undefined}
+            existingDate={isInvoiceViewMode ? selectedInvoiceJobs[0]?.billingDate : undefined}
+            onClose={() => {
+              setShowInvoiceModal(false);
+              setSelectedInvoiceJobs([]);
+              setIsInvoiceViewMode(false);
+            }}
+            onBatchConfirm={(updatedJobs) => {
+              updatedJobs.forEach(uj => onUpdateJob(uj));
+              setShowInvoiceModal(false);
+              setSelectedInvoiceJobs([]);
+              setSelectedJobIds([]);
+              setIsInvoiceViewMode(false);
+            }}
+          />
+        )
+      }
 
       {/* Payment Modal */}
       <PaymentModal
