@@ -7,7 +7,7 @@ import DispatcherActionModal from './DispatcherActionModal';
 import ConfirmationModal from './ConfirmationModal';
 import JobPreviewModal from './JobPreviewModal';
 import BookingEditModal from './BookingEditModal';
-import { formatThaiCurrency, roundHalfUp } from '../utils/format';
+import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
 import PendingPricingModal from './PendingPricingModal';
 
 interface JobBoardProps {
@@ -238,7 +238,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
     // Map data to CSV rows
     const rows = filteredJobs.map(job => [
       job.id,
-      job.dateOfService,
+      formatDate(job.dateOfService),
       `"${job.origin}"`,
       `"${job.destination}"`,
       job.truckType,
@@ -333,7 +333,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
                   >
                     <div className="flex justify-between items-start mb-3">
                       <span className="text-[10px] font-black font-mono text-blue-600">#{job.id}</span>
-                      <span className="text-[9px] font-bold text-slate-400">{new Date(job.dateOfService).toLocaleDateString('th-TH')}</span>
+                      <span className="text-[9px] font-bold text-slate-400">{formatDate(job.dateOfService)}</span>
                     </div>
                     {/* Rejected Badge */}
                     {job.accountingStatus === AccountingStatus.REJECTED && (
@@ -818,7 +818,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pt-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-t border-slate-50">
-                  <Calendar size={12} className="text-blue-500/50" /> {new Date(job.dateOfService).toLocaleDateString('th-TH')}
+                  <Calendar size={12} className="text-blue-500/50" /> {formatDate(job.dateOfService)}
                 </div>
               </div>
 

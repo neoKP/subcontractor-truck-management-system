@@ -6,7 +6,7 @@ import {
     ChevronRight, ChevronDown, Lock, Eye, X
 } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { formatThaiCurrency, roundHalfUp } from '../utils/format';
+import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
 
 const dataURItoBlob = (dataURI: string) => {
     try {
@@ -194,7 +194,7 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                     <span className="truncate max-w-[120px]">{job.destination}</span>
                                 </div>
                                 <div className="flex justify-between items-end">
-                                    <span className="text-xs text-slate-400">{new Date(job.dateOfService).toLocaleDateString('th-TH')}</span>
+                                    <span className="text-xs text-slate-400">{formatDate(job.dateOfService)}</span>
                                     <span className="text-sm font-black text-slate-800">{formatCurrency((job.cost || 0) + (job.extraCharge || 0))}</span>
                                 </div>
                             </div>

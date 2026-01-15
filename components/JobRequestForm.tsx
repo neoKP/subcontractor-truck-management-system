@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Job, JobStatus, UserRole } from '../types';
 import { MASTER_DATA } from '../constants';
 import { Truck, MapPin, ClipboardCheck, ArrowRight, ArrowLeft, CheckCircle2, Zap, Search, Info, AlertTriangle, ShieldCheck, LayoutPanelTop } from 'lucide-react';
+import { formatDate } from '../utils/format';
 import { PriceMatrix } from '../types';
 
 interface JobRequestFormProps {
@@ -105,6 +106,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       sellingPrice: hasPricing ? (matchedPricing?.sellingBasePrice ?? 0) : 0,
       requestedBy: user.id,
       requestedByName: user.name,
+      createdAt: new Date().toISOString(), // Add creation timestamp
     };
 
     // Show Success Alert and wait for user to click OK
@@ -428,7 +430,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                       <div className="space-y-1">
                         <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em]">รายละเอียดงาน (Service Details)</p>
                         <div className="space-y-1">
-                          <div className="text-lg font-black text-slate-800">{new Date(formData.dateOfService).toLocaleDateString('th-TH', { dateStyle: 'full' })}</div>
+                          <div className="text-lg font-black text-slate-800">{formatDate(formData.dateOfService)}</div>
                           <div className="text-sm font-bold text-slate-500">{formData.truckType}</div>
                         </div>
                       </div>

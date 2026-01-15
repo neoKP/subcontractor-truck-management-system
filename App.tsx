@@ -3,7 +3,7 @@ import { UserRole, Job, JobStatus, AuditLog, PriceMatrix, AccountingStatus } fro
 import JobRequestForm from './components/JobRequestForm';
 import JobBoard from './components/JobBoard';
 import Sidebar from './components/Sidebar';
-import { formatThaiCurrency, roundHalfUp } from './utils/format';
+import { formatThaiCurrency, roundHalfUp, formatDate } from './utils/format';
 import Header from './components/Header';
 import BillingView from './components/BillingView';
 import PricingTableView from './components/PricingTableView';
@@ -17,6 +17,7 @@ import JobSummaryBoard from './components/JobSummaryBoard';
 import JobTrackingModal from './components/JobTrackingModal';
 import BookingOfficerDashboard from './components/BookingOfficerDashboard';
 import PremiumExecutiveDashboard from './components/PremiumExecutiveDashboard';
+import DailyReportView from './components/DailyReportView'; // Added DailyReportView import
 import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3, ShieldAlert } from 'lucide-react';
 import { db, ref, onValue, set, remove } from './firebaseConfig';
 
@@ -42,7 +43,7 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [priceMatrix, setPriceMatrix] = useState<PriceMatrix[]>(PRICE_MATRIX);
-  const [activeTab, setActiveTab] = useState<'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit'>('board');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report'>('board');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logSearch, setLogSearch] = useState('');
   const [logPage, setLogPage] = useState(1);
@@ -142,6 +143,29 @@ const App: React.FC = () => {
         const user006 = Object.values(data).find((u: any) => u.id === 'BOOKING_006');
         if (user006 && (user006 as any).role !== UserRole.DISPATCHER) {
           set(ref(db, `users/BOOKING_006`), { ...(user006 as object), role: UserRole.DISPATCHER });
+        }
+
+        // Fix Thanakorn's data (Clean Name & Ensure Dispatcher Role)
+        const userThanakorn = Object.values(data).find((u: any) => u.name && u.name.includes('ธนากร'));
+        if (userThanakorn) {
+          let needsUpdate = false;
+          let updatedUser = { ...(userThanakorn as object) };
+
+          // 1. Clean Name (Remove any (DISPATCHER) or extra text)
+          if ((userThanakorn as any).name !== 'ธนากร อินอ้น') {
+            updatedUser = { ...updatedUser, name: 'ธนากร อินอ้น' };
+            needsUpdate = true;
+          }
+
+          // 2. Ensure Role is DISPATCHER (Super Dispatcher)
+          if ((userThanakorn as any).role !== UserRole.DISPATCHER) {
+            updatedUser = { ...updatedUser, role: UserRole.DISPATCHER };
+            needsUpdate = true;
+          }
+
+          if (needsUpdate) {
+            set(ref(db, `users/${(userThanakorn as any).id}`), updatedUser);
+          }
         }
       } else {
         // Seed users if empty
@@ -252,6 +276,18 @@ const App: React.FC = () => {
     remove(ref(db, `jobs/${jobId}`));
   };
 
+  // Attempt to restore session
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem('currentUser');
+      if (stored) {
+        setCurrentUser(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.warn('LocalStorage access denied. Session will not persist.', e);
+    }
+  }, []);
+
   const handleLogin = (user: { id: string; name: string; role: UserRole }) => {
     setCurrentUser(user);
     try {
@@ -308,8 +344,18 @@ const App: React.FC = () => {
         />
 
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full box-border">
-          {activeTab === 'analytics' && currentUser.role !== UserRole.BOOKING_OFFICER && <PremiumExecutiveDashboard jobs={jobs} />}
+          {activeTab === 'analytics' && currentUser.role !== UserRole.BOOKING_OFFICER && (
+            <PremiumExecutiveDashboard
+              jobs={jobs}
+              activeTab="analytics" // Pass analytics context
+            />
+          )}
 
+          {activeTab === 'daily-report' && [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER, UserRole.BOOKING_OFFICER].includes(currentUser.role) && (
+            <DailyReportView jobs={jobs} currentUser={currentUser} />
+          )}
+
+          {/* Board View */}
           {activeTab === 'create' && (currentUser.role === UserRole.BOOKING_OFFICER || currentUser.role === UserRole.DISPATCHER) && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="bg-blue-600 px-6 py-4 flex items-center gap-3">
@@ -477,7 +523,7 @@ const App: React.FC = () => {
                                 {(log.timestamp || '').includes('T') ? new Date(log.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ((log.timestamp || '').includes(',') ? log.timestamp.split(',')[1] : log.timestamp)}
                               </div>
                               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                                {(log.timestamp || '').includes('T') ? new Date(log.timestamp).toLocaleDateString('th-TH') : ((log.timestamp || '').includes(',') ? log.timestamp.split(',')[0] : '')}
+                                {(log.timestamp || '').includes('T') ? formatDate(log.timestamp) : ((log.timestamp || '').includes(',') ? log.timestamp.split(',')[0] : '')}
                               </div>
                             </td>
                             <td className="px-6 py-5">

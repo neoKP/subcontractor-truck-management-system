@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Job, JobStatus, UserRole, AccountingStatus, AuditLog, PriceMatrix } from '../types';
 import { AlertCircle, CheckCircle, Clock, FileText, MapPin, Truck, Zap, AlertTriangle, Eye, Calendar, Edit3, X, Trash2, Search, Filter, ChevronDown } from 'lucide-react';
+import { formatDate } from '../utils/format';
 import JobPreviewModal from './JobPreviewModal';
 import BookingEditModal from './BookingEditModal';
 import ConfirmationModal from './ConfirmationModal';
@@ -70,7 +71,7 @@ const JobCard: React.FC<{ job: Job; onClick: (job: Job) => void }> = ({ job, onC
                 </div>
             )}
             <div className="text-[10px] text-slate-500 font-bold">
-                📅 วันที่: {new Date(job.dateOfService).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
+                📅 วันที่: {formatDate(job.dateOfService)}
             </div>
         </div>
 
@@ -562,7 +563,7 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
                                     <div>
                                         <div className="font-mono font-black text-slate-900 text-sm">#{job.id}</div>
                                         <div className="text-[10px] text-slate-500 font-bold mt-0.5">
-                                            {new Date(job.dateOfService).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
+                                            {formatDate(job.dateOfService)}
                                         </div>
                                     </div>
                                     <div className="px-2 py-1 bg-rose-500 text-white text-[8px] font-black rounded-lg uppercase animate-pulse">
@@ -648,7 +649,7 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
                                         <div>
                                             <div className="font-mono font-black text-slate-900 text-sm">#{job.id}</div>
                                             <div className="text-[10px] text-slate-500 font-bold mt-0.5">
-                                                {new Date(job.dateOfService).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
+                                                {formatDate(job.dateOfService)}
                                             </div>
                                         </div>
                                         {/* Status Badge - Styled like reference images */}

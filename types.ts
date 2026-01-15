@@ -58,6 +58,7 @@ export interface ExtraChargeDetail {
 
 export interface Job {
   id: string;
+  createdAt?: string; // Timestamp of job creation
   dateOfService: string;
   origin: string;
   destination: string;

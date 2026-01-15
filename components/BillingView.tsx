@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Job, JobStatus, AccountingStatus, UserRole, AuditLog, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS } from '../types';
-import { formatThaiCurrency, roundHalfUp } from '../utils/format';
+import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
 import { DollarSign, ExternalLink, FileCheck, Info, TrendingUp, CheckCircle, XCircle, Lock, AlertCircle, History, Receipt } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
 import PaymentModal from './PaymentModal';
@@ -359,13 +359,13 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
     const headers = ['Job ID', 'Date', 'Subcontractor', 'Route', 'Cost', 'Extra', 'Total', 'Payment Date', 'Status'];
     const rows = filteredJobs.map(j => [
       j.id,
-      new Date(j.dateOfService).toLocaleDateString('en-GB'),
+      formatDate(j.dateOfService),
       j.subcontractor || '-',
       `"${j.origin} -> ${j.destination}"`,
       j.cost || 0,
       j.extraCharge || 0,
       (j.cost || 0) + (j.extraCharge || 0),
-      j.paymentDate ? new Date(j.paymentDate).toLocaleDateString('en-GB') : '-',
+      j.paymentDate ? formatDate(j.paymentDate) : '-',
       j.accountingStatus || '-'
     ]);
 
@@ -418,8 +418,8 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
       <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 bg-white border border-slate-100 rounded-[2rem] shadow-sm">
         <div className="flex items-center gap-2">
           <div className={`w-3 h-3 rounded-full animate-pulse ${viewTab === 'VERIFICATION' ? 'bg-slate-400' :
-              viewTab === 'TO_BILL' ? 'bg-indigo-600' :
-                viewTab === 'TO_PAY' ? 'bg-amber-500' : 'bg-emerald-500'
+            viewTab === 'TO_BILL' ? 'bg-indigo-600' :
+              viewTab === 'TO_PAY' ? 'bg-amber-500' : 'bg-emerald-500'
             }`}></div>
           <h3 className="text-xs font-black text-slate-800 uppercase tracking-[0.3em]">
             Active Stream: {viewTab.replace('_', ' ')}
@@ -606,7 +606,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
                       )}
                       <div className="flex items-center gap-1.5 mt-2 bg-white border border-slate-100 rounded-lg px-2 py-1 w-fit">
                         <History size={10} className="text-slate-400" />
-                        <span className="text-[9px] font-bold text-slate-400">{new Date(job.dateOfService).toLocaleDateString('th-TH')}</span>
+                        <span className="text-[9px] font-bold text-slate-400">{formatDate(job.dateOfService)}</span>
                       </div>
                     </td>
                     <td className="px-8 py-6">
@@ -745,7 +745,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
                                     html: `
                                       <div class="space-y-2">
                                         <p class="text-sm text-slate-600">Job ID: <strong>${job.id}</strong></p>
-                                        <p class="text-sm text-slate-600">Payment Date: <strong>${job.paymentDate ? new Date(job.paymentDate).toLocaleDateString('th-TH') : 'N/A'}</strong></p>
+                                        <p class="text-sm text-slate-600">Payment Date: <strong>${job.paymentDate ? formatDate(job.paymentDate) : 'N/A'}</strong></p>
                                         <img src="${url}" class="max-w-full h-auto rounded-lg shadow-lg" />
                                       </div>
                                     `,
@@ -833,7 +833,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-200">
                               <CreditCard size={12} /> PAID & LOCKED
                             </div>
-                            {job.paymentDate && <span className="text-[9px] font-bold text-slate-400">Date: {new Date(job.paymentDate).toLocaleDateString('th-TH')}</span>}
+                            {job.paymentDate && <span className="text-[9px] font-bold text-slate-400">Date: {formatDate(job.paymentDate)}</span>}
                           </div>
                         )}
 

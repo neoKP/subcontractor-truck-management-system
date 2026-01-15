@@ -1,12 +1,12 @@
 
 import React from 'react';
 import { UserRole, USER_ROLE_LABELS } from '../types';
-import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users, TrendingUp, ChevronLeft, ChevronRight, LayoutPanelTop, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users, TrendingUp, ChevronLeft, ChevronRight, LayoutPanelTop, BarChart3, FileSpreadsheet } from 'lucide-react';
 
 interface SidebarProps {
   currentRole: UserRole;
-  activeTab: 'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit';
-  setActiveTab: (tab: 'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit') => void;
+  activeTab: 'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report';
+  setActiveTab: (tab: 'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report') => void;
   onLogout: () => void;
   isOpen?: boolean;
   onClose?: () => void;
@@ -19,6 +19,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, setActiveTab,
   const tabs = [
     { id: 'analytics', label: 'Executive Insights / ข้อมูลสรุป', icon: TrendingUp, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER] },
     { id: 'board', label: 'Job Board / กระดานงาน', icon: LayoutPanelTop, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER, UserRole.BOOKING_OFFICER] },
+    { id: 'daily-report', label: 'Daily Report / สรุปงานรายวัน', icon: FileSpreadsheet, roles: [UserRole.BOOKING_OFFICER, UserRole.DISPATCHER, UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'create', label: 'Create Job / สร้างใบงาน', icon: PlusCircle, roles: [UserRole.BOOKING_OFFICER, UserRole.DISPATCHER] },
     { id: 'verify', label: 'Verification / ตรวจสอบ', icon: ClipboardCheck, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'billing', label: 'Billing / วางบิล', icon: Receipt, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },

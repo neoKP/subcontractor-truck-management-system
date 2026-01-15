@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Job, JobStatus, AccountingStatus } from '../types';
 import { Camera, CheckCircle2, DollarSign, Image as ImageIcon, X, FileText, Upload, MapPin, Calendar, User, Phone, ShieldAlert } from 'lucide-react';
+import { formatDate } from '../utils/format';
 
 interface ConfirmationModalProps {
   job: Job;
@@ -248,7 +249,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
                 </div>
                 <div className="flex items-center gap-1.5 mt-1.5 text-[10px] font-black text-slate-400 uppercase tracking-wider">
                   <Calendar size={12} className="text-blue-400" />
-                  วันที่ปฏิบัติงาน (Service Date): {new Date(job.dateOfService).toLocaleDateString('th-TH')}
+                  วันที่ปฏิบัติงาน (Service Date): {formatDate(job.dateOfService)}
                 </div>
                 {job.driverName && (
                   <div className="flex flex-wrap items-center gap-2 mt-2">

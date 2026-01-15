@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Job, JobStatus } from '../types';
 import { X, Printer, CheckCircle, Receipt, Calendar, FileText, MapPin } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { formatThaiCurrency, roundHalfUp } from '../utils/format';
+import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
 
 /**
  * Helper: Converts a number to Thai Baht text.
@@ -210,8 +210,8 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
 
     const issueDate = existingDate ? new Date(existingDate) : new Date();
     const documentNumber = existingDocNo || `BA-${issueDate.getFullYear()}${String(issueDate.getMonth() + 1).padStart(2, '0')}-${mainJob.id.split('-').pop()}`;
-    const currentDate = issueDate.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const dueDateStr = new Date(customDueDate).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const currentDate = formatDate(issueDate);
+    const dueDateStr = formatDate(customDueDate);
 
     const finalizeBilled = () => {
         if (readOnly || !onBatchConfirm) return;
@@ -462,7 +462,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                                                         <td className="border border-slate-200 p-2 leading-relaxed">
                                                             <div className="font-bold text-slate-900 underline decoration-slate-200">ค่าระวางขนส่ง: {j.origin} - {j.destination}</div>
                                                             <div className="text-[9px] text-slate-500 font-medium">
-                                                                Service: {new Date(j.dateOfService).toLocaleDateString()} | Truck: {j.licensePlate} ({j.truckType})
+                                                                Service: {formatDate(j.dateOfService)} | Truck: {j.licensePlate} ({j.truckType})
                                                             </div>
                                                         </td>
                                                         <td className="border border-slate-200 p-2 text-center">1 Trip</td>

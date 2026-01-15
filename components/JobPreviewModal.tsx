@@ -2,6 +2,7 @@
 import React, { useRef } from 'react';
 import { Job } from '../types';
 import { X, Printer, MapPin, Truck, FileText } from 'lucide-react';
+import { formatDate } from '../utils/format';
 
 interface JobPreviewModalProps {
     job: Job;
@@ -19,13 +20,7 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
         window.print();
     };
 
-    const formatDateThai = (dateStr: string) => {
-        return new Date(dateStr).toLocaleDateString('th-TH', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-        });
-    };
+
 
     // Generate Document Number (e.g., JR-202601-001)
     const now = new Date();
@@ -139,7 +134,7 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
                                 </div>
                                 <div className="grid grid-cols-[80px_1fr] border-b border-slate-200">
                                     <div className="bg-slate-100 p-1 pl-2 font-bold text-slate-700">วันที่ Date:</div>
-                                    <div className="p-1 pl-2 font-medium text-slate-900">{new Date().toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
+                                    <div className="p-1 pl-2 font-medium text-slate-900">{formatDate(new Date())}</div>
                                 </div>
                                 <div className="grid grid-cols-[80px_1fr]">
                                     <div className="bg-slate-100 p-1 pl-2 font-bold text-slate-700">อ้างอิง Ref:</div>
@@ -161,7 +156,7 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
                                     <div className="p-3 space-y-2">
                                         <div className="grid grid-cols-[100px_1fr] gap-2">
                                             <span className="text-slate-500">วันที่ให้บริการ:</span>
-                                            <span className="font-bold text-slate-900">{formatDateThai(job.dateOfService)}</span>
+                                            <span className="font-bold text-slate-900">{formatDate(job.dateOfService)}</span>
                                         </div>
                                         <div className="grid grid-cols-[100px_1fr] gap-2">
                                             <span className="text-slate-500">ประเภทรถ:</span>

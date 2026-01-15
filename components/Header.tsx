@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { UserRole, Job, JobStatus, AuditLog } from '../types';
 import { Bell, Search, User, Menu, ShieldAlert, FileText, Clock, ChevronRight } from 'lucide-react';
+import { formatDate } from '../utils/format';
 
 interface HeaderProps {
   user: { id: string; name: string; role: UserRole };
@@ -192,7 +193,7 @@ const Header: React.FC<HeaderProps> = ({
                           </p>
                           <div className="flex items-center gap-1 mt-2 text-[9px] font-bold text-slate-400">
                             <Clock size={10} />
-                            {new Date(log.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} • {new Date(log.timestamp).toLocaleDateString('th-TH')}
+                            {new Date(log.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} • {formatDate(log.timestamp)}
                           </div>
                         </div>
                       </div>

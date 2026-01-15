@@ -6,6 +6,7 @@ import {
     Clock, MapPin, User, Phone, Calendar, X, ExternalLink,
     ShieldCheck, FileCheck, DollarSign
 } from 'lucide-react';
+import { formatDate } from '../utils/format';
 
 interface JobTrackingModalProps {
     job: Job;
@@ -39,7 +40,7 @@ const TimelineStep: React.FC<{
                     <h3 className={`font-bold text-sm ${completed ? 'text-emerald-700' : active ? 'text-blue-700' : 'text-slate-500'}`}>
                         {title}
                     </h3>
-                    {date && <span className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">{new Date(date).toLocaleDateString('th-TH', { hour: '2-digit', minute: '2-digit' })}</span>}
+                    {date && <span className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">{formatDate(date)}</span>}
                 </div>
 
                 <div className="bg-white/50 backdrop-blur-sm border border-slate-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -123,7 +124,7 @@ const JobTrackingModal: React.FC<JobTrackingModalProps> = ({ job, onClose, curre
                         <div className="grid grid-cols-2 gap-2 text-[10px] bg-slate-100 p-2 rounded-lg">
                             <div className="flex flex-col">
                                 <span className="text-slate-400">Service Date</span>
-                                <span className="font-bold text-slate-700">{new Date(job.dateOfService).toLocaleDateString()}</span>
+                                <span className="font-bold text-slate-700">{formatDate(job.dateOfService)}</span>
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-slate-400">Truck Type</span>
@@ -191,7 +192,7 @@ const JobTrackingModal: React.FC<JobTrackingModalProps> = ({ job, onClose, curre
                                     <span className="text-xs font-black text-indigo-700 font-mono">{job.billingDocNo}</span>
                                 </div>
                                 <p className="text-[10px] text-indigo-500">
-                                    วันที่วางบิล: {new Date(job.billingDate!).toLocaleDateString('th-TH')}
+                                    วันที่วางบิล: {formatDate(job.billingDate)}
                                 </p>
                             </div>
                         ) : (
@@ -214,7 +215,7 @@ const JobTrackingModal: React.FC<JobTrackingModalProps> = ({ job, onClose, curre
                                     <ShieldCheck size={16} /> จ่ายเงินแล้ว (Paid & Secured)
                                 </div>
                                 <p className="text-[10px] text-emerald-600">
-                                    วันที่จ่ายเงิน: {new Date(job.paymentDate!).toLocaleDateString('th-TH')}
+                                    วันที่จ่ายเงิน: {formatDate(job.paymentDate)}
                                 </p>
                                 {/* Could show Slip Thumbnail here if wanted */}
                             </div>

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Job, JobStatus, AccountingStatus } from '../types';
 import { Calendar, CheckCircle, Clock, AlertCircle, TrendingUp, Filter, FileText, ChevronRight, DollarSign, Wallet, Search, X, Download } from 'lucide-react';
-import { formatThaiCurrency, roundHalfUp } from '../utils/format';
+import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
 import { utils, writeFile } from 'xlsx';
 
 interface BillingReportViewProps {
@@ -209,7 +209,7 @@ const BillingReportView: React.FC<BillingReportViewProps> = ({ jobs }) => {
                                 </div>
                                 <div className="text-right">
                                     <p className="font-bold text-emerald-400">฿{formatThaiCurrency(job.cost || 0)}</p>
-                                    <p className="text-[9px] text-slate-500">{new Date(job.billingDate || job.dateOfService).toLocaleDateString('th-TH')}</p>
+                                    <p className="text-[9px] text-slate-500">{formatDate(job.billingDate || job.dateOfService)}</p>
                                 </div>
                             </div>
                         ))}
@@ -276,7 +276,7 @@ const BillingReportView: React.FC<BillingReportViewProps> = ({ jobs }) => {
                         <tbody className="divide-y divide-slate-50">
                             {searchedJobs.map(job => (
                                 <tr key={job.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="py-3 pl-4 text-xs font-bold text-slate-500">{new Date(job.billingDate || job.dateOfService).toLocaleDateString('th-TH')}</td>
+                                    <td className="py-3 pl-4 text-xs font-bold text-slate-500">{formatDate(job.billingDate || job.dateOfService)}</td>
                                     <td className="py-3 text-sm font-black text-slate-700">{job.billingDocNo || '-'}</td>
                                     <td className="py-3 text-xs font-bold text-slate-600">{job.subcontractor}</td>
                                     <td className="py-3 text-right pr-4 text-sm font-black text-emerald-600">฿{formatThaiCurrency((job.cost || 0) + (job.extraCharge || 0))}</td>
