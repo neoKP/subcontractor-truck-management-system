@@ -26,13 +26,8 @@ const JobCard: React.FC<{ job: Job; onClick: (job: Job) => void }> = ({ job, onC
         onClick={() => onClick(job)}
     >
         {/* Job Header */}
-        <div className="flex items-start justify-between mb-3">
-            <div>
-                <div className="font-mono font-black text-slate-900 text-sm">#{job.id}</div>
-                <div className="text-[10px] text-slate-500 font-bold mt-0.5">
-                    {new Date(job.dateOfService).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
-                </div>
-            </div>
+        <div className="flex items-start justify-between mb-2">
+            <div className="font-mono font-black text-slate-900 text-sm">#{job.id}</div>
             {/* Status Badges - Styled like reference images */}
             {job.accountingStatus === AccountingStatus.REJECTED && (
                 <div className="px-2.5 py-1 bg-rose-100 border border-rose-300 rounded-full">
@@ -66,6 +61,18 @@ const JobCard: React.FC<{ job: Job; onClick: (job: Job) => void }> = ({ job, onC
             )}
         </div>
 
+        {/* Requester Info with Line */}
+        <div className="border-t border-slate-200 pt-2 mb-3">
+            {job.requestedByName && (
+                <div className="text-[9px] font-bold text-indigo-600 mb-1">
+                    👤 ผู้ขอใช้รถ: {job.requestedByName}
+                </div>
+            )}
+            <div className="text-[10px] text-slate-500 font-bold">
+                📅 วันที่: {new Date(job.dateOfService).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </div>
+        </div>
+
         {/* Route */}
         <div className="space-y-1.5 mb-3">
             <div className="flex items-center gap-2">
@@ -90,13 +97,6 @@ const JobCard: React.FC<{ job: Job; onClick: (job: Job) => void }> = ({ job, onC
         {job.subcontractor && (
             <div className="px-2 py-1 bg-white/70 rounded-lg border border-slate-200 mt-2">
                 <span className="text-[10px] font-bold text-slate-700">🚛 {job.subcontractor}</span>
-            </div>
-        )}
-
-        {/* Requester Name - Show who created this job */}
-        {job.requestedByName && (
-            <div className="flex items-center gap-1.5 mt-2 px-2 py-1.5 bg-indigo-50 rounded-lg border border-indigo-100">
-                <span className="text-[9px] font-bold text-indigo-600">👤 {job.requestedByName}</span>
             </div>
         )}
 
