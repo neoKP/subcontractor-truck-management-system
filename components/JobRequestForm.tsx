@@ -406,18 +406,82 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
 
                     {hasPricing && (
                       <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-emerald-100">
-                        <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2">Available Subcontractors</div>
-                        <div className="space-y-2">
-                          {matchedPricing.slice(0, 3).map((p, idx) => (
-                            <div key={idx} className="flex justify-between items-center text-xs">
-                              <span className="font-bold text-slate-700">{p.subcontractor}</span>
-                              <span className="font-black text-emerald-600 flex items-center gap-1">
-                                <ShieldCheck size={12} /> Master Price Applied
-                              </span>
-                            </div>
-                          ))}
-                          {matchedPricing.length > 3 && <div className="text-[10px] text-center text-emerald-400 font-bold">and {matchedPricing.length - 3} more...</div>}
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Available Subcontractors</div>
+                          <div className="text-[9px] font-bold text-emerald-500">เรียงตามราคาถูกสุด</div>
                         </div>
+                        <div className="space-y-2">
+                          {matchedPricing
+                            .sort((a, b) => a.basePrice - b.basePrice) // Sort by cheapest price first
+                            .map((p, idx) => {
+                              const isSelected = formData.subcontractor === p.subcontractor;
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => {
+                                    // Toggle selection: Click again to clear
+                                    if (isSelected) {
+                                      setFormData({
+                                        ...formData,
+                                        subcontractor: '',
+                                        cost: 0
+                                      });
+                                    } else {
+                                      setFormData({
+                                        ...formData,
+                                        subcontractor: p.subcontractor,
+                                        cost: p.basePrice,
+                                        sellingPrice: p.sellingBasePrice
+                                      });
+                                    }
+                                  }}
+                                  className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-200 ${isSelected
+                                    ? 'bg-emerald-500 border-emerald-600 shadow-lg shadow-emerald-200'
+                                    : 'bg-white border-emerald-100 hover:border-emerald-300 hover:bg-emerald-50'
+                                    }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      {idx === 0 && (
+                                        <div className="px-2 py-0.5 bg-amber-400 text-white text-[8px] font-black rounded-full">
+                                          ถูกสุด
+                                        </div>
+                                      )}
+                                      <span className={`font-black text-sm ${isSelected ? 'text-white' : 'text-slate-800'}`}>
+                                        {p.subcontractor}
+                                      </span>
+                                      {isSelected && (
+                                        <CheckCircle2 size={16} className="text-white" />
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <ShieldCheck size={12} className={isSelected ? 'text-emerald-100' : 'text-emerald-500'} />
+                                    </div>
+                                  </div>
+                                  <div className={`mt-2 text-[10px] font-bold ${isSelected ? 'text-emerald-50' : 'text-slate-500'}`}>
+                                    {user.role !== UserRole.BOOKING_OFFICER ? (
+                                      <>
+                                        ราคาต้นทุน: <span className="font-black">฿{p.basePrice.toLocaleString()}</span> |
+                                        ราคาขาย: <span className="font-black">฿{p.sellingBasePrice.toLocaleString()}</span>
+                                      </>
+                                    ) : (
+                                      <span className={isSelected ? 'text-emerald-100' : 'text-slate-400'}>
+                                        Master Price Applied ✓
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                        </div>
+                        {formData.subcontractor && (
+                          <div className="mt-3 p-2 bg-emerald-100 rounded-lg text-center">
+                            <p className="text-[10px] font-bold text-emerald-700">
+                              ✓ เลือก {formData.subcontractor} แล้ว | คลิกซ้ำเพื่อยกเลิก
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
