@@ -603,7 +603,7 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
                                         <Eye size={12} />
                                         ดู
                                     </button>
-                                    {onUpdateJob && (
+                                    {canEditJob(job) && onUpdateJob && (
                                         <button
                                             onClick={() => setConfirmingJob(job)}
                                             className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-lg"
