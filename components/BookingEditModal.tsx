@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { Job, UserRole, AuditLog, PriceMatrix, AccountingStatus } from '../types';
 import { MASTER_DATA } from '../constants';
-import { X, Edit3, MapPin, Truck, ShieldAlert, BadgeCheck, Zap, ShieldCheck, Camera, Upload, Image as ImageIcon, FileText, Trash2 } from 'lucide-react';
+import { X, Edit3, MapPin, Truck, ShieldAlert, BadgeCheck, Zap, ShieldCheck, Camera, Upload, Image as ImageIcon, FileText, Trash2, ChevronDown } from 'lucide-react';
 
 interface BookingEditModalProps {
     job: Job;
@@ -51,17 +51,19 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
         };
     });
 
-    const allMatches = priceMatrix.filter(p => {
-        const originMatch = p.origin.includes(editData.origin) || editData.origin.includes(p.origin);
-        const destMatch = p.destination.includes(editData.destination) || editData.destination.includes(p.destination);
-        const truckMatch = p.truckType === editData.truckType;
-        return originMatch && destMatch && truckMatch;
-    });
+    const allMatches = (!editData.origin || !editData.destination || !editData.truckType)
+        ? []
+        : priceMatrix.filter(p => {
+            const originMatch = (p.origin.toLowerCase().includes(editData.origin.toLowerCase()) || editData.origin.toLowerCase().includes(p.origin.toLowerCase()));
+            const destMatch = (p.destination.toLowerCase().includes(editData.destination.toLowerCase()) || editData.destination.toLowerCase().includes(p.destination.toLowerCase()));
+            const truckMatch = p.truckType === editData.truckType;
+            return originMatch && destMatch && truckMatch;
+        });
 
     const activeContract = findContractMatch(editData.origin, editData.destination, editData.truckType, editData.subcontractor)
         || findContractMatch(editData.origin, editData.destination, editData.truckType);
 
-    const hasContractPrice = activeContract !== null;
+    const hasContractPrice = activeContract !== null && editData.origin && editData.destination && editData.truckType;
 
     const [reason, setReason] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -332,11 +334,11 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                     id="origin-input"
                                     type="text"
                                     autoComplete="off"
-                                    placeholder="Type to search origin..."
-                                    className="w-full pl-4 pr-10 py-4 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all placeholder:font-normal"
-                                    value={originQuery !== '' ? originQuery : editData.origin}
+                                    placeholder="Type or select origin..."
+                                    className="w-full pl-4 pr-16 py-4 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all placeholder:font-normal"
+                                    value={originQuery !== '' ? originQuery : (editData.origin || '')}
                                     onFocus={() => {
-                                        setOriginQuery(editData.origin);
+                                        setOriginQuery('');
                                         setShowOriginList(true);
                                     }}
                                     onChange={e => {
@@ -347,53 +349,73 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                         // Recalculate price if contract exists
                                         const contract = findContractMatch(val, editData.destination, editData.truckType, editData.subcontractor)
                                             || findContractMatch(val, editData.destination, editData.truckType);
-                                        const newPrice = contract ? contract.basePrice : editData.cost;
-                                        if (contract) setEditData(prev => ({ ...prev, origin: val, cost: newPrice }));
+                                        if (contract) setEditData(prev => ({ ...prev, cost: contract.basePrice }));
                                     }}
-                                    onBlur={() => setTimeout(() => setShowOriginList(false), 200)}
+                                    onBlur={() => setTimeout(() => {
+                                        setShowOriginList(false);
+                                        setOriginQuery('');
+                                    }, 200)}
                                 />
-                                {/* Clear button if has value */}
-                                {editData.origin && (
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                    {editData.origin && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditData({ ...editData, origin: '' });
+                                                setOriginQuery('');
+                                            }}
+                                            title="Clear origin"
+                                            className="text-slate-300 hover:text-rose-500 p-1 transition-colors"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            setEditData({ ...editData, origin: '' });
-                                            setOriginQuery('');
+                                        onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            setShowOriginList(!showOriginList);
                                         }}
-                                        title="Clear origin"
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 p-1"
+                                        title="Toggle Origin List"
+                                        className={`p-1 transition-transform duration-300 ${showOriginList ? 'rotate-180 text-blue-500' : 'text-slate-300 hover:text-blue-500'}`}
                                     >
-                                        <X size={14} />
+                                        <ChevronDown size={18} />
                                     </button>
-                                )}
+                                </div>
                             </div>
                             {showOriginList && (
-                                <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+                                <div className="absolute z-[60] w-full mt-1 bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-slate-100 max-h-60 overflow-y-auto py-2 animate-in fade-in zoom-in-95 duration-200">
                                     {MASTER_DATA.locations
-                                        .filter(l => l.toLowerCase().includes((originQuery || editData.origin || '').toLowerCase()))
-                                        .map((l, i) => (
-                                            <button
-                                                key={i}
-                                                type="button"
-                                                className="w-full text-left px-4 py-3 hover:bg-blue-50 text-sm font-bold text-slate-700 transition-colors border-b border-slate-50 last:border-0"
-                                                onClick={() => {
-                                                    setEditData(prev => {
-                                                        const newData = { ...prev, origin: l };
-                                                        const contract = findContractMatch(l, prev.destination, prev.truckType, prev.subcontractor)
-                                                            || findContractMatch(l, prev.destination, prev.truckType);
-                                                        if (contract) newData.cost = contract.basePrice;
-                                                        return newData;
-                                                    });
-                                                    setOriginQuery('');
-                                                    setShowOriginList(false);
-                                                }}
-                                            >
-                                                {l}
-                                            </button>
-                                        ))}
-                                    {MASTER_DATA.locations.filter(l => l.toLowerCase().includes((originQuery || editData.origin || '').toLowerCase())).length === 0 && (
-                                        <div className="p-4 text-center text-xs text-slate-400 font-bold">
-                                            No match found. Using custom value.
+                                        .filter(l => l.toLowerCase().includes(originQuery.toLowerCase()))
+                                        .map((l, i) => {
+                                            const isSelected = editData.origin === l;
+                                            return (
+                                                <button
+                                                    key={i}
+                                                    type="button"
+                                                    className={`w-full text-left px-6 py-3 text-sm font-bold transition-colors flex items-center justify-between group ${isSelected ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                                    onClick={() => {
+                                                        setEditData(prev => {
+                                                            const newData = { ...prev, origin: l };
+                                                            const contract = findContractMatch(l, prev.destination, prev.truckType, prev.subcontractor)
+                                                                || findContractMatch(l, prev.destination, prev.truckType);
+                                                            if (contract) newData.cost = contract.basePrice;
+                                                            return newData;
+                                                        });
+                                                        setOriginQuery('');
+                                                        setShowOriginList(false);
+                                                    }}
+                                                >
+                                                    <span>{l}</span>
+                                                    {(isSelected || originQuery === l) && <BadgeCheck size={14} className="text-blue-500" />}
+                                                    {!isSelected && <BadgeCheck size={14} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                </button>
+                                            );
+                                        })}
+                                    {MASTER_DATA.locations.filter(l => l.toLowerCase().includes(originQuery.toLowerCase())).length === 0 && (
+                                        <div className="p-4 text-center text-xs text-slate-400 font-bold italic">
+                                            No matching locations found...
                                         </div>
                                     )}
                                 </div>
@@ -410,11 +432,11 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                     id="destination-input"
                                     type="text"
                                     autoComplete="off"
-                                    placeholder="Type to search destination..."
-                                    className="w-full pl-4 pr-10 py-4 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all placeholder:font-normal"
-                                    value={destQuery !== '' ? destQuery : editData.destination}
+                                    placeholder="Type or select destination..."
+                                    className="w-full pl-4 pr-16 py-4 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all placeholder:font-normal"
+                                    value={destQuery !== '' ? destQuery : (editData.destination || '')}
                                     onFocus={() => {
-                                        setDestQuery(editData.destination);
+                                        setDestQuery('');
                                         setShowDestList(true);
                                     }}
                                     onChange={e => {
@@ -425,52 +447,73 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                         // Recalculate price if contract exists
                                         const contract = findContractMatch(editData.origin, val, editData.truckType, editData.subcontractor)
                                             || findContractMatch(editData.origin, val, editData.truckType);
-                                        const newPrice = contract ? contract.basePrice : editData.cost;
-                                        if (contract) setEditData(prev => ({ ...prev, destination: val, cost: newPrice }));
+                                        if (contract) setEditData(prev => ({ ...prev, cost: contract.basePrice }));
                                     }}
-                                    onBlur={() => setTimeout(() => setShowDestList(false), 200)}
+                                    onBlur={() => setTimeout(() => {
+                                        setShowDestList(false);
+                                        setDestQuery('');
+                                    }, 200)}
                                 />
-                                {editData.destination && (
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                    {editData.destination && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditData({ ...editData, destination: '' });
+                                                setDestQuery('');
+                                            }}
+                                            title="Clear destination"
+                                            className="text-slate-300 hover:text-rose-500 p-1 transition-colors"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            setEditData({ ...editData, destination: '' });
-                                            setDestQuery('');
+                                        onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            setShowDestList(!showDestList);
                                         }}
-                                        title="Clear destination"
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 p-1"
+                                        title="Toggle Destination List"
+                                        className={`p-1 transition-transform duration-300 ${showDestList ? 'rotate-180 text-blue-500' : 'text-slate-300 hover:text-blue-500'}`}
                                     >
-                                        <X size={14} />
+                                        <ChevronDown size={18} />
                                     </button>
-                                )}
+                                </div>
                             </div>
                             {showDestList && (
-                                <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+                                <div className="absolute z-[60] w-full mt-1 bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-slate-100 max-h-60 overflow-y-auto py-2 animate-in fade-in zoom-in-95 duration-200">
                                     {MASTER_DATA.locations
-                                        .filter(l => l.toLowerCase().includes((destQuery || editData.destination || '').toLowerCase()))
-                                        .map((l, i) => (
-                                            <button
-                                                key={i}
-                                                type="button"
-                                                className="w-full text-left px-4 py-3 hover:bg-blue-50 text-sm font-bold text-slate-700 transition-colors border-b border-slate-50 last:border-0"
-                                                onClick={() => {
-                                                    setEditData(prev => {
-                                                        const newData = { ...prev, destination: l };
-                                                        const contract = findContractMatch(prev.origin, l, prev.truckType, prev.subcontractor)
-                                                            || findContractMatch(prev.origin, l, prev.truckType);
-                                                        if (contract) newData.cost = contract.basePrice;
-                                                        return newData;
-                                                    });
-                                                    setDestQuery('');
-                                                    setShowDestList(false);
-                                                }}
-                                            >
-                                                {l}
-                                            </button>
-                                        ))}
-                                    {MASTER_DATA.locations.filter(l => l.toLowerCase().includes((destQuery || editData.destination || '').toLowerCase())).length === 0 && (
-                                        <div className="p-4 text-center text-xs text-slate-400 font-bold">
-                                            No match found. Using custom value.
+                                        .filter(l => l.toLowerCase().includes(destQuery.toLowerCase()))
+                                        .map((l, i) => {
+                                            const isSelected = editData.destination === l;
+                                            return (
+                                                <button
+                                                    key={i}
+                                                    type="button"
+                                                    className={`w-full text-left px-6 py-3 text-sm font-bold transition-colors flex items-center justify-between group ${isSelected ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                                    onClick={() => {
+                                                        setEditData(prev => {
+                                                            const newData = { ...prev, destination: l };
+                                                            const contract = findContractMatch(prev.origin, l, prev.truckType, prev.subcontractor)
+                                                                || findContractMatch(prev.origin, l, prev.truckType);
+                                                            if (contract) newData.cost = contract.basePrice;
+                                                            return newData;
+                                                        });
+                                                        setDestQuery('');
+                                                        setShowDestList(false);
+                                                    }}
+                                                >
+                                                    <span>{l}</span>
+                                                    {(isSelected || destQuery === l) && <BadgeCheck size={14} className="text-blue-500" />}
+                                                    {!isSelected && <BadgeCheck size={14} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                </button>
+                                            );
+                                        })}
+                                    {MASTER_DATA.locations.filter(l => l.toLowerCase().includes(destQuery.toLowerCase())).length === 0 && (
+                                        <div className="p-4 text-center text-xs text-slate-400 font-bold italic">
+                                            No matching locations found...
                                         </div>
                                     )}
                                 </div>
@@ -510,11 +553,11 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                     id="subcontractor-input"
                                     type="text"
                                     autoComplete="off"
-                                    placeholder="Type to search subcontractor..."
-                                    className="w-full pl-4 pr-10 py-4 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all placeholder:font-normal"
-                                    value={subQuery !== '' ? subQuery : editData.subcontractor}
+                                    placeholder="Type or select subcontractor..."
+                                    className="w-full pl-4 pr-16 py-4 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all placeholder:font-normal"
+                                    value={subQuery !== '' ? subQuery : (editData.subcontractor || '')}
                                     onFocus={() => {
-                                        setSubQuery(editData.subcontractor || '');
+                                        setSubQuery(''); // Clear query to show full list on focus
                                         setShowSubList(true);
                                     }}
                                     onChange={e => {
@@ -525,63 +568,86 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                         // Recalculate price if contract exists
                                         const contract = findContractMatch(editData.origin, editData.destination, editData.truckType, val)
                                             || findContractMatch(editData.origin, editData.destination, editData.truckType);
-                                        const newPrice = contract ? contract.basePrice : editData.cost;
-                                        if (contract) setEditData(prev => ({ ...prev, subcontractor: val, cost: newPrice }));
+                                        if (contract) setEditData(prev => ({ ...prev, cost: contract.basePrice }));
                                     }}
-                                    onBlur={() => setTimeout(() => setShowSubList(false), 200)}
+                                    onBlur={() => setTimeout(() => {
+                                        setShowSubList(false);
+                                        setSubQuery(''); // Reset query on blur
+                                    }, 200)}
                                 />
-                                {editData.subcontractor && (
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                    {editData.subcontractor && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditData({ ...editData, subcontractor: '' });
+                                                setSubQuery('');
+                                            }}
+                                            title="Clear subcontractor"
+                                            className="text-slate-300 hover:text-rose-500 p-1 transition-colors"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            setEditData({ ...editData, subcontractor: '' });
-                                            setSubQuery('');
+                                        onMouseDown={(e) => {
+                                            e.preventDefault(); // Prevent blur & focus
+                                            setShowSubList(!showSubList);
                                         }}
-                                        title="Clear subcontractor"
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 p-1"
+                                        title="Toggle Subcontractor List"
+                                        aria-label="Toggle Subcontractor List"
+                                        className={`p-1 transition-transform duration-300 ${showSubList ? 'rotate-180 text-blue-500' : 'text-slate-300 hover:text-blue-500'}`}
                                     >
-                                        <X size={14} />
+                                        <ChevronDown size={18} />
                                     </button>
-                                )}
+                                </div>
                             </div>
                             {showSubList && (
-                                <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+                                <div className="absolute z-[60] w-full mt-1 bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-slate-100 max-h-64 overflow-y-auto py-2 animate-in fade-in zoom-in-95 duration-200">
                                     <button
                                         type="button"
-                                        className="w-full text-left px-4 py-3 hover:bg-emerald-50 text-sm font-bold text-emerald-600 transition-colors border-b border-slate-50 italic"
+                                        className="w-full text-left px-4 py-3 hover:bg-emerald-50 text-sm font-bold text-emerald-600 transition-colors border-b border-slate-50 italic flex items-center gap-2"
                                         onClick={() => {
                                             setEditData(prev => ({ ...prev, subcontractor: '' }));
                                             setSubQuery('');
                                             setShowSubList(false);
                                         }}
                                     >
-                                        Waiting Assignment / รอจัดสรร
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                        <span>Waiting Assignment / รอจัดสรร</span>
                                     </button>
                                     {MASTER_DATA.subcontractors
-                                        .filter(s => s.toLowerCase().includes((subQuery || editData.subcontractor || '').toLowerCase()))
-                                        .map((s, i) => (
-                                            <button
-                                                key={i}
-                                                type="button"
-                                                className="w-full text-left px-4 py-3 hover:bg-blue-50 text-sm font-bold text-slate-700 transition-colors border-b border-slate-50 last:border-0"
-                                                onClick={() => {
-                                                    setEditData(prev => {
-                                                        const newData = { ...prev, subcontractor: s };
-                                                        const contract = findContractMatch(prev.origin, prev.destination, prev.truckType, s)
-                                                            || findContractMatch(prev.origin, prev.destination, prev.truckType);
-                                                        if (contract) newData.cost = contract.basePrice;
-                                                        return newData;
-                                                    });
-                                                    setSubQuery('');
-                                                    setShowSubList(false);
-                                                }}
-                                            >
-                                                {s}
-                                            </button>
-                                        ))}
-                                    {MASTER_DATA.subcontractors.filter(s => s.toLowerCase().includes((subQuery || editData.subcontractor || '').toLowerCase())).length === 0 && (
-                                        <div className="p-4 text-center text-xs text-slate-400 font-bold">
-                                            No match found. Using custom value.
+                                        .filter(s => s.toLowerCase().includes(subQuery.toLowerCase()))
+                                        .map((s, i) => {
+                                            const isSelected = editData.subcontractor === s;
+                                            return (
+                                                <button
+                                                    key={i}
+                                                    type="button"
+                                                    className={`w-full text-left px-6 py-3 text-sm font-bold transition-colors flex items-center justify-between group ${isSelected ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                                    onClick={() => {
+                                                        setEditData(prev => {
+                                                            const newData = { ...prev, subcontractor: s };
+                                                            const contract = findContractMatch(prev.origin, prev.destination, prev.truckType, s)
+                                                                || findContractMatch(prev.origin, prev.destination, prev.truckType);
+                                                            if (contract) newData.cost = contract.basePrice;
+                                                            return newData;
+                                                        });
+                                                        setSubQuery('');
+                                                        setShowSubList(false);
+                                                    }}
+                                                >
+                                                    <span>{s}</span>
+                                                    {(isSelected || subQuery === s) && <BadgeCheck size={14} className="text-blue-500" />}
+                                                    {!isSelected && <BadgeCheck size={14} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                </button>
+                                            );
+                                        })}
+                                    {MASTER_DATA.subcontractors.filter(s => s.toLowerCase().includes(subQuery.toLowerCase())).length === 0 && (
+                                        <div className="p-4 text-center text-xs text-slate-400 font-bold italic">
+                                            No matching companies found...
                                         </div>
                                     )}
                                 </div>
@@ -597,12 +663,15 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
 
                             <div className="space-y-3">
                                 <div className="space-y-1">
-                                    <label htmlFor="edit-driver-name" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ชื่อคนขับ (Driver Name)</label>
+                                    <div className="flex items-center justify-between ml-1 leading-none">
+                                        <label htmlFor="edit-driver-name" className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ชื่อคนขับ (Driver Name)</label>
+                                        <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 italic">Required for Dispatch *</span>
+                                    </div>
                                     <input
                                         id="edit-driver-name"
                                         type="text"
                                         placeholder="ระบุชื่อพนักงานขับรถ..."
-                                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-sm"
+                                        className={`w-full px-4 py-2.5 rounded-xl border font-bold text-slate-800 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-sm ${!editData.driverName ? 'border-rose-200 bg-rose-50/30' : 'border-slate-200 bg-white'}`}
                                         value={editData.driverName}
                                         onChange={e => setEditData({ ...editData, driverName: e.target.value })}
                                     />
@@ -610,23 +679,29 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
 
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1">
-                                        <label htmlFor="edit-driver-phone" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">เบอร์โทร (Phone)</label>
+                                        <div className="flex items-center justify-between ml-1 leading-none">
+                                            <label htmlFor="edit-driver-phone" className="text-[10px] font-black text-slate-400 uppercase tracking-widest">เบอร์โทร (Phone)</label>
+                                            <span className="text-rose-500 font-bold text-[10px]">*</span>
+                                        </div>
                                         <input
                                             id="edit-driver-phone"
                                             type="tel"
                                             placeholder="0xx-xxx-xxxx"
-                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-sm"
+                                            className={`w-full px-4 py-2.5 rounded-xl border font-bold text-slate-800 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-sm ${!editData.driverPhone ? 'border-rose-200 bg-rose-50/30' : 'border-slate-200 bg-white'}`}
                                             value={editData.driverPhone}
                                             onChange={e => setEditData({ ...editData, driverPhone: e.target.value })}
                                         />
                                     </div>
                                     <div className="space-y-1">
-                                        <label htmlFor="edit-license-plate" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ทะเบียนรถ (Plate)</label>
+                                        <div className="flex items-center justify-between ml-1 leading-none">
+                                            <label htmlFor="edit-license-plate" className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ทะเบียนรถ (Plate)</label>
+                                            <span className="text-rose-500 font-bold text-[10px]">*</span>
+                                        </div>
                                         <input
                                             id="edit-license-plate"
                                             type="text"
                                             placeholder="ตัวอย่าง 70-1234"
-                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-sm"
+                                            className={`w-full px-4 py-2.5 rounded-xl border font-bold text-slate-800 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-sm ${!editData.licensePlate ? 'border-rose-200 bg-rose-50/30' : 'border-slate-200 bg-white'}`}
                                             value={editData.licensePlate}
                                             onChange={e => setEditData({ ...editData, licensePlate: e.target.value })}
                                         />
@@ -690,17 +765,33 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                             </div>
                                         </div>
                                         <div className="space-y-2">
-                                            {allMatches.slice(0, 3).map((p, idx) => (
-                                                <div key={idx} className="flex justify-between items-center text-xs">
-                                                    <span className={`font-bold ${p.subcontractor === editData.subcontractor ? 'text-blue-600' : 'text-slate-700'}`}>
-                                                        {p.subcontractor}
-                                                        {p.subcontractor === editData.subcontractor && <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded-md text-[8px] uppercase">Selected</span>}
-                                                    </span>
-                                                    <span className="font-black text-emerald-600 flex items-center gap-1">
-                                                        <ShieldCheck size={12} /> Applied
-                                                    </span>
-                                                </div>
-                                            ))}
+                                            {allMatches.slice(0, 3).map((p, idx) => {
+                                                const isSelected = p.subcontractor === editData.subcontractor;
+                                                return (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setEditData(prev => ({
+                                                                ...prev,
+                                                                subcontractor: p.subcontractor,
+                                                                cost: p.basePrice,
+                                                                sellingPrice: p.sellingBasePrice || prev.sellingPrice
+                                                            }));
+                                                        }}
+                                                        className={`w-full flex justify-between items-center text-xs p-2 rounded-xl border transition-all ${isSelected ? 'bg-blue-50 border-blue-100 text-blue-700 shadow-sm' : 'bg-white/40 border-slate-100 text-slate-700 hover:bg-white hover:border-emerald-200 hover:shadow-sm'}`}
+                                                    >
+                                                        <span className="font-bold flex items-center gap-2">
+                                                            {p.subcontractor}
+                                                            {isSelected && <span className="px-1.5 py-0.5 bg-blue-600 text-white rounded-md text-[8px] uppercase font-black">Selected</span>}
+                                                        </span>
+                                                        <span className={`font-black flex items-center gap-1 ${isSelected ? 'text-blue-500' : 'text-emerald-600'}`}>
+                                                            {isSelected ? <BadgeCheck size={12} /> : <ShieldCheck size={12} />}
+                                                            {isSelected ? 'Selected' : 'Click to Apply'}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
                                             {allMatches.length > 3 && <div className="text-[10px] text-center text-emerald-400 font-bold italic pt-1 border-t border-emerald-50">And {allMatches.length - 3} more contract options available...</div>}
                                         </div>
                                     </div>
@@ -788,15 +879,15 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                         <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
                                             <div
                                                 className={`h-full bg-blue-500 transition-all duration-200 ${uploadProgress >= 100 ? 'w-full' :
-                                                        uploadProgress >= 90 ? 'w-[90%]' :
-                                                            uploadProgress >= 80 ? 'w-[80%]' :
-                                                                uploadProgress >= 70 ? 'w-[70%]' :
-                                                                    uploadProgress >= 60 ? 'w-[60%]' :
-                                                                        uploadProgress >= 50 ? 'w-1/2' :
-                                                                            uploadProgress >= 40 ? 'w-[40%]' :
-                                                                                uploadProgress >= 30 ? 'w-[30%]' :
-                                                                                    uploadProgress >= 20 ? 'w-1/5' :
-                                                                                        uploadProgress >= 10 ? 'w-[10%]' : 'w-0'
+                                                    uploadProgress >= 90 ? 'w-[90%]' :
+                                                        uploadProgress >= 80 ? 'w-[80%]' :
+                                                            uploadProgress >= 70 ? 'w-[70%]' :
+                                                                uploadProgress >= 60 ? 'w-[60%]' :
+                                                                    uploadProgress >= 50 ? 'w-1/2' :
+                                                                        uploadProgress >= 40 ? 'w-[40%]' :
+                                                                            uploadProgress >= 30 ? 'w-[30%]' :
+                                                                                uploadProgress >= 20 ? 'w-1/5' :
+                                                                                    uploadProgress >= 10 ? 'w-[10%]' : 'w-0'
                                                     }`}
                                             ></div>
                                         </div>

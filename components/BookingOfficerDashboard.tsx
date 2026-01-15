@@ -65,7 +65,7 @@ const JobCard: React.FC<{ job: Job; onClick: (job: Job) => void }> = ({ job, onC
         {/* Requester Info with Line */}
         <div className="border-t border-slate-200 pt-2 mb-3">
             {job.requestedByName && (
-                <div className="text-[9px] font-bold text-indigo-600 mb-1">
+                <div className="text-[9px] font-bold text-indigo-600 mb-2 px-2 py-1 bg-indigo-50/50 rounded-lg border border-indigo-100">
                     👤 ผู้ขอใช้รถ: {job.requestedByName}
                 </div>
             )}
@@ -299,6 +299,124 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
         setConfirmingJob(null);
     };
 
+    // Handler to move job from "Pending" to "In Progress" (Assigned)
+    const handleConfirmDispatch = (job: Job) => {
+        if (!onUpdateJob) return;
+
+        // Check if all required info is present
+        const hasDriverInfo = job.driverName && job.driverPhone && job.licensePlate;
+
+        if (!hasDriverInfo) {
+            if (typeof (window as any).Swal !== 'undefined') {
+                (window as any).Swal.fire({
+                    title: '<span class="text-amber-600">ข้อมูลไม่ครบถ้วน</span>',
+                    html: `
+                        <div class="text-left py-2 space-y-2">
+                            <p class="text-sm font-bold text-slate-600">กรุณากรอกข้อมูลต่อไปนี้ให้ครบถ้วนก่อนส่งงาน:</p>
+                            <ul class="text-xs space-y-1 text-slate-500 font-medium list-disc pl-5">
+                                <li class="${!job.driverName ? 'text-rose-500 font-black' : ''}">ชื่อพนักงานขับรถ</li>
+                                <li class="${!job.licensePlate ? 'text-rose-500 font-black' : ''}">ทะเบียนรถ</li>
+                                <li class="${!job.driverPhone ? 'text-rose-500 font-black' : ''}">เบอร์โทรศัพท์ติดต่อ</li>
+                            </ul>
+                        </div>
+                    `,
+                    icon: 'warning',
+                    confirmButtonText: '📝 แก้ไขข้อมูลตอนนี้',
+                    confirmButtonColor: '#2563eb',
+                    customClass: {
+                        popup: 'rounded-[1.5rem] shadow-xl',
+                        confirmButton: 'rounded-xl px-6 py-3 font-bold uppercase tracking-wider text-xs'
+                    }
+                }).then((result: any) => {
+                    if (result.isConfirmed) {
+                        setEditJob(job);
+                    }
+                });
+            }
+            return;
+        }
+
+        // PRE-CONFIRMATION SUMMARY (Premium Feel)
+        if (typeof (window as any).Swal !== 'undefined') {
+            (window as any).Swal.fire({
+                title: '<span class="text-blue-600 uppercase tracking-tighter">สรุปการจัดรถ</span>',
+                html: `
+                    <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 text-left space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-[10px] uppercase font-black text-slate-400 block mb-1">เลขงาน</label>
+                                <div class="text-sm font-black text-slate-800">#${job.id}</div>
+                            </div>
+                            <div>
+                                <label class="text-[10px] uppercase font-black text-slate-400 block mb-1">ทะเบียน</label>
+                                <div class="text-sm font-black text-blue-700">🚛 ${job.licensePlate}</div>
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-slate-200">
+                             <label class="text-[10px] uppercase font-black text-slate-400 block mb-1">พนักงานขับรถ</label>
+                             <div class="text-sm font-bold text-slate-700">👤 ${job.driverName}</div>
+                             <div class="text-xs font-medium text-slate-500 mt-1">📞 ${job.driverPhone}</div>
+                        </div>
+                        <div class="pt-2">
+                             <p class="text-[9px] text-slate-400 italic font-medium">* โปรดตรวจสอบความถูกต้องก่อนยืนยันเพื่อเปลี่ยนสถานะเป็น "กำลังวิ่ง"</p>
+                        </div>
+                    </div>
+                `,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: '✅ ยืนยันข้อมูลถูกต้อง',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#10b981',
+                cancelButtonColor: '#94a3b8',
+                customClass: {
+                    popup: 'rounded-[2rem] shadow-2xl scale-95',
+                    confirmButton: 'rounded-xl px-8 py-3 font-bold uppercase text-xs',
+                    cancelButton: 'rounded-xl px-8 py-3 font-bold uppercase text-xs'
+                }
+            }).then((result: any) => {
+                if (result.isConfirmed) {
+                    processConfirmDispatch(job);
+                }
+            });
+        }
+    };
+
+    // Internal function to process the actual update after confirmation
+    const processConfirmDispatch = (job: Job) => {
+        if (!onUpdateJob) return;
+
+        const updatedJob: Job = {
+            ...job,
+            status: JobStatus.ASSIGNED
+        };
+
+        const confirmLog: AuditLog = {
+            id: `LOG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            jobId: job.id,
+            userId: user.id,
+            userName: user.name,
+            userRole: user.role,
+            timestamp: new Date().toISOString(),
+            field: 'Status',
+            oldValue: job.status,
+            newValue: JobStatus.ASSIGNED,
+            reason: `Confirmed Dispatch with Driver: ${job.driverName} (${job.licensePlate})`
+        };
+
+        onUpdateJob(updatedJob, [confirmLog]);
+
+        if (typeof (window as any).Swal !== 'undefined') {
+            (window as any).Swal.fire({
+                title: 'ดำเนินการสำเร็จ!',
+                text: `เริ่มงาน #${job.id} เรียบร้อยแล้ว`,
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false,
+                customClass: { popup: 'rounded-[1.5rem]' }
+            });
+        }
+    };
+
     // Handler for cancelling/deleting a job - ONLY own jobs
     const handleCancelJob = (job: Job) => {
         if (!onDeleteJob) return;
@@ -455,7 +573,7 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
                                 {/* Requester Name */}
                                 {job.requestedByName && (
                                     <div className="text-[9px] font-bold text-indigo-600 mb-2 px-2 py-1 bg-indigo-50 rounded-lg border border-indigo-100">
-                                        👤 ผู้ขอ: {job.requestedByName}
+                                        👤 ผู้ขอใช้รถ: {job.requestedByName}
                                     </div>
                                 )}
 
@@ -547,6 +665,13 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
                                         )}
                                     </div>
 
+                                    {/* Requester Name */}
+                                    {job.requestedByName && (
+                                        <div className="text-[9px] font-bold text-indigo-600 mb-3 px-2 py-1.5 bg-indigo-50/50 rounded-lg border border-indigo-100">
+                                            👤 ผู้ขอใช้รถ: {job.requestedByName}
+                                        </div>
+                                    )}
+
                                     {/* Route */}
                                     <div className="space-y-1.5 mb-3">
                                         <div className="flex items-center gap-2">
@@ -582,17 +707,30 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
                                             <button
                                                 onClick={() => setSelectedJob(job)}
                                                 className="flex-1 flex items-center justify-center gap-1 py-2 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-slate-200 transition-all"
+                                                title="ดูรายละเอียด"
                                             >
                                                 <Eye size={10} />
                                                 ดู
                                             </button>
                                             <button
                                                 onClick={() => setEditJob(job)}
-                                                className="flex-1 flex items-center justify-center gap-1 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-blue-700 transition-all"
+                                                className="flex-1 flex items-center justify-center gap-1 py-2 bg-indigo-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-indigo-700 transition-all"
+                                                title="แก้ไขข้อมูล (บันทึกประวัติการแก้ไข)"
                                             >
                                                 <Edit3 size={10} />
                                                 แก้ไข
                                             </button>
+                                            {/* Confirm Dispatch Button - Show only when info is complete */}
+                                            {job.driverName && job.licensePlate && job.driverPhone && (
+                                                <button
+                                                    onClick={() => handleConfirmDispatch(job)}
+                                                    className="flex-1 flex items-center justify-center gap-1 py-2 bg-emerald-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-md group/confirm animate-in fade-in slide-in-from-right-1"
+                                                    title="ยืนยันจัดรถและเริ่มงาน (ข้อมูลครบถ้วนแล้ว)"
+                                                >
+                                                    <CheckCircle size={10} className="group-hover/confirm:scale-110 transition-transform" />
+                                                    ยืนยัน
+                                                </button>
+                                            )}
                                             {onDeleteJob && (
                                                 <button
                                                     onClick={() => handleCancelJob(job)}
