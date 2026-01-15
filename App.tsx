@@ -57,8 +57,11 @@ const App: React.FC = () => {
   // State for passing data to Pricing Table Modal
   const [pricingModalData, setPricingModalData] = useState<Partial<PriceMatrix> | undefined>(undefined);
 
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
   const closeSidebar = () => setSidebarOpen(false);
+  const toggleSidebarCollapse = () => setIsSidebarCollapsed(!isSidebarCollapsed);
 
   // New handler to navigate from JobBoard -> Pricing Tab
   const handleNavigateToPricing = (job: Job) => {
@@ -264,6 +267,8 @@ const App: React.FC = () => {
         onLogout={handleLogout}
         isOpen={sidebarOpen}
         onClose={closeSidebar}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={toggleSidebarCollapse}
       />
 
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
