@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
-import { Job, UserRole, AuditLog, PriceMatrix } from '../types';
+import React, { useState, useRef } from 'react';
+import { Job, UserRole, AuditLog, PriceMatrix, AccountingStatus } from '../types';
 import { MASTER_DATA } from '../constants';
-import { X, Edit3, MapPin, Truck, ShieldAlert, BadgeCheck, Zap, ShieldCheck } from 'lucide-react';
+import { X, Edit3, MapPin, Truck, ShieldAlert, BadgeCheck, Zap, ShieldCheck, Camera, Upload, Image as ImageIcon, FileText, Trash2 } from 'lucide-react';
 
 interface BookingEditModalProps {
     job: Job;
@@ -74,8 +74,113 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
     const [showDestList, setShowDestList] = useState(false);
     const [showSubList, setShowSubList] = useState(false);
 
+    // POD Image Management States
+    const [podImages, setPodImages] = useState<string[]>(job.podImageUrls || []);
+    const [newPodFiles, setNewPodFiles] = useState<File[]>([]);
+    const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
+
+    // Check if this is a rejected job (show POD section only for rejected jobs)
+    const isRejectedJob = job.accountingStatus === AccountingStatus.REJECTED;
+
+    // Handle file selection for POD
+    const handlePodFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []) as File[];
+        if (files.length > 0) {
+            const oversizedFiles = files.filter(f => f.size > 10 * 1024 * 1024);
+            if (oversizedFiles.length > 0) {
+                if (typeof (window as any).Swal !== 'undefined') {
+                    (window as any).Swal.fire({
+                        title: 'ไฟล์ใหญ่เกินไป / File Too Large',
+                        text: 'ไฟล์ต้องมีขนาดไม่เกิน 10MB',
+                        icon: 'warning',
+                        confirmButtonColor: '#2563eb'
+                    });
+                }
+                e.target.value = '';
+                return;
+            }
+
+            setUploadProgress(0);
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 40;
+                if (progress >= 100) {
+                    setUploadProgress(100);
+                    clearInterval(interval);
+                    setNewPodFiles(prev => [...prev, ...files]);
+                    setTimeout(() => setUploadProgress(null), 500);
+                } else {
+                    setUploadProgress(progress);
+                }
+            }, 100);
+        }
+    };
+
+    // Remove existing POD image
+    const removeExistingPod = (index: number) => {
+        setPodImages(prev => prev.filter((_, i) => i !== index));
+    };
+
+    // Remove new POD file
+    const removeNewPodFile = (index: number) => {
+        setNewPodFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    // Convert file to base64 with compression
+    const fileToBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            if (!file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = error => reject(error);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target?.result as string;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const MAX_SIZE = 1280;
+
+                    if (width > height && width > MAX_SIZE) {
+                        height *= MAX_SIZE / width;
+                        width = MAX_SIZE;
+                    } else if (height > MAX_SIZE) {
+                        width *= MAX_SIZE / height;
+                        height = MAX_SIZE;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/jpeg', 0.7));
+                    } else {
+                        resolve(reader.result as string);
+                    }
+                };
+                img.onerror = (err) => reject(err);
+            };
+            reader.onerror = error => reject(error);
+        });
+    };
+
     const handleSave = async () => {
         if (isSubmitting) return;
+
+        // Check for POD image changes
+        const originalPodCount = (job.podImageUrls || []).length;
+        const newPodCount = podImages.length + newPodFiles.length;
+        const podImagesChanged = originalPodCount !== podImages.length || newPodFiles.length > 0;
 
         const hasChanged =
             job.origin !== editData.origin ||
@@ -84,7 +189,8 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
             job.driverName !== editData.driverName ||
             job.driverPhone !== editData.driverPhone ||
             job.licensePlate !== editData.licensePlate ||
-            (job.subcontractor || '') !== editData.subcontractor;
+            (job.subcontractor || '') !== editData.subcontractor ||
+            podImagesChanged;
 
         if (!hasChanged) {
             onClose();
@@ -105,7 +211,18 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
         }
 
         setIsSubmitting(true);
-        await new Promise(resolve => setTimeout(resolve, 800));
+
+        // Convert new files to base64
+        let newPodBase64: string[] = [];
+        if (newPodFiles.length > 0) {
+            try {
+                newPodBase64 = await Promise.all(newPodFiles.map(f => fileToBase64(f)));
+            } catch (err) {
+                console.error('Error converting POD files:', err);
+            }
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         const logs: AuditLog[] = [];
         const createLog = (field: string, oldVal: string, newVal: string): AuditLog => ({
@@ -145,6 +262,12 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
         if ((job.sellingPrice || 0) !== (editData.sellingPrice || 0)) {
             logs.push(createLog('Selling Price', (job.sellingPrice || 0).toString(), (editData.sellingPrice || 0).toString()));
         }
+        if (podImagesChanged) {
+            logs.push(createLog('POD Images', `${originalPodCount} รูป`, `${newPodCount} รูป (แก้ไขใหม่)`));
+        }
+
+        // Merge existing (retained) POD images with new ones
+        const finalPodImageUrls = [...podImages, ...newPodBase64];
 
         const updatedJob: Job = {
             ...job,
@@ -156,7 +279,8 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
             driverPhone: editData.driverPhone,
             licensePlate: editData.licensePlate,
             cost: editData.cost || 0,
-            sellingPrice: editData.sellingPrice || 0
+            sellingPrice: editData.sellingPrice || 0,
+            podImageUrls: finalPodImageUrls.length > 0 ? finalPodImageUrls : undefined
         };
 
         onSave(updatedJob, logs);
@@ -583,6 +707,147 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                 )}
                             </div>
                         </div>
+
+                        {/* POD Image Section - Only show if job is rejected */}
+                        {isRejectedJob && (
+                            <div className="bg-rose-50 border-2 border-rose-200 rounded-2xl p-5 space-y-4">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <div className="p-1.5 px-2 bg-rose-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                                        <Camera size={12} />
+                                        POD / เอกสาร
+                                    </div>
+                                    <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">รูปภาพหลักฐาน (แก้ไขได้)</p>
+                                </div>
+
+                                {/* Display rejection reason if about images */}
+                                {job.accountingRemark && (
+                                    <div className="bg-white border border-rose-200 rounded-xl p-3">
+                                        <p className="text-[9px] font-black text-rose-600 uppercase tracking-tight mb-0.5">💬 เหตุผลที่ถูกตีกลับ:</p>
+                                        <p className="text-xs font-bold text-rose-800">{job.accountingRemark}</p>
+                                    </div>
+                                )}
+
+                                {/* Current POD Images */}
+                                {podImages.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="text-[10px] font-black text-slate-500 uppercase">รูปเดิมที่แนบมา ({podImages.length} รูป)</p>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {podImages.map((url, idx) => (
+                                                <div key={idx} className="relative group">
+                                                    <img
+                                                        src={url}
+                                                        alt={`POD ${idx + 1}`}
+                                                        className="w-full h-24 object-cover rounded-xl border-2 border-slate-200"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeExistingPod(idx)}
+                                                        className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                                        title="ลบรูปนี้"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* New POD Files */}
+                                {newPodFiles.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="text-[10px] font-black text-emerald-600 uppercase">รูปใหม่ที่เพิ่ม ({newPodFiles.length} รูป)</p>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {newPodFiles.map((file, idx) => (
+                                                <div key={idx} className="relative group">
+                                                    <img
+                                                        src={URL.createObjectURL(file)}
+                                                        alt={`New POD ${idx + 1}`}
+                                                        className="w-full h-24 object-cover rounded-xl border-2 border-emerald-300"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeNewPodFile(idx)}
+                                                        className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                                        title="ลบรูปนี้"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                    <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-emerald-500 text-white text-[8px] font-black rounded uppercase">
+                                                        NEW
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Upload Progress */}
+                                {uploadProgress !== null && (
+                                    <div className="space-y-1">
+                                        <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full bg-blue-500 transition-all duration-200 ${uploadProgress >= 100 ? 'w-full' :
+                                                        uploadProgress >= 90 ? 'w-[90%]' :
+                                                            uploadProgress >= 80 ? 'w-[80%]' :
+                                                                uploadProgress >= 70 ? 'w-[70%]' :
+                                                                    uploadProgress >= 60 ? 'w-[60%]' :
+                                                                        uploadProgress >= 50 ? 'w-1/2' :
+                                                                            uploadProgress >= 40 ? 'w-[40%]' :
+                                                                                uploadProgress >= 30 ? 'w-[30%]' :
+                                                                                    uploadProgress >= 20 ? 'w-1/5' :
+                                                                                        uploadProgress >= 10 ? 'w-[10%]' : 'w-0'
+                                                    }`}
+                                            ></div>
+                                        </div>
+                                        <p className="text-[9px] text-blue-600 font-bold text-center">กำลังอัปโหลด...</p>
+                                    </div>
+                                )}
+
+                                {/* Upload Buttons */}
+                                <div className="flex gap-3">
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        className="hidden"
+                                        title="Select POD files"
+                                        aria-label="Select POD image files"
+                                        onChange={handlePodFileChange}
+                                    />
+                                    <input
+                                        ref={cameraInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        title="Take photo"
+                                        aria-label="Take a photo for POD"
+                                        onChange={handlePodFileChange}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-white border-2 border-dashed border-rose-300 rounded-xl text-rose-600 font-bold text-xs hover:bg-rose-50 transition-all"
+                                    >
+                                        <Upload size={16} />
+                                        เลือกไฟล์
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => cameraInputRef.current?.click()}
+                                        className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-rose-600 text-white rounded-xl font-bold text-xs hover:bg-rose-700 transition-all shadow-lg"
+                                    >
+                                        <Camera size={16} />
+                                        ถ่ายรูปใหม่
+                                    </button>
+                                </div>
+
+                                <p className="text-[9px] text-slate-400 text-center">
+                                    รองรับไฟล์รูปภาพ (jpg, png) ขนาดไม่เกิน 10MB ต่อไฟล์
+                                </p>
+                            </div>
+                        )}
 
                         <div className="space-y-2 pt-2 border-t border-slate-100">
                             <label htmlFor="reason-input" className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">

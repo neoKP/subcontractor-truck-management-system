@@ -14,6 +14,7 @@ import UserManagementView from './components/UserManagementView';
 import ProfitAnalysisView from './components/ProfitAnalysisView';
 import JobSummaryBoard from './components/JobSummaryBoard';
 import JobTrackingModal from './components/JobTrackingModal';
+import BookingOfficerDashboard from './components/BookingOfficerDashboard';
 import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop } from 'lucide-react';
 import { db, ref, onValue, set, remove } from './firebaseConfig';
 
@@ -297,18 +298,29 @@ const App: React.FC = () => {
           )}
 
           {activeTab === 'board' && (
-            <JobBoard
-              jobs={jobs}
-              user={currentUser}
-              onUpdateJob={updateJob}
-              onDeleteJob={deleteJob}
-              priceMatrix={priceMatrix}
-              logs={logs}
-              logsLoaded={logsLoaded}
-              onAddPrice={handleNavigateToPricing}
-              showPendingPricing={showPendingPricingModal}
-              onTogglePendingPricing={setShowPendingPricingModal}
-            />
+            currentUser.role === UserRole.BOOKING_OFFICER ? (
+              <BookingOfficerDashboard
+                jobs={jobs}
+                user={currentUser}
+                onShowCreateForm={() => setActiveTab('create')}
+                onUpdateJob={updateJob}
+                onDeleteJob={deleteJob}
+                priceMatrix={priceMatrix}
+              />
+            ) : (
+              <JobBoard
+                jobs={jobs}
+                user={currentUser}
+                onUpdateJob={updateJob}
+                onDeleteJob={deleteJob}
+                priceMatrix={priceMatrix}
+                logs={logs}
+                logsLoaded={logsLoaded}
+                onAddPrice={handleNavigateToPricing}
+                showPendingPricing={showPendingPricingModal}
+                onTogglePendingPricing={setShowPendingPricingModal}
+              />
+            )
           )}
 
           {activeTab === 'pricing' && (
