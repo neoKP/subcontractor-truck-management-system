@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Job, JobStatus, AccountingStatus } from '../types';
-import { Calendar, CheckCircle, Clock, AlertCircle, TrendingUp, Filter, FileText, ChevronRight, DollarSign, Wallet, Search, X } from 'lucide-react';
+import { Calendar, CheckCircle, Clock, AlertCircle, TrendingUp, Filter, FileText, ChevronRight, DollarSign, Wallet, Search, X, Download } from 'lucide-react';
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
+import { utils, writeFile } from 'xlsx';
 
 interface BillingReportViewProps {
     jobs: Job[];
@@ -90,6 +91,24 @@ const BillingReportView: React.FC<BillingReportViewProps> = ({ jobs }) => {
     }, [billedJobs, searchRange]);
 
     const [selectedPendingSub, setSelectedPendingSub] = useState<string | null>(null);
+
+    const handleExportExcel = () => {
+        const data = searchedJobs.map(j => ({
+            'Billing Date': j.billingDate || j.dateOfService,
+            'Doc No': j.billingDocNo || '-',
+            'Subcontractor': j.subcontractor,
+            'Origin': j.origin,
+            'Destination': j.destination,
+            'Base Cost': j.cost || 0,
+            'Extra Charge': j.extraCharge || 0,
+            'Total Amount': (j.cost || 0) + (j.extraCharge || 0)
+        }));
+
+        const ws = utils.json_to_sheet(data);
+        const wb = utils.book_new();
+        utils.book_append_sheet(wb, ws, "Billing History");
+        writeFile(wb, `Billing_History_${searchRange.start}_to_${searchRange.end}.xlsx`);
+    };
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -206,24 +225,34 @@ const BillingReportView: React.FC<BillingReportViewProps> = ({ jobs }) => {
                             <Search className="text-blue-500" /> ค้นหาประวัติการวางบิล (Billing History)
                         </h4>
                     </div>
-                    <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
-                        <input
-                            type="date"
-                            value={searchRange.start}
-                            aria-label="Start Date"
-                            title="Start Date"
-                            onChange={(e) => setSearchRange({ ...searchRange, start: e.target.value })}
-                            className="bg-transparent text-sm font-black text-slate-700 outline-none"
-                        />
-                        <span className="text-slate-300">|</span>
-                        <input
-                            type="date"
-                            value={searchRange.end}
-                            aria-label="End Date"
-                            title="End Date"
-                            onChange={(e) => setSearchRange({ ...searchRange, end: e.target.value })}
-                            className="bg-transparent text-sm font-black text-slate-700 outline-none"
-                        />
+                    <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+                            <input
+                                type="date"
+                                value={searchRange.start}
+                                aria-label="Start Date"
+                                title="Start Date"
+                                onChange={(e) => setSearchRange({ ...searchRange, start: e.target.value })}
+                                className="bg-transparent text-sm font-black text-slate-700 outline-none"
+                            />
+                            <span className="text-slate-300">|</span>
+                            <input
+                                type="date"
+                                value={searchRange.end}
+                                aria-label="End Date"
+                                title="End Date"
+                                onChange={(e) => setSearchRange({ ...searchRange, end: e.target.value })}
+                                className="bg-transparent text-sm font-black text-slate-700 outline-none"
+                            />
+                        </div>
+
+                        <button
+                            onClick={handleExportExcel}
+                            disabled={searchedJobs.length === 0}
+                            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:cursor-not-allowed text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-emerald-100"
+                        >
+                            <Download size={16} /> Export to Excel
+                        </button>
                     </div>
                 </div>
 

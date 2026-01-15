@@ -1,12 +1,12 @@
 
 import React from 'react';
 import { UserRole, USER_ROLE_LABELS } from '../types';
-import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users, TrendingUp, ChevronLeft, ChevronRight, LayoutPanelTop, BarChart3 } from 'lucide-react';
 
 interface SidebarProps {
   currentRole: UserRole;
-  activeTab: 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit';
-  setActiveTab: (tab: 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit') => void;
+  activeTab: 'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit';
+  setActiveTab: (tab: 'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit') => void;
   onLogout: () => void;
   isOpen?: boolean;
   onClose?: () => void;
@@ -17,15 +17,16 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, setActiveTab, onLogout, isOpen, onClose, className, isCollapsed, onToggleCollapse }) => {
   const tabs = [
-    { id: 'board', label: 'Dashboard / กระดานงาน', icon: LayoutDashboard, roles: [UserRole.BOOKING_OFFICER, UserRole.DISPATCHER, UserRole.ACCOUNTANT, UserRole.ADMIN] },
-    { id: 'create', label: 'New Request / สร้างงานใหม่', icon: PlusCircle, roles: [UserRole.BOOKING_OFFICER] },
-    { id: 'pricing', label: 'Price Master / มาตรฐานราคา', icon: Tag, roles: [UserRole.DISPATCHER, UserRole.ACCOUNTANT, UserRole.ADMIN] },
-    { id: 'verify', label: 'Verify / ตรวจสอบงาน', icon: ClipboardCheck, roles: [UserRole.ACCOUNTANT, UserRole.ADMIN] },
-    { id: 'billing', label: 'Billing / วางบิล', icon: Receipt, roles: [UserRole.ACCOUNTANT, UserRole.ADMIN] },
-    { id: 'aggregation', label: 'Data Aggregation / การประมวลผลตัวเลข', icon: PieChart, roles: [UserRole.DISPATCHER, UserRole.ACCOUNTANT, UserRole.ADMIN] },
-    { id: 'profit', label: 'Profit Margin / วิเคราะห์กำไร', icon: TrendingUp, roles: [UserRole.DISPATCHER, UserRole.ACCOUNTANT, UserRole.ADMIN] },
-    { id: 'logs', label: 'Audit Logs / ประวัติแก้ไข', icon: ShieldCheck, roles: [UserRole.DISPATCHER, UserRole.ACCOUNTANT, UserRole.ADMIN] },
-    { id: 'users', label: 'Users / ผู้ใช้งาน', icon: Users, roles: [UserRole.ADMIN] },
+    { id: 'analytics', label: 'Executive Insights / ข้อมูลสรุป', icon: TrendingUp, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER] },
+    { id: 'board', label: 'Job Board / กระดานงาน', icon: LayoutPanelTop, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER, UserRole.BOOKING_OFFICER] },
+    { id: 'create', label: 'Create Job / สร้างใบงาน', icon: PlusCircle, roles: [UserRole.BOOKING_OFFICER] },
+    { id: 'verify', label: 'Verification / ตรวจสอบ', icon: ClipboardCheck, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
+    { id: 'billing', label: 'Billing / วางบิล', icon: Receipt, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
+    { id: 'pricing', label: 'Master Pricing / ราคากลาง', icon: Tag, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER] },
+    { id: 'aggregation', label: 'Reports / รายงานสรุป', icon: BarChart3, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
+    { id: 'profit', label: 'Profit Analysis / วิเคราะห์กำไร', icon: PieChart, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
+    { id: 'users', label: 'Users Management / จัดการผู้ใช้', icon: Users, roles: [UserRole.ADMIN] },
+    { id: 'logs', label: 'Audit Trail / ประวัติระบบ', icon: ShieldCheck, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
   ];
 
   const filteredTabs = tabs.filter(tab => tab.roles.includes(currentRole));

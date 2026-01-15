@@ -140,59 +140,76 @@
   background-color: #cbd5e1;
 }
 
-/* Progress Bar Stylings to avoid inline styles */
-progress.margin-progress,
-progress.performance-progress {
+progress.sub-exposure-progress {
   -webkit-appearance: none;
   appearance: none;
-  border-radius: 999px;
-  border: none;
-  background: #f1f5f9;
-}
-
-progress.margin-progress {
-  width: 48px;
-  height: 4px;
-}
-
-progress.performance-progress {
   width: 100%;
-  height: 12px;
-}
-
-progress.margin-progress::-webkit-progress-bar,
-progress.performance-progress::-webkit-progress-bar {
+  height: 8px;
+  border-radius: 9999px;
   background: #f1f5f9;
-  border-radius: 999px;
+  border: none;
 }
 
-progress.margin-progress::-webkit-progress-value,
-progress.performance-progress::-webkit-progress-value {
-  border-radius: 999px;
-  transition: all 1s cubic-bezier(0.4, 0, 0.2, 1);
+progress.sub-exposure-progress::-webkit-progress-bar {
+  background: #f1f5f9;
+  border-radius: 9999px;
 }
 
-progress.progress-emerald::-webkit-progress-value {
-  background-color: #10b981;
+progress.sub-exposure-progress::-webkit-progress-value {
+  border-radius: 9999px;
+  background-color: #4f46e5;
+  transition: all 1s ease-in-out;
 }
 
-progress.progress-blue::-webkit-progress-value {
-  background-color: #3b82f6;
+progress.sub-exposure-progress.progress-indigo-500::-webkit-progress-value {
+  background-color: #6366f1;
 }
 
-progress.progress-amber::-webkit-progress-value {
-  background-color: #f59e0b;
+progress.sub-exposure-progress.progress-indigo-400::-webkit-progress-value {
+  background-color: #818cf8;
 }
 
 /* FireFox Support */
-progress.progress-emerald::-moz-progress-bar {
-  background-color: #10b981;
+progress.sub-exposure-progress::-moz-progress-bar {
+  background-color: #4f46e5;
+  border-radius: 9999px;
 }
 
-progress.progress-blue::-moz-progress-bar {
-  background-color: #3b82f6;
+progress.sub-exposure-progress.progress-indigo-500::-moz-progress-bar {
+  background-color: #6366f1;
 }
 
-progress.progress-amber::-moz-progress-bar {
-  background-color: #f59e0b;
+progress.sub-exposure-progress.progress-indigo-400::-moz-progress-bar {
+  background-color: #818cf8;
+}
+
+.dynamic-width {
+  width: var(--progress-width, 0%);
+}
+
+progress.premium-route-progress {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  border: none;
+}
+
+progress.premium-route-progress::-webkit-progress-bar {
+  background: #f1f5f9;
+  border-radius: 9999px;
+}
+
+progress.premium-route-progress::-webkit-progress-value {
+  border-radius: 9999px;
+  background-color: #0f172a;
+  /* slate-900 */
+  transition: all 1s ease-in-out;
+}
+
+progress.premium-route-progress::-moz-progress-bar {
+  background-color: #0f172a;
+  border-radius: 9999px;
 }

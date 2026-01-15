@@ -5,6 +5,7 @@ import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 import { DollarSign, ExternalLink, FileCheck, Info, TrendingUp, CheckCircle, XCircle, Lock, AlertCircle, History, Receipt } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
 import PaymentModal from './PaymentModal';
+import BillingFinancialDashboard from './BillingFinancialDashboard';
 import { Download, CreditCard, FileText } from 'lucide-react';
 
 interface BillingViewProps {
@@ -390,112 +391,92 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
   };
 
   return (
-    <div className="space-y-8">
-      {/* Filters & Navigation */}
-      {/* Tab Switcher */}
-      <div className="flex flex-col gap-6">
-        <div className="flex p-1 bg-slate-100 rounded-2xl w-fit border border-slate-200">
-          <button
-            onClick={() => { setViewTab('VERIFICATION'); setActiveFilter('ALL'); setCurrentPage(1); }}
-            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'VERIFICATION' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            🔍 VERIFICATION (รอตรวจสอบ)
-          </button>
-          <button
-            onClick={() => { setViewTab('TO_BILL'); setActiveFilter('ALL'); setCurrentPage(1); }}
-            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'TO_BILL' ? 'bg-white text-indigo-600 shadow-sm border border-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            📝 TO BILL (พร้อมวางบิล)
-          </button>
-          <button
-            onClick={() => { setViewTab('TO_PAY'); setActiveFilter('ALL'); setCurrentPage(1); }}
-            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'TO_PAY' ? 'bg-white text-amber-600 shadow-sm border border-amber-100' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            💰 TO PAY (รอจ่ายเงิน)
-          </button>
-          <button
-            onClick={() => { setViewTab('PAID'); setActiveFilter('ALL'); setCurrentPage(1); }}
-            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'PAID' ? 'bg-white text-emerald-600 shadow-sm border border-emerald-100' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            ✅ PAID (จ่ายแล้ว)
-          </button>
+    <div className="space-y-10">
+      {/* Power BI Inspired Header Dashboard */}
+      <section>
+        <div className="mb-8">
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase">
+            Billing & Financial <span className="text-blue-600">Command Center</span>
+          </h2>
+          <p className="text-sm text-slate-400 font-bold uppercase tracking-widest mt-1">
+            Management console for end-to-end financial workflows
+          </p>
         </div>
 
-        {/* Sub-Filters - Only for VERIFICATION tab */}
-        {viewTab === 'VERIFICATION' && (
-          <div className="flex flex-wrap items-center gap-3 w-full">
-            <button
-              onClick={() => setActiveFilter('ALL')}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'ALL' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
-            >
-              Show All (ทั้งหมด)
-            </button>
-            <button
-              onClick={() => setActiveFilter('REJECTED')}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'REJECTED' ? 'bg-rose-600 text-white border-rose-600 shadow-lg' : 'bg-white text-rose-400 border-rose-100 hover:border-rose-300'}`}
-            >
-              Rejected Only (งานถูกตีกลับ)
-            </button>
-          </div>
-        )}
+        <BillingFinancialDashboard
+          jobs={jobs}
+          activeStage={viewTab}
+          onStageSelect={(stage) => {
+            setViewTab(stage);
+            setActiveFilter('ALL');
+            setCurrentPage(1);
+          }}
+        />
+      </section>
 
-        {/* Export button for PAID tab */}
-        {viewTab === 'PAID' && (
-          <div className="flex items-center gap-3 w-full">
+      {/* Action Bar & Sub-Filters */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 bg-white border border-slate-100 rounded-[2rem] shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className={`w-3 h-3 rounded-full animate-pulse ${viewTab === 'VERIFICATION' ? 'bg-slate-400' :
+              viewTab === 'TO_BILL' ? 'bg-indigo-600' :
+                viewTab === 'TO_PAY' ? 'bg-amber-500' : 'bg-emerald-500'
+            }`}></div>
+          <h3 className="text-xs font-black text-slate-800 uppercase tracking-[0.3em]">
+            Active Stream: {viewTab.replace('_', ' ')}
+          </h3>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Sub-Filters - Only for VERIFICATION tab */}
+          {viewTab === 'VERIFICATION' && (
+            <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+              <button
+                onClick={() => setActiveFilter('ALL')}
+                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeFilter === 'ALL' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                All Review
+              </button>
+              <button
+                onClick={() => setActiveFilter('REJECTED')}
+                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeFilter === 'REJECTED' ? 'bg-rose-600 text-white shadow-lg' : 'text-rose-400 hover:text-rose-600'}`}
+              >
+                Rejected Items
+              </button>
+            </div>
+          )}
+
+          {/* Export button for PAID tab */}
+          {viewTab === 'PAID' && (
             <button
               onClick={downloadPaymentReport}
-              className="ml-auto px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border bg-white text-slate-600 border-slate-200 hover:border-slate-400 flex items-center gap-2"
+              className="px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 flex items-center gap-2"
             >
-              <Download size={14} /> Export Report
+              <Download size={14} /> Settlement Export
             </button>
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100">
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-emerald-600 rounded-lg text-white"><TrendingUp size={20} /></div>
-            <span className="text-[10px] font-black text-emerald-600 uppercase">ยอดรวมตัวกรอง (Filtered Volume)</span>
-          </div>
-          <p className="text-3xl font-black text-slate-900">฿{formatThaiCurrency(Number(totalFinal) || 0)}</p>
-          <p className="text-xs text-emerald-700 font-bold mt-1">Sum of visible jobs / รวมตามตัวกรอง</p>
-        </div>
+          {/* Batch Actions for TO_BILL */}
+          {viewTab === 'TO_BILL' && selectedJobIds.length > 0 && (
+            <button
+              onClick={handleBatchBill}
+              className="px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-indigo-600 text-white shadow-lg shadow-indigo-100 hover:bg-indigo-700 flex items-center gap-2 animate-in zoom-in duration-200"
+            >
+              <Receipt size={14} /> Batch Acknowledge ({selectedJobIds.length})
+            </button>
+          )}
 
-        <div className="bg-amber-50 rounded-2xl p-6 border border-amber-100">
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-amber-600 rounded-lg text-white"><AlertCircle size={20} /></div>
-            <span className="text-[10px] font-black text-amber-600 uppercase">รอตรวจสอบ (Pending Review)</span>
-          </div>
-          <p className="text-3xl font-black text-slate-900">
-            {jobs.filter(j => j.accountingStatus !== AccountingStatus.APPROVED && j.accountingStatus !== AccountingStatus.LOCKED && j.status === JobStatus.COMPLETED).length}
-          </p>
-          <p className="text-xs text-amber-700 font-bold mt-1">Jobs awaiting verification / งานรอตรวจ</p>
-        </div>
-
-        <div className="bg-indigo-50 rounded-2xl p-6 border border-indigo-100">
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-indigo-600 rounded-lg text-white"><Receipt size={20} /></div>
-            <span className="text-[10px] font-black text-indigo-600 uppercase">พร้อมดำเนินการต่อ (Ready to Proceed)</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <div>
-              <p className="text-3xl font-black text-slate-900">
-                {jobs.filter(j => j.accountingStatus === AccountingStatus.APPROVED && j.status === JobStatus.COMPLETED).length}
-              </p>
-              <p className="text-[9px] text-indigo-700 font-black uppercase mt-1">Ready for Acknowledgement</p>
-            </div>
-            <div className="w-px h-10 bg-indigo-200"></div>
-            <div>
-              <p className="text-3xl font-black text-slate-900">
-                {jobs.filter(j => j.status === JobStatus.BILLED && j.accountingStatus !== AccountingStatus.LOCKED).length}
-              </p>
-              <p className="text-[9px] text-indigo-700 font-black uppercase mt-1">Ready for Lock</p>
-            </div>
-          </div>
+          {/* Batch Actions for TO_PAY */}
+          {viewTab === 'TO_PAY' && selectedJobIds.length > 0 && (
+            <button
+              onClick={() => handleOpenPaymentModal(jobs.filter(j => selectedJobIds.includes(j.id)))}
+              className="px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-amber-600 text-white shadow-lg shadow-amber-100 hover:bg-amber-700 flex items-center gap-2 animate-in zoom-in duration-200"
+            >
+              <CreditCard size={14} /> Batch Pay Now ({selectedJobIds.length})
+            </button>
+          )}
         </div>
       </div>
+
 
       {/* Detailed Table */}
       <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm">

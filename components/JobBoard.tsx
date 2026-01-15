@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS } from '../types';
-import { Calendar, MapPin, Package, Hash, Lock, CheckCircle, Edit3, Filter, Truck, Printer, LayoutDashboard, Receipt, XCircle, Search, Trash2, ShieldAlert, ExternalLink, TrendingUp } from 'lucide-react';
+import { Calendar, MapPin, Package, Hash, Lock, CheckCircle, Edit3, Filter, Truck, Printer, LayoutDashboard, Receipt, XCircle, Search, Trash2, ShieldAlert, ExternalLink, TrendingUp, Activity, BarChart3, Clock, AlertCircle } from 'lucide-react';
 import Swal from 'sweetalert2';
 import DispatcherActionModal from './DispatcherActionModal';
 import ConfirmationModal from './ConfirmationModal';
@@ -403,101 +403,115 @@ const JobBoard: React.FC<JobBoardProps> = ({
 
     return (
       <div className="space-y-8">
-        {/* Bento Grid Summary Section - Premium Upgrade */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
-          <div className={`${user.role === UserRole.BOOKING_OFFICER ? 'md:col-span-3' : 'md:col-span-2'} bg-slate-900 p-8 rounded-[3rem] shadow-2xl flex flex-col justify-between hover-lift group relative overflow-hidden text-white border border-white/5`}>
-            <div className="absolute -right-16 -top-16 w-64 h-64 bg-blue-500/10 rounded-full blur-[100px] group-hover:bg-blue-500/20 transition-all duration-700"></div>
-            <div className="flex items-center justify-between mb-8 z-10">
-              <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-blue-500/40 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
-                <LayoutDashboard size={28} />
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-[10px] font-black text-blue-400 bg-blue-500/10 border border-blue-500/20 px-4 py-1.5 rounded-full uppercase tracking-[0.2em] backdrop-blur-md">Operations Hub</span>
-                <span className="text-[9px] text-slate-500 font-bold mt-2 uppercase">Live Tracking Enabled</span>
-              </div>
-            </div>
-            <div className="z-10">
-              <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] block mb-3">สรุปรายการขอรถ (Active Service Requests)</span>
-              <div className="flex items-end gap-4">
-                <span className="text-7xl font-black text-white leading-none tracking-tighter tabular-nums">{filteredJobs.length}</span>
-                <div className="flex flex-col mb-1">
-                  <span className="text-sm font-black text-blue-500 uppercase tracking-widest">Active Tasks</span>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Across all routes</span>
+        {/* Operations BI Summary - Power BI Premium Style */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+          {/* Main Status Hub */}
+          <div className="lg:col-span-2 bg-slate-900 p-8 rounded-[3.5rem] shadow-2xl flex flex-col justify-between hover-lift group relative overflow-hidden transition-all duration-500 border border-white/5">
+            <div className="absolute -right-16 -top-16 w-80 h-80 bg-blue-600/10 rounded-full blur-[120px] group-hover:bg-blue-600/20 transition-all duration-1000"></div>
+            <div className="flex items-center justify-between mb-10 z-10">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-blue-600 rounded-[2rem] flex items-center justify-center text-white shadow-2xl shadow-blue-500/40 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                  <Activity size={32} className="animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-white tracking-tighter">แดชบอร์ดงานขนส่ง</h3>
+                  <p className="text-[10px] text-blue-400 font-bold uppercase tracking-[0.2em]">Operations Command Center</p>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between hover-lift group relative overflow-hidden">
-            <div className="absolute -right-4 -top-4 w-20 h-20 bg-emerald-50 rounded-full blur-2xl opacity-50"></div>
-            <div className="flex justify-between items-start mb-6">
-              <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-100 group-hover:rotate-12 transition-transform">
-                <TrendingUp size={24} />
-              </div>
-              <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg uppercase">Success Rate</span>
-            </div>
-            <div>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 font-bold">Matching Success</span>
-              <div className="flex items-center gap-3">
-                <progress
-                  className="performance-progress progress-emerald flex-1"
-                  value={jobs.length > 0 ? ((jobs.filter(j => j.status !== JobStatus.NEW_REQUEST).length / jobs.length) * 100) : 0}
-                  max="100"
-                />
-                <span className="text-xl font-black text-slate-900">
-                  {jobs.length > 0 ? ((jobs.filter(j => j.status !== JobStatus.NEW_REQUEST).length / jobs.length) * 100).toFixed(0) : 0}%
+              <div className="flex flex-col items-end">
+                <span className="px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[10px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                  Live Monitoring
                 </span>
               </div>
             </div>
-          </div>
 
-          {user.role !== UserRole.BOOKING_OFFICER ? (
-            <>
-              <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between hover-lift group relative overflow-hidden">
-                <div className="absolute -left-4 -bottom-4 w-24 h-24 bg-amber-50 rounded-full blur-3xl opacity-40"></div>
-                <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-orange-100 group-hover:-rotate-12 transition-transform">
-                  <Truck size={24} />
+            <div className="grid grid-cols-2 gap-8 z-10">
+              <div className="group/item">
+                <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] block mb-2 group-hover/item:text-blue-400 transition-colors">สรุปรายการขอรถ (Active Jobs)</span>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-6xl font-black text-white tracking-tighter tabular-nums">{filteredJobs.length}</span>
+                  <span className="text-xs font-black text-slate-500 uppercase tracking-widest">ใบงาน (Jobs)</span>
                 </div>
-                <div className="mt-8">
-                  <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-1">งานที่รอรถ (Waiting)</span>
-                  <span className="text-4xl font-black text-slate-900 tracking-tight tabular-nums">
+              </div>
+              <div className="group/item">
+                <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] block mb-2 group-hover/item:text-orange-400 transition-colors">งานที่รอจัดรถ (Waiting)</span>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-6xl font-black text-orange-500 tracking-tighter tabular-nums">
                     {jobs.filter(j => j.status === JobStatus.NEW_REQUEST).length}
                   </span>
-                  <p className="text-[9px] font-bold text-orange-500 uppercase mt-1 tracking-wider">Unassigned requests</p>
+                  <span className="text-xs font-black text-slate-500 uppercase tracking-widest">คัน (Units)</span>
                 </div>
               </div>
-
-              {/* Pending Pricing Card - NEW */}
-              <div
-                onClick={() => setPendingPricingOpen(true)}
-                className="bg-white p-8 rounded-[3rem] shadow-sm border-2 border-dashed border-yellow-200 flex flex-col justify-between hover:border-yellow-400 hover:bg-yellow-50 cursor-pointer transition-all group relative overflow-hidden"
-              >
-                <div className="absolute right-0 top-0 w-16 h-16 bg-yellow-400/10 rounded-bl-full"></div>
-                <div className="w-12 h-12 bg-yellow-500 rounded-2xl flex items-center justify-center text-slate-900 shadow-xl shadow-yellow-100 group-hover:scale-110 transition-transform">
-                  <ShieldAlert size={24} />
-                </div>
-                <div className="mt-8">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-1">รอราคา (Pending Price)</span>
-                    <span className="animate-ping w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
-                  </div>
-                  <span className="text-4xl font-black text-slate-900 tracking-tight tabular-nums">
-                    {jobs.filter(j => j.status === JobStatus.PENDING_PRICING).length}
-                  </span>
-                  <p className="text-[9px] font-black text-yellow-600 uppercase mt-1 tracking-wider flex items-center gap-1">
-                    Click to review queue <ExternalLink size={10} />
-                  </p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[3rem] shadow-xl flex flex-col justify-center items-center text-center text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
-              <Truck size={40} className="mb-4 text-blue-200" />
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1 opacity-70">Fleet Available</p>
-              <p className="text-4xl font-black">Online</p>
             </div>
-          )}
+          </div>
+
+          {/* Efficiency Card */}
+          <div className="bg-white p-8 rounded-[3.5rem] shadow-sm border border-slate-100 flex flex-col justify-between hover-lift group relative overflow-hidden transition-all duration-500">
+            <div className="absolute right-0 top-0 w-32 h-32 bg-emerald-500/5 rounded-bl-full"></div>
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-14 h-14 bg-emerald-50 outline outline-4 outline-emerald-50/50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm group-hover:scale-110 transition-transform">
+                <BarChart3 size={28} />
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl uppercase tracking-widest">Efficiency Rate</span>
+              </div>
+            </div>
+            <div>
+              <div className="flex items-end justify-between mb-4">
+                <div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">ประสิทธิภาพการจัดรถ (Flow)</span>
+                  <span className="text-3xl font-black text-slate-900">
+                    {jobs.length > 0 ? ((jobs.filter(j => j.status !== JobStatus.NEW_REQUEST).length / jobs.length) * 100).toFixed(0) : 0}%
+                  </span>
+                </div>
+                <TrendingUp size={24} className="text-emerald-500 opacity-20" />
+              </div>
+              <progress
+                className="performance-progress progress-emerald w-full h-3"
+                value={jobs.length > 0 ? ((jobs.filter(j => j.status !== JobStatus.NEW_REQUEST).length / jobs.length) * 100) : 0}
+                max="100"
+              />
+              <p className="text-[9px] font-bold text-slate-400 uppercase mt-4 tracking-tighter">Percentage of successfully matched units</p>
+            </div>
+          </div>
+
+          {/* Alerts & Critical Queue Card */}
+          <div
+            onClick={() => setPendingPricingOpen(true)}
+            className={`bg-white p-8 rounded-[3.5rem] shadow-sm flex flex-col justify-between hover-lift group relative overflow-hidden border-2 cursor-pointer transition-all duration-500 ${jobs.filter(j => j.status === JobStatus.PENDING_PRICING).length > 0
+              ? 'border-yellow-400 bg-yellow-50/30'
+              : 'border-slate-100'
+              }`}
+          >
+            <div className="flex justify-between items-start mb-6">
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl transition-all ${jobs.filter(j => j.status === JobStatus.PENDING_PRICING).length > 0
+                ? 'bg-yellow-500 text-white shadow-yellow-200 group-hover:rotate-12'
+                : 'bg-slate-100 text-slate-400 group-hover:bg-slate-900 group-hover:text-white'
+                }`}>
+                {jobs.filter(j => j.status === JobStatus.PENDING_PRICING).length > 0 ? <AlertCircle size={28} /> : <Clock size={28} />}
+              </div>
+              {jobs.filter(j => j.status === JobStatus.PENDING_PRICING).length > 0 && (
+                <span className="bg-yellow-500 text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest animate-pulse">Critical</span>
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest block font-bold">งานรอตรวจสอบราคา (Review)</span>
+                {jobs.filter(j => j.status === JobStatus.PENDING_PRICING).length > 0 && <span className="w-2 h-2 rounded-full bg-yellow-500 animate-ping"></span>}
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-5xl font-black text-slate-900 tabular-nums">
+                  {jobs.filter(j => j.status === JobStatus.PENDING_PRICING).length}
+                </span>
+                <span className="text-xs font-black text-slate-400">รายการ (Items)</span>
+              </div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mt-4 tracking-tighter flex items-center gap-1">
+                Resolve pricing discrepancies <ExternalLink size={12} />
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Action Controls */}
@@ -575,7 +589,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
                             </span>
                             {job.accountingStatus === AccountingStatus.REJECTED && (
                               <span className="inline-flex items-center gap-1 px-3 py-1 bg-rose-600 text-white rounded-lg text-[9px] font-black uppercase animate-pulse shadow-lg shadow-rose-200">
-                                <ShieldAlert size={10} /> Correction Required
+                                <ShieldAlert size={10} /> แก้ไขข้อมูล (Correction Required)
                               </span>
                             )}
                           </div>
@@ -617,10 +631,10 @@ const JobBoard: React.FC<JobBoardProps> = ({
                             ></div>
                           </div>
                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                            {job.status === JobStatus.NEW_REQUEST ? 'Waiting' :
-                              job.status === JobStatus.PENDING_PRICING ? 'Pending Review' :
-                                job.status === JobStatus.ASSIGNED ? 'In Transit' :
-                                  job.status === JobStatus.COMPLETED ? 'Success' : 'Archived'}
+                            {job.status === JobStatus.NEW_REQUEST ? 'รอรถ (Waiting)' :
+                              job.status === JobStatus.PENDING_PRICING ? 'รอราคา (Review)' :
+                                job.status === JobStatus.ASSIGNED ? 'เดินทาง (Transit)' :
+                                  job.status === JobStatus.COMPLETED ? 'สำเร็จ (Success)' : 'จบงาน (Archived)'}
                           </span>
                         </div>
                       </td>

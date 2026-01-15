@@ -16,7 +16,8 @@ import ProfitAnalysisView from './components/ProfitAnalysisView';
 import JobSummaryBoard from './components/JobSummaryBoard';
 import JobTrackingModal from './components/JobTrackingModal';
 import BookingOfficerDashboard from './components/BookingOfficerDashboard';
-import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop } from 'lucide-react';
+import PremiumExecutiveDashboard from './components/PremiumExecutiveDashboard';
+import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3 } from 'lucide-react';
 import { db, ref, onValue, set, remove } from './firebaseConfig';
 
 // Initial Users Data for Seeding
@@ -41,7 +42,7 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [priceMatrix, setPriceMatrix] = useState<PriceMatrix[]>(PRICE_MATRIX);
-  const [activeTab, setActiveTab] = useState<'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit'>('board');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit'>('board');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logSearch, setLogSearch] = useState('');
   const [logPage, setLogPage] = useState(1);
@@ -247,11 +248,18 @@ const App: React.FC = () => {
 
   const handleLogin = (user: { id: string; name: string; role: UserRole }) => {
     setCurrentUser(user);
-    setActiveTab('board');
+    localStorage.setItem('currentUser', JSON.stringify(user));
+    // Determine initial tab based on role
+    if (user.role === UserRole.BOOKING_OFFICER) {
+      setActiveTab('board');
+    } else {
+      setActiveTab('analytics');
+    }
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
+    localStorage.removeItem('currentUser');
   };
 
   if (!currentUser) {
@@ -285,6 +293,8 @@ const App: React.FC = () => {
         />
 
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full box-border">
+          {activeTab === 'analytics' && currentUser.role !== UserRole.BOOKING_OFFICER && <PremiumExecutiveDashboard jobs={jobs} />}
+
           {activeTab === 'create' && currentUser.role === UserRole.BOOKING_OFFICER && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="bg-blue-600 px-6 py-4 flex items-center gap-3">
@@ -308,10 +318,7 @@ const App: React.FC = () => {
               <BookingOfficerDashboard
                 jobs={jobs}
                 user={currentUser}
-                onShowCreateForm={() => setActiveTab('create')}
                 onUpdateJob={updateJob}
-                onDeleteJob={deleteJob}
-                priceMatrix={priceMatrix}
               />
             ) : (
               <JobBoard
