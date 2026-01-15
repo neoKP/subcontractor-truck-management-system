@@ -9,12 +9,14 @@ interface DailyReportViewProps {
 }
 
 const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) => {
-    // Default to today in YYYY-MM-DD format
-    const today = new Date().toISOString().split('T')[0];
+    // Default to today in YYYY-MM-DD format (Local Time)
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const [selectedDate, setSelectedDate] = useState<string>(today);
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState<'my' | 'all'>('all');
 
+    // Filter jobs by date, search term, and view mode
     // Filter jobs by date, search term, and view mode
     const filteredJobs = useMemo(() => {
         return jobs.filter(job => {
@@ -23,21 +25,36 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                 return false;
             }
 
-            // 2. Filter by Date
-            const jobDate = new Date(job.dateOfService).toISOString().split('T')[0];
-            const isDateMatch = jobDate === selectedDate;
-
-            if (!isDateMatch) return false;
-
-            // 3. Filter by Search Term
             const term = searchTerm.toLowerCase();
-            return (
+            const matchesSearch = (
                 (job.id && job.id.toLowerCase().includes(term)) ||
                 (job.subcontractor && job.subcontractor.toLowerCase().includes(term)) ||
                 (job.origin && job.origin.toLowerCase().includes(term)) ||
                 (job.destination && job.destination.toLowerCase().includes(term)) ||
                 (job.licensePlate && job.licensePlate.toLowerCase().includes(term))
             );
+
+            // SPECIAL LOGIC: If searching for a specific Job ID (4+ chars), ignore date filter
+            const isSpecificJobSearch = term.length >= 4 && (term.startsWith('jrs') || !isNaN(Number(term))) && job.id.toLowerCase().includes(term);
+
+            if (isSpecificJobSearch) return true;
+
+            // 2. Filter by DATE CREATED (วันที่สร้างใบงาน)
+            // User requirement: Show all jobs created on the selected date, regardless of service date.
+
+            let jobCreatedDateLocal = '';
+            if (job.createdAt) {
+                // Convert UTC ISO string to Local Date YYYY-MM-DD
+                const d = new Date(job.createdAt);
+                jobCreatedDateLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            }
+
+            const isDateMatch = jobCreatedDateLocal === selectedDate;
+
+            if (!isDateMatch) return false;
+
+            // 3. Filter by Search Term
+            return matchesSearch;
         }).sort((a, b) => {
             // Sort by ID or Time if available
             return a.id.localeCompare(b.id);
@@ -149,8 +166,8 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                             type="date"
                             value={selectedDate}
                             onChange={(e) => setSelectedDate(e.target.value)}
-                            title="Select Date"
-                            aria-label="Select Date"
+                            title="Select Date Created (เลือกวันที่สร้างใบงาน)"
+                            aria-label="Select Date Created"
                             className="pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-slate-700 focus:ring-4 focus:ring-blue-100 outline-none transition-all cursor-pointer"
                         />
                     </div>
