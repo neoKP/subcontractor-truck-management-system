@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Job, JobStatus } from '../types';
 import { X, Printer, CheckCircle, Receipt, Calendar, FileText, MapPin } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 
 /**
  * Helper: Converts a number to Thai Baht text.
@@ -202,10 +203,10 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
         return d.toISOString().split('T')[0];
     });
 
-    const subtotal = jobs.reduce((sum, j) => sum + (Number(j.cost) || 0) + (Number(j.extraCharge) || 0), 0);
-    const vatAmount = applyVat ? (subtotal * vatRate) / 100 : 0;
-    const whtAmount = applyWht ? (subtotal * whtRate) / 100 : 0;
-    const netTotal = subtotal + vatAmount - whtAmount;
+    const subtotal = roundHalfUp(jobs.reduce((sum, j) => sum + (Number(j.cost) || 0) + (Number(j.extraCharge) || 0), 0));
+    const vatAmount = applyVat ? roundHalfUp((subtotal * vatRate) / 100) : 0;
+    const whtAmount = applyWht ? roundHalfUp((subtotal * whtRate) / 100) : 0;
+    const netTotal = roundHalfUp(subtotal + vatAmount - whtAmount);
 
     const issueDate = existingDate ? new Date(existingDate) : new Date();
     const documentNumber = existingDocNo || `BA-${issueDate.getFullYear()}${String(issueDate.getMonth() + 1).padStart(2, '0')}-${mainJob.id.split('-').pop()}`;
@@ -465,16 +466,16 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                                                             </div>
                                                         </td>
                                                         <td className="border border-slate-200 p-2 text-center">1 Trip</td>
-                                                        <td className="border border-slate-200 p-2 text-right">{Number(j.cost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                                        <td className="border border-slate-200 p-2 text-right font-black">{Number(j.cost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                        <td className="border border-slate-200 p-2 text-right">{formatThaiCurrency(Number(j.cost))}</td>
+                                                        <td className="border border-slate-200 p-2 text-right font-black">{formatThaiCurrency(Number(j.cost))}</td>
                                                     </tr>
                                                     {Number(j.extraCharge) > 0 && (
                                                         <tr className="bg-yellow-50/30 print:bg-yellow-50">
                                                             <td className="border border-slate-200 p-2"></td>
                                                             <td className="border border-slate-200 p-2 italic text-slate-600">- Extra Charge / ค่าใช้จ่ายเพิ่มเติม</td>
                                                             <td className="border border-slate-200 p-2 text-center">1 Job</td>
-                                                            <td className="border border-slate-200 p-2 text-right">{Number(j.extraCharge).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                                            <td className="border border-slate-200 p-2 text-right font-bold text-slate-800">{Number(j.extraCharge).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                            <td className="border border-slate-200 p-2 text-right">{formatThaiCurrency(Number(j.extraCharge))}</td>
+                                                            <td className="border border-slate-200 p-2 text-right font-bold text-slate-800">{formatThaiCurrency(Number(j.extraCharge))}</td>
                                                         </tr>
                                                     )}
                                                 </React.Fragment>
@@ -502,7 +503,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                                             <div className="w-[220px] text-[11px] space-y-2">
                                                 <div className="flex justify-between text-slate-600">
                                                     <span className="font-bold">รวมเงินก่อนภาษี (Subtotal)</span>
-                                                    <span className="font-black text-slate-900">{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                    <span className="font-black text-slate-900">{formatThaiCurrency(subtotal)}</span>
                                                 </div>
 
                                                 {/* UI Only Switches */}
@@ -512,14 +513,14 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                                                             <input type="checkbox" checked={applyVat} onChange={e => setApplyVat(e.target.checked)} className="w-4 h-4 rounded text-blue-600" />
                                                             <span className="font-bold">VAT {vatRate}%</span>
                                                         </div>
-                                                        <span className="font-black text-slate-900 underline decoration-dotted">{vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                        <span className="font-black text-slate-900 underline decoration-dotted">{formatThaiCurrency(vatAmount)}</span>
                                                     </label>
                                                     <label className="flex items-center justify-between text-slate-500 cursor-pointer hover:bg-slate-100 p-1 rounded">
                                                         <div className="flex items-center gap-2">
                                                             <input type="checkbox" checked={applyWht} onChange={e => setApplyWht(e.target.checked)} className="w-4 h-4 rounded text-red-600" />
                                                             <span className="font-bold text-red-600">WHT {whtRate}%</span>
                                                         </div>
-                                                        <span className="font-black text-red-600">-{whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                        <span className="font-black text-red-600">-{formatThaiCurrency(whtAmount)}</span>
                                                     </label>
                                                 </div>
 
@@ -549,7 +550,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                                                         <span className="font-black text-slate-900 text-xs text-blue-800 print:text-blue-800 leading-tight">ยอดเงินสุทธิ</span>
                                                         <span className="text-[10px] font-black text-blue-800 print:text-blue-800 leading-none">(NET TOTAL)</span>
                                                     </div>
-                                                    <span className="text-sm font-black text-blue-800 underline decoration-double underline-offset-4 print:text-blue-800">{netTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                    <span className="text-sm font-black text-blue-800 underline decoration-double underline-offset-4 print:text-blue-800">{formatThaiCurrency(netTotal)}</span>
                                                 </div>
                                             </div>
                                         </div>

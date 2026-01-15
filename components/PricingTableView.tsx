@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { PriceMatrix, UserRole } from '../types';
+import { PriceMatrix, MasterData, UserRole } from '../types';
+import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 import { MASTER_DATA } from '../constants';
 import { Search, MapPin, Truck, Building2, CircleDollarSign, Plus, Edit, Trash2, X, Save } from 'lucide-react';
 
@@ -206,7 +207,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[9px] font-bold text-slate-400 uppercase">Cost</span>
                         <div className="flex items-center gap-1.5 font-black text-slate-900 text-xs">
-                          ฿{(Number(p.basePrice) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ฿{formatThaiCurrency(Number(p.basePrice) || 0)}
                         </div>
                       </div>
                     </td>
@@ -214,14 +215,14 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[9px] font-bold text-blue-400 uppercase">Revenue</span>
                         <div className="flex items-center gap-1.5 font-black text-blue-600 text-xs">
-                          ฿{(Number(p.sellingBasePrice) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ฿{formatThaiCurrency(Number(p.sellingBasePrice) || 0)}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
                       {p.dropOffFee ? (
                         <span className="text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-100 text-xs">
-                          ฿{(Number(p.dropOffFee) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ฿{formatThaiCurrency(Number(p.dropOffFee) || 0)}
                         </span>
                       ) : (
                         <span className="text-slate-300">-</span>

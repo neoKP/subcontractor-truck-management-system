@@ -38,6 +38,7 @@ import {
     Pie,
     Legend
 } from 'recharts';
+import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 
 interface ProfitAnalysisViewProps {
     jobs: Job[];
@@ -283,9 +284,9 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
             {/* KPI Section with Sparklines */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                    { label: 'Revenue', value: `฿${totalRevenue.toLocaleString()}`, color: 'blue', icon: DollarSign, trend: trendData.map(d => ({ v: d.revenue })) },
-                    { label: 'Gross Profit', value: `฿${grossProfit.toLocaleString()}`, color: 'emerald', icon: TrendingUp, trend: trendData.map(d => ({ v: d.profit })), suffix: `${marginPercent.toFixed(1)}% Margin` },
-                    { label: 'Job Success', value: `${successRate.toFixed(1)}%`, color: 'purple', icon: CheckCircle2, trend: trendData.map(d => ({ v: Math.random() * 100 })), suffix: 'Delivery Rate' },
+                    { label: 'Revenue', value: `฿${formatThaiCurrency(totalRevenue)}`, color: 'blue', icon: DollarSign, trend: trendData.map(d => ({ v: d.revenue })) },
+                    { label: 'Gross Profit', value: `฿${formatThaiCurrency(grossProfit)}`, color: 'emerald', icon: TrendingUp, trend: trendData.map(d => ({ v: d.profit })), suffix: `${roundHalfUp(marginPercent, 1)}% Margin` },
+                    { label: 'Job Success', value: `${roundHalfUp(successRate, 1)}%`, color: 'purple', icon: CheckCircle2, trend: trendData.map(d => ({ v: Math.random() * 100 })), suffix: 'Delivery Rate' },
                     { label: 'Total Volume', value: filteredJobs.length, color: 'slate', icon: Truck, trend: trendData.map(d => ({ v: Math.random() * 20 })), suffix: 'Ops Executed' }
                 ].map((kpi, idx) => (
                     <div key={idx} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 group hover:shadow-2xl transition-all duration-500 flex flex-col justify-between overflow-hidden relative">

@@ -7,6 +7,7 @@ import DispatcherActionModal from './DispatcherActionModal';
 import ConfirmationModal from './ConfirmationModal';
 import JobPreviewModal from './JobPreviewModal';
 import BookingEditModal from './BookingEditModal';
+import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 import PendingPricingModal from './PendingPricingModal';
 
 interface JobBoardProps {
@@ -641,7 +642,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
                       {user.role !== UserRole.BOOKING_OFFICER && (
                         <td className="px-8 py-6 text-right">
                           <div className="flex flex-col items-end">
-                            <span className="text-lg font-black text-slate-900 leading-none mb-1 tabular-nums">฿{(Number(job.cost) || 0).toLocaleString()}</span>
+                            <span className="text-lg font-black text-slate-900 leading-none mb-1 tabular-nums">฿{formatThaiCurrency(Number(job.cost) || 0)}</span>
                             <span className="text-[9px] font-black text-slate-300 uppercase tracking-tighter">Settlement Val</span>
                           </div>
                         </td>
@@ -784,7 +785,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
                 </div>
                 {user.role !== UserRole.BOOKING_OFFICER && (
                   <div className="text-right">
-                    <span className="block text-xl font-black text-slate-900 leading-none">฿{(Number(job.cost) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="block text-xl font-black text-slate-900 leading-none">฿{formatThaiCurrency(Number(job.cost) || 0)}</span>
                     <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-1 block">Cost Value</span>
                   </div>
                 )}

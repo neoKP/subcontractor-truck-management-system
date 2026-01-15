@@ -6,6 +6,7 @@ import {
     ChevronRight, ChevronDown, Lock, Eye, X
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 
 const dataURItoBlob = (dataURI: string) => {
     try {
@@ -114,7 +115,7 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
         });
     };
 
-    const formatCurrency = (val: number) => `฿${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const formatCurrency = (val: number) => `฿${formatThaiCurrency(val)}`;
 
     return (
         <div className="flex h-[calc(100vh-100px)] gap-6 animate-in fade-in duration-500">

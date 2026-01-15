@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus } from '../types';
 import { MASTER_DATA } from '../constants';
-import { AlertTriangle, Info, X, Lock, CheckCircle, User, Phone, Hash, CircleDot } from 'lucide-react';
+import { AlertTriangle, Info, X, Lock, CheckCircle, User, Phone, Hash, CircleDot, DollarSign, Wallet, FileText, Clock, AlertCircle, Calendar, TrendingUp } from 'lucide-react';
+import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 
 interface DispatcherActionModalProps {
   job: Job;
@@ -303,7 +304,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-black text-emerald-600">฿{(Number(rec.basePrice) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      <p className="text-sm font-black text-emerald-600">฿{formatThaiCurrency(Number(rec.basePrice) || 0)}</p>
                       <p className="text-[9px] font-black text-slate-300 uppercase">กดเพื่อเลือก (Select This)</p>
                     </div>
                   </button>

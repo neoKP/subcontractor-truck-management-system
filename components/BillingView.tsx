@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { Job, JobStatus, UserRole, AccountingStatus, AuditLog, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS } from '../types';
+import { Job, JobStatus, AccountingStatus, UserRole, AuditLog, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS } from '../types';
+import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 import { DollarSign, ExternalLink, FileCheck, Info, TrendingUp, CheckCircle, XCircle, Lock, AlertCircle, History, Receipt } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
 import PaymentModal from './PaymentModal';
@@ -458,7 +459,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
             <div className="p-2 bg-emerald-600 rounded-lg text-white"><TrendingUp size={20} /></div>
             <span className="text-[10px] font-black text-emerald-600 uppercase">ยอดรวมตัวกรอง (Filtered Volume)</span>
           </div>
-          <p className="text-3xl font-black text-slate-900">฿{(Number(totalFinal) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p className="text-3xl font-black text-slate-900">฿{formatThaiCurrency(Number(totalFinal) || 0)}</p>
           <p className="text-xs text-emerald-700 font-bold mt-1">Sum of visible jobs / รวมตามตัวกรอง</p>
         </div>
 
@@ -631,15 +632,15 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
                       <div className="space-y-1">
                         <div className="flex justify-between items-center gap-8 min-w-[180px]">
                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">BASE:</span>
-                          <span className="font-black text-slate-700 text-lg">฿{(Number(job.cost) || 0).toLocaleString()}</span>
+                          <span className="font-black text-slate-700 text-lg">฿{formatThaiCurrency(Number(job.cost) || 0)}</span>
                         </div>
                         <div className="flex justify-between items-center gap-8">
                           <span className="text-[10px] font-black text-amber-500 uppercase tracking-tighter">EXTRA:</span>
-                          <span className="font-bold text-amber-600">+ ฿{(Number(job.extraCharge) || 0).toLocaleString()}</span>
+                          <span className="font-bold text-amber-600">+ ฿{formatThaiCurrency(Number(job.extraCharge) || 0)}</span>
                         </div>
                         <div className="pt-2 mt-1 border-t border-slate-100 flex justify-between items-center gap-8">
                           <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">TOTAL:</span>
-                          <span className="font-black text-slate-900 text-xl tracking-tight">฿{(Number(job.cost || 0) + Number(job.extraCharge || 0)).toLocaleString()}</span>
+                          <span className="font-black text-slate-900 text-xl tracking-tight">฿{formatThaiCurrency(Number(job.cost || 0) + Number(job.extraCharge || 0))}</span>
                         </div>
                       </div>
                     </td>

@@ -3,6 +3,7 @@ import { UserRole, Job, JobStatus, AuditLog, PriceMatrix, AccountingStatus } fro
 import JobRequestForm from './components/JobRequestForm';
 import JobBoard from './components/JobBoard';
 import Sidebar from './components/Sidebar';
+import { formatThaiCurrency, roundHalfUp } from './utils/format';
 import Header from './components/Header';
 import BillingView from './components/BillingView';
 import PricingTableView from './components/PricingTableView';
@@ -345,29 +346,15 @@ const App: React.FC = () => {
             </div>
           )}
 
+
           {activeTab === 'aggregation' && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="bg-indigo-600 px-6 py-4 flex items-center gap-3">
-                <PieChart className="text-white" size={24} />
-                <h2 className="text-xl font-bold text-white">การประมวลผลตัวเลข (Data Aggregation)</h2>
-              </div>
-              <div className="p-6">
-                <AccountingReportsView jobs={jobs} logs={logs} userRole={currentUser.role} />
-              </div>
-            </div>
+            <AccountingReportsView jobs={jobs} logs={logs} userRole={currentUser.role} />
           )}
 
           {activeTab === 'profit' && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="bg-blue-600 px-6 py-4 flex items-center gap-3">
-                <TrendingUp className="text-white" size={24} />
-                <h2 className="text-xl font-bold text-white">วิเคราะห์ผลกำไรและประสิทธิภาพ (Profit Margin Analysis)</h2>
-              </div>
-              <div className="p-6">
-                <ProfitAnalysisView jobs={jobs} userRole={currentUser.role} />
-              </div>
-            </div>
+            <ProfitAnalysisView jobs={jobs} userRole={currentUser.role} />
           )}
+
 
           {activeTab === 'verify' && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -476,7 +463,7 @@ const App: React.FC = () => {
                                 </div>
                                 <p className="text-sm font-bold text-slate-800 leading-tight">
                                   {log.field === 'Cost (Price)' || log.field === 'Price Override' ? (
-                                    <>แก้ไขราคา จาก <span className="text-rose-500 line-through decoration-2">฿{(Number(log.oldValue) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> เป็น <span className="text-emerald-600 font-black">฿{(Number(log.newValue) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> โดย <span className="text-blue-600 underline decoration-blue-200 underline-offset-4">{log.userName}</span></>
+                                    <>แก้ไขราคา จาก <span className="text-rose-500 line-through decoration-2">฿{formatThaiCurrency(Number(log.oldValue) || 0)}</span> เป็น <span className="text-emerald-600 font-black">฿{formatThaiCurrency(Number(log.newValue) || 0)}</span> โดย <span className="text-blue-600 underline decoration-blue-200 underline-offset-4">{log.userName}</span></>
                                   ) : log.field === 'Truck Type' ? (
                                     <>แก้ไขประเภทรถ จาก <span className="text-slate-400 line-through">{log.oldValue}</span> เป็น <span className="text-blue-600 font-black">{log.newValue}</span> โดย <span className="font-black text-slate-900">{log.userName}</span></>
                                   ) : log.field === 'Status' && log.newValue === 'Cancelled' ? (
