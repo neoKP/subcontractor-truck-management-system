@@ -891,7 +891,7 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
                     job={confirmingJob}
                     onClose={() => setConfirmingJob(null)}
                     onConfirm={handleConfirmRejectedJob}
-                    user={user}
+                    currentUser={user}
                 />
             )}
         </div>

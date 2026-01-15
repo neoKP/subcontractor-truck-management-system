@@ -1,16 +1,17 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Job, JobStatus, AccountingStatus } from '../types';
+import { Job, JobStatus, AccountingStatus, AuditLog } from '../types';
 import { Camera, CheckCircle2, DollarSign, Image as ImageIcon, X, FileText, Upload, MapPin, Calendar, User, Phone, ShieldAlert } from 'lucide-react';
 import { formatDate } from '../utils/format';
 
 interface ConfirmationModalProps {
   job: Job;
   onClose: () => void;
-  onConfirm: (job: Job) => void;
+  onConfirm: (job: Job, logs?: AuditLog[]) => void;
+  currentUser?: { id: string; name: string };
 }
 
-const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onConfirm }) => {
+const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onConfirm, currentUser }) => {
   const [actualArrival, setActualArrival] = useState('');
   const [mileage, setMileage] = useState('');
   const [extraCharge, setExtraCharge] = useState(0);
@@ -175,7 +176,40 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
         podImageUrls: base64Images,
         status: JobStatus.COMPLETED
       };
-      onConfirm(updatedJob);
+
+      // Create Audit Logs
+      const auditLogs: AuditLog[] = [
+        {
+          id: `LOG-${Date.now()}-1`,
+          timestamp: new Date().toISOString(),
+          userId: currentUser?.id || 'SYSTEM',
+          userName: currentUser?.name || 'System',
+          userRole: (currentUser as any)?.role || 'DISPATCHER',
+          jobId: job.id,
+          field: 'status',
+          oldValue: JobStatus.ASSIGNED,
+          newValue: JobStatus.COMPLETED,
+          reason: `ยืนยันการจบงาน | Actual Arrival: ${actualArrival || 'N/A'} | Mileage: ${mileage || 'N/A'} | Extra Charge: ${extraCharge || 0} บาท${extraChargeComment ? ` | หมายเหตุ: ${extraChargeComment}` : ''} | POD Images: ${base64Images.length} ไฟล์`
+        }
+      ];
+
+      // Add extra charge log if applicable
+      if (extraCharge > 0) {
+        auditLogs.push({
+          id: `LOG-${Date.now()}-2`,
+          timestamp: new Date().toISOString(),
+          userId: currentUser?.id || 'SYSTEM',
+          userName: currentUser?.name || 'System',
+          userRole: (currentUser as any)?.role || 'DISPATCHER',
+          jobId: job.id,
+          field: 'extraCharge',
+          oldValue: '0',
+          newValue: extraCharge.toString(),
+          reason: extraChargeComment || 'ค่าใช้จ่ายเพิ่มเติม'
+        });
+      }
+
+      onConfirm(updatedJob, auditLogs);
 
       // Show Success Alert
       if (typeof (window as any).Swal !== 'undefined') {

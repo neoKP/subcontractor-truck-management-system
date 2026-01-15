@@ -18,6 +18,7 @@ import JobTrackingModal from './components/JobTrackingModal';
 import BookingOfficerDashboard from './components/BookingOfficerDashboard';
 import PremiumExecutiveDashboard from './components/PremiumExecutiveDashboard';
 import DailyReportView from './components/DailyReportView'; // Added DailyReportView import
+import JobCompletionView from './components/JobCompletionView'; // Added JobCompletionView import
 import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3, ShieldAlert } from 'lucide-react';
 import { db, ref, onValue, set, remove } from './firebaseConfig';
 
@@ -43,7 +44,7 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [priceMatrix, setPriceMatrix] = useState<PriceMatrix[]>(PRICE_MATRIX);
-  const [activeTab, setActiveTab] = useState<'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report'>('board');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion'>('board');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logSearch, setLogSearch] = useState('');
   const [logPage, setLogPage] = useState(1);
@@ -353,6 +354,14 @@ const App: React.FC = () => {
 
           {activeTab === 'daily-report' && [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER, UserRole.BOOKING_OFFICER].includes(currentUser.role) && (
             <DailyReportView jobs={jobs} currentUser={currentUser} />
+          )}
+
+          {activeTab === 'completion' && [UserRole.ADMIN, UserRole.DISPATCHER].includes(currentUser.role) && (
+            <JobCompletionView
+              jobs={jobs}
+              user={currentUser}
+              onUpdateJob={updateJob}
+            />
           )}
 
           {/* Board View */}

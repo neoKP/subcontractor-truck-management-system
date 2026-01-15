@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS } from '../types';
-import { Calendar, MapPin, Package, Hash, Lock, CheckCircle, Edit3, Filter, Truck, Printer, LayoutDashboard, Receipt, XCircle, Search, Trash2, ShieldAlert, ExternalLink, TrendingUp, Activity, BarChart3, Clock, AlertCircle } from 'lucide-react';
+import { Calendar, MapPin, Package, Hash, Lock, CheckCircle, Edit3, Filter, Truck, Printer, LayoutDashboard, Receipt, XCircle, Search, Trash2, ShieldAlert, ExternalLink, TrendingUp, Activity, BarChart3, Clock, AlertCircle, User } from 'lucide-react';
 import Swal from 'sweetalert2';
 import DispatcherActionModal from './DispatcherActionModal';
 import ConfirmationModal from './ConfirmationModal';
@@ -351,6 +351,11 @@ const JobBoard: React.FC<JobBoardProps> = ({
                       <div className="flex items-center gap-2 text-[10px] font-bold text-slate-600">
                         <MapPin size={10} className="text-orange-500" /> {job.destination}
                       </div>
+                      {job.requestedByName && (
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
+                          <User size={10} className="text-blue-500" /> {job.requestedByName}
+                        </div>
+                      )}
                     </div>
 
                     {/* Locked Message for Pending Pricing */}
@@ -1012,6 +1017,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
           job={selectedJob}
           onClose={() => setShowConfirmModal(false)}
           onConfirm={onUpdateJob}
+          currentUser={user}
         />
       )}
       {showPreviewModal && selectedJob && (
