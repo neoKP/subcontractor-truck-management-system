@@ -3,6 +3,7 @@ import { Job, JobStatus, UserRole, AccountingStatus, AuditLog, PriceMatrix } fro
 import { AlertCircle, CheckCircle, Clock, FileText, MapPin, Truck, Zap, AlertTriangle, Eye, Calendar, Edit3, X, Trash2, Search, Filter, ChevronDown } from 'lucide-react';
 import JobPreviewModal from './JobPreviewModal';
 import BookingEditModal from './BookingEditModal';
+import ConfirmationModal from './ConfirmationModal';
 
 interface BookingOfficerDashboardProps {
     jobs: Job[];
@@ -120,6 +121,7 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
     const [viewMode, setViewMode] = useState<'mine' | 'all'>('mine');
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
     const [editJob, setEditJob] = useState<Job | null>(null);
+    const [confirmingJob, setConfirmingJob] = useState<Job | null>(null); // For rejected jobs re-confirmation
 
     // Completed jobs filter states
     const [completedFilter, setCompletedFilter] = useState<'30days' | '60days' | '90days' | 'all'>('30days');
@@ -254,6 +256,47 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
         }
 
         setEditJob(null);
+    };
+
+    // Handler for confirming rejected job (re-confirm with new POD/data)
+    const handleConfirmRejectedJob = (updatedJob: Job, logs?: AuditLog[]) => {
+        if (!onUpdateJob) return;
+
+        // Reset accounting status to PENDING_REVIEW after re-confirmation
+        const jobToSubmit: Job = {
+            ...updatedJob,
+            accountingStatus: AccountingStatus.PENDING_REVIEW,
+            accountingRemark: undefined
+        };
+
+        const reconfirmLog: AuditLog = {
+            id: `LOG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            jobId: updatedJob.id,
+            userId: user.id,
+            userName: user.name,
+            userRole: user.role,
+            timestamp: new Date().toISOString(),
+            field: 'Accounting Status',
+            oldValue: 'Rejected',
+            newValue: 'Pending Review (Re-confirmed)',
+            reason: 'Job re-confirmed and resubmitted for accounting review'
+        };
+
+        const allLogs = logs ? [...logs, reconfirmLog] : [reconfirmLog];
+        onUpdateJob(jobToSubmit, allLogs);
+
+        if (typeof (window as any).Swal !== 'undefined') {
+            (window as any).Swal.fire({
+                title: 'ยืนยันสำเร็จ!',
+                text: 'งานถูกส่งกลับไปให้ฝ่ายบัญชีตรวจสอบใหม่แล้ว',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false,
+                customClass: { popup: 'rounded-[2rem]' }
+            });
+        }
+
+        setConfirmingJob(null);
     };
 
     // Handler for cancelling/deleting a job - ONLY own jobs
@@ -409,6 +452,13 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
                                     </div>
                                 </div>
 
+                                {/* Requester Name */}
+                                {job.requestedByName && (
+                                    <div className="text-[9px] font-bold text-indigo-600 mb-2 px-2 py-1 bg-indigo-50 rounded-lg border border-indigo-100">
+                                        👤 ผู้ขอ: {job.requestedByName}
+                                    </div>
+                                )}
+
                                 <div className="space-y-1.5 mb-3">
                                     <div className="flex items-center gap-2">
                                         <div className="w-2 h-2 rounded-full bg-blue-500"></div>
@@ -437,11 +487,11 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
                                     </button>
                                     {onUpdateJob && (
                                         <button
-                                            onClick={() => setEditJob(job)}
-                                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-rose-700 transition-all shadow-lg"
+                                            onClick={() => setConfirmingJob(job)}
+                                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-lg"
                                         >
-                                            <Edit3 size={12} />
-                                            แก้ไข
+                                            <CheckCircle size={12} />
+                                            ยืนยันใหม่
                                         </button>
                                     )}
                                 </div>
@@ -693,6 +743,16 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
                     onSave={handleSaveEditedJob}
                     user={user}
                     priceMatrix={priceMatrix}
+                />
+            )}
+
+            {/* Confirmation Modal for Rejected Jobs */}
+            {confirmingJob && onUpdateJob && (
+                <ConfirmationModal
+                    job={confirmingJob}
+                    onClose={() => setConfirmingJob(null)}
+                    onConfirm={handleConfirmRejectedJob}
+                    user={user}
                 />
             )}
         </div>
