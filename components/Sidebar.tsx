@@ -19,7 +19,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, setActiveTab,
   const tabs = [
     { id: 'analytics', label: 'Executive Insights / ข้อมูลสรุป', icon: TrendingUp, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER] },
     { id: 'board', label: 'Job Board / กระดานงาน', icon: LayoutPanelTop, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER, UserRole.BOOKING_OFFICER] },
-    { id: 'create', label: 'Create Job / สร้างใบงาน', icon: PlusCircle, roles: [UserRole.BOOKING_OFFICER] },
+    { id: 'create', label: 'Create Job / สร้างใบงาน', icon: PlusCircle, roles: [UserRole.BOOKING_OFFICER, UserRole.DISPATCHER] },
     { id: 'verify', label: 'Verification / ตรวจสอบ', icon: ClipboardCheck, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'billing', label: 'Billing / วางบิล', icon: Receipt, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'pricing', label: 'Master Pricing / ราคากลาง', icon: Tag, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER] },

@@ -17,7 +17,7 @@ import JobSummaryBoard from './components/JobSummaryBoard';
 import JobTrackingModal from './components/JobTrackingModal';
 import BookingOfficerDashboard from './components/BookingOfficerDashboard';
 import PremiumExecutiveDashboard from './components/PremiumExecutiveDashboard';
-import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3 } from 'lucide-react';
+import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3, ShieldAlert } from 'lucide-react';
 import { db, ref, onValue, set, remove } from './firebaseConfig';
 
 // Initial Users Data for Seeding
@@ -30,7 +30,7 @@ const INITIAL_USERS = [
   { id: 'BOOKING_003', name: 'กุลณัฐ คิดดีจริง', role: UserRole.BOOKING_OFFICER, username: 'BOOKING003', password: 'b003' },
   { id: 'BOOKING_004', name: 'ชนัญชิดา พวงมาลัย', role: UserRole.BOOKING_OFFICER, username: 'BOOKING004', password: 'b004' },
   { id: 'BOOKING_005', name: 'สุภาพร ชูชัยสุวรรณศรี', role: UserRole.BOOKING_OFFICER, username: 'BOOKING005', password: 'b005' },
-  { id: 'BOOKING_006', name: 'ชุติมา สีหาบุตร', role: UserRole.BOOKING_OFFICER, username: 'BOOKING006', password: 'b006' },
+  { id: 'BOOKING_006', name: 'ชุติมา สีหาบุตร', role: UserRole.DISPATCHER, username: 'BOOKING006', password: 'b006' },
   { id: 'BOOKING_007', name: 'เยาวนันท์ จันทรพิทักษ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING007', password: 'b007' },
   { id: 'BOOKING_008', name: 'ขนิษฐา วัฒนวิกย์กรรม์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING008', password: 'b008' },
   { id: 'BOOKING_009', name: 'สุพัชญ์กานต์ ธีระภัณฑ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING009', password: 'b009' },
@@ -137,6 +137,12 @@ const App: React.FC = () => {
       const data = snapshot.val();
       if (data) {
         setUsers(Object.values(data));
+
+        // Force sync Role for specific user if needed (one-time fix for existing DB)
+        const user006 = Object.values(data).find((u: any) => u.id === 'BOOKING_006');
+        if (user006 && (user006 as any).role !== UserRole.DISPATCHER) {
+          set(ref(db, `users/BOOKING_006`), { ...(user006 as object), role: UserRole.DISPATCHER });
+        }
       } else {
         // Seed users if empty
         INITIAL_USERS.forEach(user => {
@@ -248,7 +254,12 @@ const App: React.FC = () => {
 
   const handleLogin = (user: { id: string; name: string; role: UserRole }) => {
     setCurrentUser(user);
-    localStorage.setItem('currentUser', JSON.stringify(user));
+    try {
+      localStorage.setItem('currentUser', JSON.stringify(user));
+    } catch (e) {
+      console.warn('Failed to save user to localStorage:', e);
+    }
+
     // Determine initial tab based on role
     if (user.role === UserRole.BOOKING_OFFICER) {
       setActiveTab('board');
@@ -259,7 +270,11 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     setCurrentUser(null);
-    localStorage.removeItem('currentUser');
+    try {
+      localStorage.removeItem('currentUser');
+    } catch (e) {
+      console.warn('Failed to remove user from localStorage:', e);
+    }
   };
 
   if (!currentUser) {
@@ -295,7 +310,7 @@ const App: React.FC = () => {
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full box-border">
           {activeTab === 'analytics' && currentUser.role !== UserRole.BOOKING_OFFICER && <PremiumExecutiveDashboard jobs={jobs} />}
 
-          {activeTab === 'create' && currentUser.role === UserRole.BOOKING_OFFICER && (
+          {activeTab === 'create' && (currentUser.role === UserRole.BOOKING_OFFICER || currentUser.role === UserRole.DISPATCHER) && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="bg-blue-600 px-6 py-4 flex items-center gap-3">
                 <Truck className="text-white" size={24} />
@@ -319,6 +334,9 @@ const App: React.FC = () => {
                 jobs={jobs}
                 user={currentUser}
                 onUpdateJob={updateJob}
+                onShowCreateForm={() => setActiveTab('create')}
+                onDeleteJob={deleteJob}
+                priceMatrix={priceMatrix}
               />
             ) : (
               <JobBoard
@@ -546,6 +564,21 @@ const App: React.FC = () => {
               onClose={() => setScannedJob(null)}
               currentUser={currentUser || undefined}
             />
+          )}
+
+          {/* Fallback for unauthorized or missing tabs */}
+          {activeTab === 'analytics' && currentUser.role === UserRole.BOOKING_OFFICER && (
+            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
+              <ShieldAlert size={64} className="text-slate-300 mb-4" />
+              <h3 className="text-xl font-black text-slate-800 mb-2">เข้าถึงข้อมูลจำกัด (Access Restricted)</h3>
+              <p className="text-slate-500 font-medium">คุณไม่มีสิทธิ์เข้าถึงหน้านี้ ระบบกำลังนำคุณไปยังหน้ากระดานงาน...</p>
+              <button
+                onClick={() => setActiveTab('board')}
+                className="mt-6 px-8 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm shadow-xl hover:scale-105 transition-all"
+              >
+                กลับหน้ากระดานงาน (Go to Job Board)
+              </button>
+            </div>
           )}
         </div>
       </main>
