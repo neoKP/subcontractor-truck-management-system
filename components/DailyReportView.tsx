@@ -60,6 +60,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
         const headers = [
             'Job ID / เลขงาน',
             'Job Date / วันที่สร้างใบงาน',
+            'Date of Service / วันที่ต้องการรถ',
             'Origin / ต้นทาง',
             'Destination / ปลายทาง',
             'Truck Type / ประเภทรถ',
@@ -73,6 +74,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
         const rows = filteredJobs.map(job => [
             job.id,
             job.createdAt ? formatDate(job.createdAt) : 'N/A (Legacy)',
+            formatDate(job.dateOfService),
             `"${job.origin}"`, // Quote strings to handle commas
             `"${job.destination}"`,
             job.truckType,
@@ -228,6 +230,8 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                         <thead>
                             <tr className="bg-slate-50 text-xs font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
                                 <th className="px-6 py-4">Job ID</th>
+                                <th className="px-6 py-4">Created Date (วันที่สร้างใบงาน)</th>
+                                <th className="px-6 py-4">Date of Service (วันที่ต้องการรถ)</th>
                                 <th className="px-6 py-4">Route (เส้นทาง)</th>
                                 <th className="px-6 py-4">Vehicle Info (ข้อมูลรถ)</th>
                                 <th className="px-6 py-4">Subcontractor (ผู้รับเหมา)</th>
@@ -240,16 +244,24 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                                     <tr key={job.id} className="hover:bg-blue-50/30 transition-colors group">
                                         <td className="px-6 py-4">
                                             <div className="font-mono font-bold text-slate-700">#{job.id}</div>
-                                            <div className="text-[10px] font-medium text-slate-400 mt-1 flex items-center gap-1">
-                                                <Calendar size={10} />
-                                                <span title="วันที่สร้างใบงาน (Job Date)">
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-2">
+                                                <Calendar size={14} className="text-slate-400" />
+                                                <span className="font-bold text-slate-600 text-xs">
                                                     {job.createdAt
                                                         ? formatDate(job.createdAt)
                                                         : job.id.startsWith('JRS-')
-                                                            ? 'N/A (Legacy)' // Legacy jobs might not have timestamp
+                                                            ? 'N/A'
                                                             : '-'
                                                     }
                                                 </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-2">
+                                                <Calendar size={14} className="text-blue-500" />
+                                                <span className="font-bold text-slate-700">{formatDate(job.dateOfService)}</span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
@@ -307,7 +319,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                                         <div className="flex flex-col items-center gap-2">
                                             <div className="p-3 bg-slate-50 rounded-full">
                                                 <FileSpreadsheet size={24} className="text-slate-300" />
