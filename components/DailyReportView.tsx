@@ -47,6 +47,10 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                 // Convert UTC ISO string to Local Date YYYY-MM-DD
                 const d = new Date(job.createdAt);
                 jobCreatedDateLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            } else if (job.dateOfService) {
+                // Fallback for legacy jobs without createdAt - use dateOfService
+                const d = new Date(job.dateOfService);
+                jobCreatedDateLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             }
 
             const isDateMatch = jobCreatedDateLocal === selectedDate;
@@ -56,7 +60,11 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
             // 3. Filter by Search Term
             return matchesSearch;
         }).sort((a, b) => {
-            // Sort by ID or Time if available
+            // Sort by Created Time (Newest First)
+            if (a.createdAt && b.createdAt) {
+                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            }
+            // Fallback to ID sorting for legacy jobs
             return a.id.localeCompare(b.id);
         });
     }, [jobs, selectedDate, searchTerm, viewMode, currentUser.id]);
@@ -76,6 +84,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
         // Define CSV Headers
         const headers = [
             'Job ID / เลขงาน',
+            'Requested By / ผู้สร้างงาน',
             'Job Date / วันที่สร้างใบงาน',
             'Date of Service / วันที่ต้องการรถ',
             'Origin / ต้นทาง',
@@ -90,7 +99,10 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
         // Map Data to CSV Rows
         const rows = filteredJobs.map(job => [
             job.id,
-            job.createdAt ? formatDate(job.createdAt) : 'N/A (Legacy)',
+            `"${job.requestedByName || 'Unknown'}"`,
+            job.createdAt
+                ? formatDate(job.createdAt)
+                : (job.dateOfService ? formatDate(job.dateOfService) + ' (ประมาณ)' : 'N/A'),
             formatDate(job.dateOfService),
             `"${job.origin}"`, // Quote strings to handle commas
             `"${job.destination}"`,
@@ -132,8 +144,14 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                             สรุปงานรายวัน (Daily Report)
                         </h2>
                         <p className="text-slate-500 font-medium text-sm mt-1 ml-14">
-                            ตรวจสอบรายการเดินรถและสถานะประจำวัน
+                            รายงานงานที่สร้างในวันที่เลือก (ไม่สนใจวันที่รถวิ่ง)
                         </p>
+                        <div className="ml-14 mt-2 flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 w-fit">
+                            <Calendar size={14} className="text-blue-600" />
+                            <span className="text-xs font-bold text-blue-700">
+                                แสดงงานที่สร้างวันที่: {formatDate(selectedDate)}
+                            </span>
+                        </div>
                     </div>
 
                     {/* View Toggle */}
@@ -247,6 +265,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                         <thead>
                             <tr className="bg-slate-50 text-xs font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
                                 <th className="px-6 py-4">Job ID</th>
+                                <th className="px-6 py-4">Requested By (ผู้สร้างงาน)</th>
                                 <th className="px-6 py-4">Created Date (วันที่สร้างใบงาน)</th>
                                 <th className="px-6 py-4">Date of Service (วันที่ต้องการรถ)</th>
                                 <th className="px-6 py-4">Route (เส้นทาง)</th>
@@ -264,13 +283,26 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
+                                                <User size={14} className="text-indigo-500" />
+                                                <span className="font-bold text-slate-700 text-xs">
+                                                    {job.requestedByName || 'Unknown'}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-2">
                                                 <Calendar size={14} className="text-slate-400" />
                                                 <span className="font-bold text-slate-600 text-xs">
                                                     {job.createdAt
                                                         ? formatDate(job.createdAt)
-                                                        : job.id.startsWith('JRS-')
-                                                            ? 'N/A'
-                                                            : '-'
+                                                        : job.dateOfService
+                                                            ? (
+                                                                <>
+                                                                    {formatDate(job.dateOfService)}
+                                                                    <span className="ml-1 text-[9px] text-amber-600 font-black">(ประมาณ)</span>
+                                                                </>
+                                                            )
+                                                            : 'N/A'
                                                     }
                                                 </span>
                                             </div>
@@ -336,7 +368,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                                    <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
                                         <div className="flex flex-col items-center gap-2">
                                             <div className="p-3 bg-slate-50 rounded-full">
                                                 <FileSpreadsheet size={24} className="text-slate-300" />
