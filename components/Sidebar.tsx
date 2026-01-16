@@ -1,12 +1,12 @@
 
 import React from 'react';
 import { UserRole, USER_ROLE_LABELS } from '../types';
-import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users, TrendingUp, ChevronLeft, ChevronRight, LayoutPanelTop, BarChart3, FileSpreadsheet } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users, TrendingUp, ChevronLeft, ChevronRight, LayoutPanelTop, BarChart3, FileSpreadsheet, CheckSquare } from 'lucide-react';
 
 interface SidebarProps {
   currentRole: UserRole;
-  activeTab: 'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion';
-  setActiveTab: (tab: 'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion') => void;
+  activeTab: 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion';
+  setActiveTab: (tab: 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion') => void;
   onLogout: () => void;
   isOpen?: boolean;
   onClose?: () => void;
@@ -21,7 +21,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, setActiveTab,
     { id: 'board', label: 'Job Board / กระดานงาน', icon: LayoutPanelTop, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER, UserRole.BOOKING_OFFICER] },
     { id: 'daily-report', label: 'Daily Report / สรุปงานรายวัน', icon: FileSpreadsheet, roles: [UserRole.BOOKING_OFFICER, UserRole.DISPATCHER, UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'create', label: 'Create Job / สร้างใบงาน', icon: PlusCircle, roles: [UserRole.BOOKING_OFFICER, UserRole.DISPATCHER] },
-    { id: 'completion', label: 'Job Completion / ยืนยันจบงาน', icon: ClipboardCheck, roles: [UserRole.DISPATCHER, UserRole.ADMIN] },
+    { id: 'review-confirm', label: 'Review & Confirm / ตรวจทานและคอนเฟิร์ม', icon: CheckSquare, roles: [UserRole.DISPATCHER, UserRole.ADMIN, UserRole.BOOKING_OFFICER] },
+    { id: 'completion', label: 'Job Completion / ยืนยันจบงาน', icon: ClipboardCheck, roles: [UserRole.DISPATCHER, UserRole.ADMIN, UserRole.BOOKING_OFFICER] },
     { id: 'verify', label: 'Verification / ตรวจสอบ', icon: ClipboardCheck, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'billing', label: 'Billing / วางบิล', icon: Receipt, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'pricing', label: 'Master Pricing / ราคากลาง', icon: Tag, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER] },

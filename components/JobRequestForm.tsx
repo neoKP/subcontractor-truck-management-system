@@ -407,7 +407,10 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                     {hasPricing && (
                       <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-emerald-100">
                         <div className="flex items-center justify-between mb-3">
-                          <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Available Subcontractors</div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                            <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Smart Recommendation / แนะนำอัจฉริยะ</div>
+                          </div>
                           <div className="text-[9px] font-bold text-emerald-500">เรียงตามราคาถูกสุด</div>
                         </div>
                         <div className="space-y-2">
@@ -442,34 +445,24 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                                     }`}
                                 >
                                   <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-black ${idx === 0 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'bg-slate-200 text-slate-500'}`}>
+                                        {idx + 1}
+                                      </div>
+                                      <div className="text-left">
+                                        <p className={`font-black text-sm ${isSelected ? 'text-white' : 'text-slate-800'}`}>
+                                          {p.subcontractor}
+                                        </p>
+                                        <p className={`text-[10px] font-bold ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
+                                          ราคาตรงตามเส้นทาง (Perfect Match for Route)
+                                        </p>
+                                      </div>
+                                    </div>
                                     <div className="flex items-center gap-2">
-                                      {idx === 0 && (
-                                        <div className="px-2 py-0.5 bg-amber-400 text-white text-[8px] font-black rounded-full">
-                                          ถูกสุด
-                                        </div>
-                                      )}
-                                      <span className={`font-black text-sm ${isSelected ? 'text-white' : 'text-slate-800'}`}>
-                                        {p.subcontractor}
-                                      </span>
                                       {isSelected && (
                                         <CheckCircle2 size={16} className="text-white" />
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                      <ShieldCheck size={12} className={isSelected ? 'text-emerald-100' : 'text-emerald-500'} />
-                                    </div>
-                                  </div>
-                                  <div className={`mt-2 text-[10px] font-bold ${isSelected ? 'text-emerald-50' : 'text-slate-500'}`}>
-                                    {user.role !== UserRole.BOOKING_OFFICER ? (
-                                      <>
-                                        ราคาต้นทุน: <span className="font-black">฿{p.basePrice.toLocaleString()}</span> |
-                                        ราคาขาย: <span className="font-black">฿{p.sellingBasePrice.toLocaleString()}</span>
-                                      </>
-                                    ) : (
-                                      <span className={isSelected ? 'text-emerald-100' : 'text-slate-400'}>
-                                        Master Price Applied ✓
-                                      </span>
-                                    )}
                                   </div>
                                 </button>
                               );

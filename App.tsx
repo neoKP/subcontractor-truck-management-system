@@ -19,6 +19,8 @@ import BookingOfficerDashboard from './components/BookingOfficerDashboard';
 import PremiumExecutiveDashboard from './components/PremiumExecutiveDashboard';
 import DailyReportView from './components/DailyReportView'; // Added DailyReportView import
 import JobCompletionView from './components/JobCompletionView'; // Added JobCompletionView import
+import ReviewConfirmDashboard from './components/ReviewConfirmDashboard'; // Added ReviewConfirmDashboard import
+import DispatcherDashboard from './components/DispatcherDashboard'; // Added DispatcherDashboard import
 import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3, ShieldAlert } from 'lucide-react';
 import { db, ref, onValue, set, remove } from './firebaseConfig';
 
@@ -44,7 +46,7 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [priceMatrix, setPriceMatrix] = useState<PriceMatrix[]>(PRICE_MATRIX);
-  const [activeTab, setActiveTab] = useState<'analytics' | 'board' | 'create' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion'>('board');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion'>('board');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logSearch, setLogSearch] = useState('');
   const [logPage, setLogPage] = useState(1);
@@ -356,11 +358,24 @@ const App: React.FC = () => {
             <DailyReportView jobs={jobs} currentUser={currentUser} />
           )}
 
-          {activeTab === 'completion' && [UserRole.ADMIN, UserRole.DISPATCHER].includes(currentUser.role) && (
+          {activeTab === 'completion' && [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.BOOKING_OFFICER].includes(currentUser.role) && (
             <JobCompletionView
-              jobs={jobs}
+              jobs={currentUser.role === UserRole.BOOKING_OFFICER ? jobs.filter(j => j.requestedBy === currentUser.id) : jobs}
               user={currentUser}
               onUpdateJob={updateJob}
+              hidePrice={currentUser.role === UserRole.BOOKING_OFFICER}
+            />
+          )}
+
+          {activeTab === 'review-confirm' && [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.BOOKING_OFFICER].includes(currentUser.role) && (
+            <ReviewConfirmDashboard
+              jobs={currentUser.role === UserRole.BOOKING_OFFICER ? jobs.filter(j => j.requestedBy === currentUser.id) : jobs}
+              user={currentUser}
+              onSave={updateJob}
+              priceMatrix={priceMatrix}
+              logs={logs}
+              logsLoaded={logsLoaded}
+              hidePrice={currentUser.role === UserRole.BOOKING_OFFICER}
             />
           )}
 
@@ -394,7 +409,7 @@ const App: React.FC = () => {
                 priceMatrix={priceMatrix}
               />
             ) : (
-              <JobBoard
+              <DispatcherDashboard
                 jobs={jobs}
                 user={currentUser}
                 onUpdateJob={updateJob}
@@ -402,9 +417,6 @@ const App: React.FC = () => {
                 priceMatrix={priceMatrix}
                 logs={logs}
                 logsLoaded={logsLoaded}
-                onAddPrice={handleNavigateToPricing}
-                showPendingPricing={showPendingPricingModal}
-                onTogglePendingPricing={setShowPendingPricingModal}
               />
             )
           )}

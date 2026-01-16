@@ -12,9 +12,12 @@ interface ConfirmationModalProps {
 }
 
 const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onConfirm, currentUser }) => {
-  const [actualArrival, setActualArrival] = useState('');
-  const [mileage, setMileage] = useState('');
-  const [extraCharge, setExtraCharge] = useState(0);
+  // Initialize with existing data if available (for rejected jobs being edited)
+  const [actualArrival, setActualArrival] = useState(
+    job.actualArrivalTime ? new Date(job.actualArrivalTime).toISOString().split('T')[0] : ''
+  );
+  const [mileage, setMileage] = useState(job.mileage || '');
+  const [extraCharge, setExtraCharge] = useState(job.extraCharge || 0);
   const [extraChargeComment, setExtraChargeComment] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isVerified, setIsVerified] = useState(false);
@@ -285,6 +288,12 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
                   <Calendar size={12} className="text-blue-400" />
                   วันที่ปฏิบัติงาน (Service Date): {formatDate(job.dateOfService)}
                 </div>
+                {job.requestedByName && (
+                  <div className="flex items-center gap-1.5 mt-1.5 text-[10px] font-black text-purple-600 uppercase tracking-wider bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-100 w-fit">
+                    <User size={12} className="text-purple-500" />
+                    ผู้ขอใช้รถ: {job.requestedByName}
+                  </div>
+                )}
                 {job.driverName && (
                   <div className="flex flex-wrap items-center gap-2 mt-2">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100">
