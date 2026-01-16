@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Job, JobStatus, UserRole, AccountingStatus, AuditLog, PriceMatrix } from '../types';
-import { Search, TrendingUp, Clock, CheckCircle, XCircle, AlertCircle, User, MapPin, Truck, Calendar, Edit, UserPlus, CheckSquare, FileText, Trash2 } from 'lucide-react';
+import { Search, TrendingUp, Clock, CheckCircle, XCircle, AlertCircle, User, MapPin, Truck, Calendar, Edit, UserPlus, CheckSquare, FileText, Trash2, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDate, formatThaiCurrency } from '../utils/format';
 import DispatcherActionModal from './DispatcherActionModal';
 import Swal from 'sweetalert2';
@@ -24,10 +24,22 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
     logs = [],
     logsLoaded = false
 }) => {
+    // Date Range State
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+    const [startDate, setStartDate] = useState(firstDay);
+    const [endDate, setEndDate] = useState(lastDay);
+
     const [searchTerm, setSearchTerm] = useState('');
     const [filterView, setFilterView] = useState<'all' | 'pending' | 'assigned' | 'completed' | 'rejected'>('all');
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
     const [showActionModal, setShowActionModal] = useState(false);
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 20;
 
     // Categorize jobs
     const categorizedJobs = useMemo(() => {
@@ -52,21 +64,30 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
 
     // Filter jobs
     const filteredJobs = useMemo(() => {
-        let jobsToFilter: Job[] = [];
+        let jobsToFilter = [...jobs];
 
-        if (filterView === 'pending') {
-            jobsToFilter = categorizedJobs.pending;
-        } else if (filterView === 'assigned') {
-            jobsToFilter = categorizedJobs.assigned;
-        } else if (filterView === 'rejected') {
-            jobsToFilter = categorizedJobs.rejected;
-        } else if (filterView === 'completed') {
-            jobsToFilter = categorizedJobs.completed;
-        } else {
-            jobsToFilter = jobs;
+        // 1. Filter by Date Range (dateOfService)
+        if (startDate || endDate) {
+            jobsToFilter = jobsToFilter.filter(job => {
+                const serviceDate = job.dateOfService.split('T')[0];
+                if (startDate && serviceDate < startDate) return false;
+                if (endDate && serviceDate > endDate) return false;
+                return true;
+            });
         }
 
-        // Apply search filter
+        // 2. Apply Category Filter
+        if (filterView === 'pending') {
+            jobsToFilter = jobsToFilter.filter(j => j.status === JobStatus.NEW_REQUEST || j.status === JobStatus.PENDING_PRICING);
+        } else if (filterView === 'assigned') {
+            jobsToFilter = jobsToFilter.filter(j => j.status === JobStatus.ASSIGNED && j.accountingStatus !== AccountingStatus.REJECTED);
+        } else if (filterView === 'rejected') {
+            jobsToFilter = jobsToFilter.filter(j => j.accountingStatus === AccountingStatus.REJECTED);
+        } else if (filterView === 'completed') {
+            jobsToFilter = jobsToFilter.filter(j => j.status === JobStatus.COMPLETED || j.status === JobStatus.BILLED);
+        }
+
+        // 3. Apply Search Filter
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
             jobsToFilter = jobsToFilter.filter(job =>
@@ -80,7 +101,7 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
             );
         }
 
-        // Sort: Rejected first, then Pending, then Assigned, then Completed
+        // 4. Sort
         return jobsToFilter.sort((a, b) => {
             const aRejected = a.accountingStatus === AccountingStatus.REJECTED;
             const bRejected = b.accountingStatus === AccountingStatus.REJECTED;
@@ -103,7 +124,20 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
 
             return new Date(b.dateOfService).getTime() - new Date(a.dateOfService).getTime();
         });
-    }, [jobs, categorizedJobs, searchTerm, filterView]);
+    }, [jobs, searchTerm, filterView, startDate, endDate]);
+
+    // Paginated Jobs
+    const paginatedJobs = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return filteredJobs.slice(startIndex, startIndex + itemsPerPage);
+    }, [filteredJobs, currentPage, itemsPerPage]);
+
+    const totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
+
+    // Reset to page 1 when filters change
+    useMemo(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filterView, startDate, endDate]);
 
     // Statistics
     const stats = {
@@ -395,53 +429,86 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
                     </div>
 
                     {/* Filter Buttons */}
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">แสดง:</p>
-                        <button
-                            onClick={() => setFilterView('all')}
-                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterView === 'all'
-                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                }`}
-                        >
-                            ทั้งหมด ({stats.total})
-                        </button>
-                        <button
-                            onClick={() => setFilterView('pending')}
-                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterView === 'pending'
-                                ? 'bg-amber-600 text-white shadow-lg shadow-amber-200'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                }`}
-                        >
-                            ⏳ รอดำเนินการ ({stats.pending})
-                        </button>
-                        <button
-                            onClick={() => setFilterView('assigned')}
-                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterView === 'assigned'
-                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                }`}
-                        >
-                            🚛 กำลังดำเนินการ ({stats.assigned})
-                        </button>
-                        <button
-                            onClick={() => setFilterView('rejected')}
-                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterView === 'rejected'
-                                ? 'bg-red-600 text-white shadow-lg shadow-red-200'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                }`}
-                        >
-                            🔴 ถูก Reject ({stats.rejected})
-                        </button>
-                        <button
-                            onClick={() => setFilterView('completed')}
-                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterView === 'completed'
-                                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                }`}
-                        >
-                            ✅ เสร็จสิ้น ({stats.completed})
-                        </button>
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pt-2 border-t border-slate-100">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mr-2">Status:</p>
+                            <button
+                                onClick={() => setFilterView('all')}
+                                className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${filterView === 'all'
+                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                                    }`}
+                            >
+                                ทั้งหมด ({filteredJobs.length})
+                            </button>
+                            <button
+                                onClick={() => setFilterView('pending')}
+                                className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${filterView === 'pending'
+                                    ? 'bg-amber-500 text-white shadow-lg shadow-amber-200'
+                                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                                    }`}
+                            >
+                                ⏳ รอดำเนินการ
+                            </button>
+                            <button
+                                onClick={() => setFilterView('assigned')}
+                                className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${filterView === 'assigned'
+                                    ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-200'
+                                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                                    }`}
+                            >
+                                🚛 กำลังวิ่ง
+                            </button>
+                            <button
+                                onClick={() => setFilterView('rejected')}
+                                className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${filterView === 'rejected'
+                                    ? 'bg-rose-500 text-white shadow-lg shadow-rose-200'
+                                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                                    }`}
+                            >
+                                🔴 Reject
+                            </button>
+                            <button
+                                onClick={() => setFilterView('completed')}
+                                className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${filterView === 'completed'
+                                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
+                                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                                    }`}
+                            >
+                                ✅ เสร็จสิ้น
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mr-2">Service Date:</p>
+                            <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    title="วันที่เริ่มต้น"
+                                    className="bg-transparent text-xs font-bold text-slate-600 outline-none cursor-pointer"
+                                />
+                                <span className="text-slate-300">|</span>
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    title="วันที่สิ้นสุด"
+                                    className="bg-transparent text-xs font-bold text-slate-600 outline-none cursor-pointer"
+                                />
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setStartDate('');
+                                    setEndDate('');
+                                }}
+                                className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                                title="Clear Dates"
+                            >
+                                <XCircle size={18} />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -464,8 +531,8 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
                 </div>
 
                 <div className="divide-y divide-slate-100">
-                    {filteredJobs.length > 0 ? (
-                        filteredJobs.map((job) => {
+                    {paginatedJobs.length > 0 ? (
+                        paginatedJobs.map((job) => {
                             const isRejected = job.accountingStatus === AccountingStatus.REJECTED;
                             const isPending = job.status === JobStatus.NEW_REQUEST || job.status === JobStatus.PENDING_PRICING;
                             const isAssigned = job.status === JobStatus.ASSIGNED && !isRejected;
@@ -637,6 +704,58 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
                     )}
                 </div>
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p className="text-xs font-bold text-slate-400">
+                        แสดง <span className="text-slate-700">{((currentPage - 1) * itemsPerPage) + 1}</span> ถึง <span className="text-slate-700">{Math.min(currentPage * itemsPerPage, filteredJobs.length)}</span> จากทั้งหมด <span className="text-slate-700">{filteredJobs.length}</span> รายการ
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                            title="หน้าก่อนหน้า"
+                            className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                        >
+                            <ChevronLeft size={18} />
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                            {[...Array(totalPages)].map((_, i) => {
+                                const page = i + 1;
+                                // Show first, last, and current +- 1
+                                if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                                    return (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`w-10 h-10 rounded-lg text-xs font-black transition-all ${currentPage === page
+                                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
+                                                : 'text-slate-500 hover:bg-slate-50'}`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                }
+                                if (page === currentPage - 2 || page === currentPage + 2) {
+                                    return <span key={page} className="px-1 text-slate-300">...</span>;
+                                }
+                                return null;
+                            })}
+                        </div>
+
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages}
+                            title="หน้าถัดไป"
+                            className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                        >
+                            <ChevronRight size={18} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Action Modal */}
             {showActionModal && selectedJob && (

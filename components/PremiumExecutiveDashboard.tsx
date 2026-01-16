@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import {
     TrendingUp, Truck, Users, CreditCard, Activity, Target,
-    ArrowUpRight, ArrowDownRight, Package, MapPin, AlertCircle, Clock, CheckCircle2
+    ArrowUpRight, ArrowDownRight, Package, MapPin, AlertCircle, Clock, CheckCircle2, Calendar
 } from 'lucide-react';
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 
@@ -18,6 +18,21 @@ interface DashboardProps {
 const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
     const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
+    // Time Period State
+    const now = new Date();
+    const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
+    const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString().padStart(2, '0'));
+
+    // --- 0. Filter Jobs by Selected Period ---
+    const periodJobs = useMemo(() => {
+        return jobs.filter(j => {
+            const jobDate = new Date(j.dateOfService);
+            const jobYear = jobDate.getFullYear().toString();
+            const jobMonth = (jobDate.getMonth() + 1).toString().padStart(2, '0');
+            return jobYear === selectedYear && jobMonth === selectedMonth;
+        });
+    }, [jobs, selectedYear, selectedMonth]);
+
     // --- 1. Aggregated Metrics ---
     const metrics = useMemo(() => {
         let revenue = 0;
@@ -26,7 +41,7 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
         let pending = 0;
         let cancelled = 0;
 
-        jobs.forEach(j => {
+        periodJobs.forEach(j => {
             if (j.status === JobStatus.CANCELLED) {
                 cancelled++;
                 return;
@@ -43,32 +58,30 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
 
         return {
             revenue, cost, profit, margin, completed, pending, cancelled, successRate,
-            activeJobs: jobs.filter(j => j.status !== JobStatus.CANCELLED && j.status !== JobStatus.COMPLETED && j.status !== JobStatus.BILLED).length
+            activeJobs: periodJobs.filter(j => j.status !== JobStatus.CANCELLED && j.status !== JobStatus.COMPLETED && j.status !== JobStatus.BILLED).length,
+            totalCount: periodJobs.length
         };
-    }, [jobs]);
+    }, [periodJobs]);
 
     // --- 2. Volume Trend (by Day) ---
     const trendData = useMemo(() => {
-        const last7Days = Array.from({ length: 7 }, (_, i) => {
-            const d = new Date();
-            d.setDate(d.getDate() - (6 - i));
-            return d.toISOString().split('T')[0];
-        });
+        // Find all unique days in the selected period
+        const daysInPeriod = Array.from(new Set(periodJobs.map(j => j.dateOfService.split('T')[0]))).sort();
 
-        return last7Days.map(date => {
-            const dayJobs = jobs.filter(j => j.serviceDate === date);
+        return daysInPeriod.map((date: any) => {
+            const dayJobs = periodJobs.filter(j => j.dateOfService.split('T')[0] === date);
             return {
-                date: date.split('-').slice(1).join('/'),
+                date: (date as string).split('-').slice(2).join('/'), // Show only Day part for cleaner axis
                 volume: dayJobs.length,
                 revenue: dayJobs.reduce((sum, j) => sum + (j.sellingPrice || 0), 0)
             };
         });
-    }, [jobs]);
+    }, [periodJobs]);
 
-    // --- 3. Subcontractor Performance (Radar Chart) ---
+    // --- 3. Subcontractor Performance ---
     const subPerformance = useMemo(() => {
         const subMap: Record<string, { volume: number, revenue: number, profit: number }> = {};
-        jobs.forEach(j => {
+        periodJobs.forEach(j => {
             if (!j.subcontractor || j.status === JobStatus.CANCELLED) return;
             if (!subMap[j.subcontractor]) subMap[j.subcontractor] = { volume: 0, revenue: 0, profit: 0 };
             subMap[j.subcontractor].volume++;
@@ -80,12 +93,12 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
             .map(([name, data]) => ({ name, ...data }))
             .sort((a, b) => b.revenue - a.revenue)
             .slice(0, 5);
-    }, [jobs]);
+    }, [periodJobs]);
 
     // --- 4. Route Analysis ---
     const routeData = useMemo(() => {
         const routeMap: Record<string, number> = {};
-        jobs.forEach(j => {
+        periodJobs.forEach(j => {
             if (j.status === JobStatus.CANCELLED) return;
             const key = `${j.origin} → ${j.destination}`;
             routeMap[key] = (routeMap[key] || 0) + 1;
@@ -94,16 +107,16 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
             .map(([route, volume]) => ({ route, volume }))
             .sort((a, b) => b.volume - a.volume)
             .slice(0, 5);
-    }, [jobs]);
+    }, [periodJobs]);
 
     // Status Distribution for Pie
     const statusDist = useMemo(() => {
         const counts: Record<string, number> = {};
-        jobs.forEach(j => {
+        periodJobs.forEach(j => {
             counts[j.status] = (counts[j.status] || 0) + 1;
         });
         return Object.entries(counts).map(([name, value]) => ({ name, value }));
-    }, [jobs]);
+    }, [periodJobs]);
 
     return (
         <div className="p-2 md:p-6 space-y-6 bg-[#f8fafc] min-h-screen">
@@ -119,7 +132,33 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
                         Real-time Fleet Performance & Financial Analytics (ข้อมูลสรุปภาพรวม)
                     </p>
                 </div>
-                <div className="flex items-center gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
+                <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
+                    {/* Period Selector */}
+                    <div className="flex items-center gap-2 px-4 border-r border-slate-100">
+                        <Calendar size={18} className="text-indigo-500" />
+                        <select
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            title="เลือกเดือน"
+                            className="bg-transparent text-sm font-black text-slate-700 outline-none cursor-pointer"
+                        >
+                            {Array.from({ length: 12 }, (_, i) => {
+                                const m = (i + 1).toString().padStart(2, '0');
+                                return <option key={m} value={m}>{new Date(2000, i).toLocaleString('th-TH', { month: 'long' })}</option>;
+                            })}
+                        </select>
+                        <select
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(e.target.value)}
+                            title="เลือกปี"
+                            className="bg-transparent text-sm font-black text-slate-700 outline-none cursor-pointer"
+                        >
+                            {[2024, 2025, 2026].map(y => (
+                                <option key={y} value={y.toString()}>{y}</option>
+                            ))}
+                        </select>
+                    </div>
+
                     <div className="px-4 border-r border-slate-100">
                         <span className="block text-[9px] font-black text-slate-400 uppercase">Live Sync</span>
                         <span className="flex items-center gap-1.5">
@@ -128,8 +167,8 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
                         </span>
                     </div>
                     <div className="px-4">
-                        <span className="block text-[9px] font-black text-slate-400 uppercase">Last Updated</span>
-                        <span className="text-xs font-black text-slate-700">{new Date().toLocaleTimeString()}</span>
+                        <span className="block text-[9px] font-black text-slate-400 uppercase">Analysis Items</span>
+                        <span className="text-xs font-black text-slate-700">{metrics.totalCount} งาน</span>
                     </div>
                 </div>
             </div>
