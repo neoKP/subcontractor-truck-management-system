@@ -26,7 +26,7 @@ const Header: React.FC<HeaderProps> = ({
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   const pendingPricingCount = jobs.filter(j => j.status === JobStatus.PENDING_PRICING).length;
-  const canSeeAlert = [UserRole.ADMIN, UserRole.ACCOUNTANT].includes(user.role);
+  const canSeeAlert = [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.BOOKING_OFFICER, UserRole.DISPATCHER].includes(user.role);
 
   // Get recent logs (Last 5)
   const recentLogs = [...logs]
