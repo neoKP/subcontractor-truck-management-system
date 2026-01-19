@@ -351,64 +351,66 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
             </div>
 
             {/* Statistics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
-                        <TrendingUp size={24} />
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 min-w-0">
+                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg shrink-0">
+                        <TrendingUp size={20} />
                     </div>
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase">Total</p>
-                        <p className="text-2xl font-black text-slate-800">{stats.total}</p>
-                    </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
-                        <Clock size={24} />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-amber-400 uppercase">Pending</p>
-                        <p className="text-2xl font-black text-amber-600">{stats.pending}</p>
+                    <div className="min-w-0">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Total</p>
+                        <p className="text-xl font-black text-slate-800">{stats.total}</p>
                     </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-blue-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
-                        <Truck size={24} />
+                <div className="bg-white p-3 rounded-xl border border-amber-200 shadow-sm flex items-center gap-3 min-w-0">
+                    <div className="p-2 bg-amber-50 text-amber-600 rounded-lg shrink-0">
+                        <Clock size={20} />
                     </div>
-                    <div>
-                        <p className="text-xs font-bold text-blue-400 uppercase">Assigned</p>
-                        <p className="text-2xl font-black text-blue-600">{stats.assigned}</p>
-                    </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-xl border border-red-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-red-50 text-red-600 rounded-lg">
-                        <XCircle size={24} />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-red-400 uppercase">Rejected</p>
-                        <p className="text-2xl font-black text-red-600">{stats.rejected}</p>
+                    <div className="min-w-0">
+                        <p className="text-[10px] font-bold text-amber-400 uppercase">Pending</p>
+                        <p className="text-xl font-black text-amber-600">{stats.pending}</p>
                     </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
-                        <CheckCircle size={24} />
+                <div className="bg-white p-3 rounded-xl border border-blue-200 shadow-sm flex items-center gap-3 min-w-0">
+                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg shrink-0">
+                        <Truck size={20} />
                     </div>
-                    <div>
-                        <p className="text-xs font-bold text-emerald-400 uppercase">Completed</p>
-                        <p className="text-2xl font-black text-emerald-600">{stats.completed}</p>
+                    <div className="min-w-0">
+                        <p className="text-[10px] font-bold text-blue-400 uppercase">Assigned</p>
+                        <p className="text-xl font-black text-blue-600">{stats.assigned}</p>
                     </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-purple-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-purple-50 text-purple-600 rounded-lg">
-                        <TrendingUp size={24} />
+                <div className="bg-white p-3 rounded-xl border border-red-200 shadow-sm flex items-center gap-3 min-w-0">
+                    <div className="p-2 bg-red-50 text-red-600 rounded-lg shrink-0">
+                        <XCircle size={20} />
                     </div>
-                    <div>
-                        <p className="text-xs font-bold text-purple-400 uppercase">Value</p>
-                        <p className="text-lg font-black text-purple-600">฿{formatThaiCurrency(stats.totalValue)}</p>
+                    <div className="min-w-0">
+                        <p className="text-[10px] font-bold text-red-400 uppercase">Rejected</p>
+                        <p className="text-xl font-black text-red-600">{stats.rejected}</p>
+                    </div>
+                </div>
+
+                <div className="bg-white p-3 rounded-xl border border-emerald-200 shadow-sm flex items-center gap-3 min-w-0">
+                    <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg shrink-0">
+                        <CheckCircle size={20} />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-[10px] font-bold text-emerald-400 uppercase">Completed</p>
+                        <p className="text-xl font-black text-emerald-600">{stats.completed}</p>
+                    </div>
+                </div>
+
+                <div className="bg-white p-3 rounded-xl border border-purple-200 shadow-sm flex items-center gap-3 min-w-0">
+                    <div className="p-2 bg-purple-50 text-purple-600 rounded-lg shrink-0">
+                        <TrendingUp size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-bold text-purple-400 uppercase">Value</p>
+                        <p className="text-sm font-black text-purple-600 truncate" title={`฿${formatThaiCurrency(stats.totalValue)}`}>
+                            ฿{formatThaiCurrency(stats.totalValue)}
+                        </p>
                     </div>
                 </div>
             </div>
