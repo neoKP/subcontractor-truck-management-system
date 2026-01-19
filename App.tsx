@@ -21,6 +21,7 @@ import DailyReportView from './components/DailyReportView'; // Added DailyReport
 import JobCompletionView from './components/JobCompletionView'; // Added JobCompletionView import
 import ReviewConfirmDashboard from './components/ReviewConfirmDashboard'; // Added ReviewConfirmDashboard import
 import DispatcherDashboard from './components/DispatcherDashboard'; // Added DispatcherDashboard import
+import PendingPricingModal from './components/PendingPricingModal'; // Added PendingPricingModal import
 import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3, ShieldAlert } from 'lucide-react';
 import { db, ref, onValue, set, remove } from './firebaseConfig';
 
@@ -630,6 +631,21 @@ const App: React.FC = () => {
               job={scannedJob}
               onClose={() => setScannedJob(null)}
               currentUser={currentUser || undefined}
+            />
+          )}
+
+          {/* Pending Pricing Modal - Global */}
+          {showPendingPricingModal && (
+            <PendingPricingModal
+              jobs={jobs}
+              priceMatrix={priceMatrix}
+              isOpen={showPendingPricingModal}
+              onClose={() => setShowPendingPricingModal(false)}
+              onAction={(job) => {
+                handleNavigateToPricing(job);
+                setShowPendingPricingModal(false);
+              }}
+              userRole={currentUser.role}
             />
           )}
 
