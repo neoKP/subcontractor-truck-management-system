@@ -103,7 +103,7 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
 
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto p-2 md:p-8 bg-slate-200/50 scrollbar-thin print:p-0 print:bg-white">
-                    <div ref={printRef} className="print-area bg-white shadow-2xl mx-auto w-[210mm] h-[297mm] flex flex-col font-sans p-[12mm] border border-slate-100">
+                    <div ref={printRef} className="print-area bg-white shadow-2xl mx-auto w-[210mm] h-[297mm] flex flex-col font-sans p-[10mm] border border-slate-100">
 
                         {/* 1. Header: Logo & Company */}
                         <div className="flex justify-between items-start pb-4 border-b-2 border-slate-900 section-gap">
@@ -119,7 +119,7 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
                         </div>
 
                         {/* 2. Title & Doc Info */}
-                        <div className="flex justify-between items-center mb-4 mt-2">
+                        <div className="flex justify-between items-center mb-2 mt-1">
                             <div>
                                 <h2 className="text-xl font-bold text-slate-900 leading-none">ใบขอใช้รถ</h2>
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">JOB REQUEST FORM</h3>
@@ -142,7 +142,7 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
                         </div>
 
                         {/* Main Body - Allowed to grow slightly but will be clipped if too huge */}
-                        <div className="space-y-3 flex-1 overflow-hidden">
+                        <div className="space-y-2 flex-1 overflow-hidden">
 
                             {/* Section 1 & 2 */}
                             <div className="grid grid-cols-2 gap-3">
@@ -177,7 +177,7 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
                                         </div>
                                         <div className="flex justify-between border-b border-slate-100 pb-1">
                                             <span className="text-slate-500">น้ำหนัก/ปริมาตร:</span>
-                                            <span className="font-bold">{job.weightVolume || '-'}</span>
+                                            <span className="font-bold">{job.weightVolume ? `${job.weightVolume} กก.` : '-'}</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-slate-500">จำนวน/Type:</span>
@@ -192,14 +192,29 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
                                 <div className="bg-slate-50 px-3 py-1 font-bold text-slate-700 text-[10px] border-b border-slate-300">
                                     3. เส้นทางการขนส่ง (ROUTING)
                                 </div>
-                                <div className="p-3 space-y-2 text-[10px]">
-                                    <div className="flex justify-between border-b border-slate-100 pb-1">
-                                        <span className="text-slate-500 font-bold uppercase tracking-tighter">ต้นทาง (Origin / Pick-up):</span>
-                                        <span className="font-black text-slate-900 underline decoration-slate-200">{job.origin}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-500 font-bold uppercase tracking-tighter">ปลายทาง (Destination / Drop-off):</span>
-                                        <span className="font-black text-slate-900 underline decoration-slate-200">{job.destination}</span>
+                                <div className="p-3 text-[10px]">
+                                    <div className="flex items-center gap-3">
+                                        {/* Visual Route Indicator */}
+                                        <div className="flex flex-col items-center h-full">
+                                            <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-emerald-600 flex items-center justify-center">
+                                                <span className="text-white text-[6px] font-black">A</span>
+                                            </div>
+                                            <div className="w-0.5 h-6 bg-slate-300 my-1"></div>
+                                            <div className="w-3 h-3 rounded-full bg-rose-500 border-2 border-rose-600 flex items-center justify-center">
+                                                <span className="text-white text-[6px] font-black">B</span>
+                                            </div>
+                                        </div>
+                                        {/* Route Details */}
+                                        <div className="flex-1 space-y-2">
+                                            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                                                <span className="text-slate-500 font-bold">ต้นทาง (ORIGIN):</span>
+                                                <span className="font-black text-slate-900">{job.origin}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-slate-500 font-bold">ปลายทาง (DESTINATION):</span>
+                                                <span className="font-black text-slate-900">{job.destination}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -241,43 +256,44 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
                         </div>
 
                         {/* 6. Signatures: Pinned to Bottom using mt-auto */}
-                        <div className="mt-auto pt-6 space-y-4">
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="border border-slate-300 rounded p-2 text-center h-[120px] flex flex-col justify-between">
-                                    <p className="text-[10px] font-bold text-slate-900">ต้นทาง / ผู้จ่ายสินค้า<br /><span className="text-[7px] text-slate-400 font-normal uppercase">(Dispatcher)</span></p>
-                                    <div className="border-b border-dotted border-slate-400 w-4/5 mx-auto mb-1"></div>
-                                    <p className="text-[9px] font-medium">วันที่ ______/______/______</p>
+                        <div className="mt-auto pt-3 space-y-2">
+                            <div className="grid grid-cols-3 gap-2">
+                                <div className="border border-slate-300 rounded p-2 text-center h-[115px] flex flex-col justify-between">
+                                    <p className="text-[9px] font-bold text-slate-900">ต้นทาง / ผู้จ่ายสินค้า<br /><span className="text-[7px] text-slate-400 font-normal uppercase">(Dispatcher)</span></p>
+                                    <div className="border-b border-dotted border-slate-400 w-4/5 mx-auto"></div>
+                                    <p className="text-[8px] font-medium">วันที่ ____/____/____</p>
                                 </div>
-                                <div className="border border-slate-300 rounded p-2 text-center h-[120px] flex flex-col justify-between">
-                                    <p className="text-[10px] font-bold text-slate-900">พนักงานขับรถ<br /><span className="text-[7px] text-slate-400 font-normal uppercase">(The Driver)</span></p>
-                                    <div className="border-b border-dotted border-slate-400 w-4/5 mx-auto mb-1"></div>
-                                    <p className="text-[9px] font-medium">วันที่ ______/______/______</p>
+                                <div className="border border-slate-300 rounded p-2 text-center h-[115px] flex flex-col justify-between">
+                                    <p className="text-[9px] font-bold text-slate-900">พนักงานขับรถ<br /><span className="text-[7px] text-slate-400 font-normal uppercase">(Driver)</span></p>
+                                    <div className="border-b border-dotted border-slate-400 w-4/5 mx-auto"></div>
+                                    <p className="text-[8px] font-medium">วันที่ ____/____/____</p>
                                 </div>
-                                <div className="border border-slate-300 rounded p-2 text-center h-[120px] flex flex-col justify-between">
-                                    <p className="text-[10px] font-bold text-slate-900">ปลายทาง / ผู้รับสินค้า<br /><span className="text-[7px] text-slate-400 font-normal uppercase">(The Receiver)</span></p>
-                                    <div className="border-b border-dotted border-slate-400 w-4/5 mx-auto mb-1"></div>
-                                    <p className="text-[9px] font-medium">วันที่ ______/______/______</p>
+                                <div className="border border-slate-300 rounded p-2 text-center h-[115px] flex flex-col justify-between">
+                                    <p className="text-[9px] font-bold text-slate-900">ปลายทาง / ผู้รับสินค้า<br /><span className="text-[7px] text-slate-400 font-normal uppercase">(Receiver)</span></p>
+                                    <div className="border-b border-dotted border-slate-400 w-4/5 mx-auto"></div>
+                                    <p className="text-[8px] font-medium">วันที่ ____/____/____</p>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="border border-slate-300 rounded p-2 text-center h-[120px] flex flex-col justify-between bg-slate-50/50">
-                                    <p className="text-[10px] font-bold text-slate-900">ผู้ขอใช้รถ<br /><span className="text-[7px] text-slate-400 font-normal uppercase">(Requester)</span></p>
-                                    <p className="text-[10px] font-black text-slate-900 -mb-2">{job.requestedByName}</p>
-                                    <div className="border-b border-dotted border-slate-400 w-4/5 mx-auto mb-1"></div>
-                                    <p className="text-[9px] font-medium">วันที่ ______/______/______</p>
+                            <div className="grid grid-cols-3 gap-2">
+                                <div className="border border-slate-300 rounded p-2 text-center h-[115px] flex flex-col justify-between bg-slate-50/50">
+                                    <p className="text-[9px] font-bold text-slate-900">ผู้ขอใช้รถ<br /><span className="text-[7px] text-slate-400 font-normal uppercase">(Requester)</span></p>
+                                    <p className="text-[9px] font-black text-slate-900">{job.requestedByName}</p>
+                                    <div className="border-b border-dotted border-slate-400 w-4/5 mx-auto"></div>
+                                    <p className="text-[8px] font-medium">วันที่ ____/____/____</p>
                                 </div>
-                                <div className="border border-slate-300 rounded p-2 text-center h-[120px] flex flex-col justify-between">
-                                    <p className="text-[10px] font-bold text-slate-900">ผู้อนุมัติ<br /><span className="text-[7px] text-slate-400 font-normal uppercase">(Authorized By)</span></p>
-                                    <div className="border-b border-dotted border-slate-400 w-4/5 mx-auto mb-1"></div>
-                                    <p className="text-[9px] font-medium">วันที่ ______/______/______</p>
+                                <div className="border border-slate-300 rounded p-2 text-center h-[115px] flex flex-col justify-between">
+                                    <p className="text-[9px] font-bold text-slate-900">ผู้อนุมัติ<br /><span className="text-[7px] text-slate-400 font-normal uppercase">(Authorized)</span></p>
+                                    <div className="border-b border-dotted border-slate-400 w-4/5 mx-auto"></div>
+                                    <p className="text-[8px] font-medium">วันที่ ____/____/____</p>
                                 </div>
-                                <div className="border border-slate-300 rounded p-2 text-center h-[120px] flex flex-col justify-between">
-                                    <p className="text-[10px] font-bold text-slate-900">บัญชี / การเงิน<br /><span className="text-[7px] text-slate-400 font-normal uppercase">(Accountant)</span></p>
-                                    <div className="border-b border-dotted border-slate-400 w-4/5 mx-auto mb-1"></div>
-                                    <p className="text-[9px] font-medium">วันที่ ______/______/______</p>
+                                <div className="border border-slate-300 rounded p-2 text-center h-[115px] flex flex-col justify-between">
+                                    <p className="text-[9px] font-bold text-slate-900">บัญชี / การเงิน<br /><span className="text-[7px] text-slate-400 font-normal uppercase">(Accountant)</span></p>
+                                    <div className="border-b border-dotted border-slate-400 w-4/5 mx-auto"></div>
+                                    <p className="text-[8px] font-medium">วันที่ ____/____/____</p>
                                 </div>
                             </div>
+
 
 
                             <div className="flex justify-between items-center text-[7px] font-black text-slate-300 uppercase tracking-widest pt-2">

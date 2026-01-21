@@ -3,7 +3,7 @@ import { UserRole, Job, JobStatus, AuditLog, PriceMatrix, AccountingStatus } fro
 import JobRequestForm from './components/JobRequestForm';
 import JobBoard from './components/JobBoard';
 import Sidebar from './components/Sidebar';
-import { formatThaiCurrency, roundHalfUp, formatDate } from './utils/format';
+import { formatThaiCurrency, roundHalfUp, formatDate, generateUUID } from './utils/format';
 import Header from './components/Header';
 import BillingView from './components/BillingView';
 import PricingTableView from './components/PricingTableView';
@@ -263,7 +263,7 @@ const App: React.FC = () => {
   const deleteJob = (jobId: string) => {
     // 1. Log the deletion before removing content (for safety trail)
     const log: AuditLog = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       jobId: jobId,
       userId: currentUser?.id || 'unknown',
       userName: currentUser?.name || 'unknown',
