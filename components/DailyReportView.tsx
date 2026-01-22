@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Job, JobStatus, JOB_STATUS_LABELS, UserRole } from '../types';
-import { FileSpreadsheet, Search, Calendar, Truck, User, MapPin, CheckCircle2, Clock, AlertCircle, Users } from 'lucide-react';
+import { FileSpreadsheet, Search, Calendar, Truck, User, MapPin, CheckCircle2, Clock, AlertCircle, Users, Eye } from 'lucide-react';
 import { formatDate } from '../utils/format';
+import JobPreviewModal from './JobPreviewModal';
 
 interface DailyReportViewProps {
     jobs: Job[];
@@ -15,6 +16,8 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
     const [selectedDate, setSelectedDate] = useState<string>(today);
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState<'my' | 'all'>('all');
+    const [previewJob, setPreviewJob] = useState<Job | null>(null);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
     // Filter jobs by date, search term, and view mode
     // Filter jobs by date, search term, and view mode
@@ -281,7 +284,18 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                                 filteredJobs.map((job) => (
                                     <tr key={job.id} className="hover:bg-blue-50/30 transition-colors group">
                                         <td className="px-6 py-4">
-                                            <div className="font-mono font-bold text-slate-700">#{job.id}</div>
+                                            <button
+                                                onClick={() => {
+                                                    setPreviewJob(job);
+                                                    setIsPreviewOpen(true);
+                                                }}
+                                                className="group/btn flex items-center gap-2 font-mono font-bold text-slate-700 hover:text-blue-600 transition-colors"
+                                            >
+                                                <div className="p-1.5 bg-slate-100 rounded-lg group-hover/btn:bg-blue-50 transition-colors">
+                                                    <Eye size={14} className="text-slate-400 group-hover/btn:text-blue-500" />
+                                                </div>
+                                                <span>#{job.id}</span>
+                                            </button>
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
@@ -390,6 +404,17 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                     </p>
                 </div>
             </div>
+            {/* Job Preview Modal */}
+            {previewJob && (
+                <JobPreviewModal
+                    isOpen={isPreviewOpen}
+                    onClose={() => {
+                        setIsPreviewOpen(false);
+                        setPreviewJob(null);
+                    }}
+                    job={previewJob}
+                />
+            )}
         </div>
     );
 };
