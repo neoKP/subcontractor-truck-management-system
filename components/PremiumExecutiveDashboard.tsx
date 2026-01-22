@@ -302,9 +302,9 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
                             const pct = (route.volume / max) * 100;
                             return (
                                 <div key={idx} className="group">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="text-xs font-black text-slate-700 truncate max-w-[250px]">{route.route}</span>
-                                        <span className="text-[10px] font-black text-slate-400">{route.volume} Trips</span>
+                                    <div className="flex justify-between items-start gap-4 mb-2">
+                                        <span className="text-xs font-black text-slate-700 leading-snug break-words flex-1">{route.route}</span>
+                                        <span className="text-[10px] font-black text-slate-400 whitespace-nowrap pt-0.5">{route.volume} Trips</span>
                                     </div>
                                     <div className="h-2 w-full">
                                         <progress
