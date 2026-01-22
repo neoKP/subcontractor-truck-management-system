@@ -1,4 +1,4 @@
- import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { UserRole, Job, JobStatus, AuditLog, PriceMatrix, AccountingStatus } from './types';
 import JobRequestForm from './components/JobRequestForm';
 import JobBoard from './components/JobBoard';
@@ -186,6 +186,48 @@ const App: React.FC = () => {
       unsubscribeUsers();
     };
   }, []);
+
+  // AUTOMATIC ACTION: Move jobs out of Pending Pricing Queue if a price is now available
+  React.useEffect(() => {
+    const pendingJobs = jobs.filter(j => j.status === JobStatus.PENDING_PRICING);
+    if (pendingJobs.length === 0) return;
+
+    pendingJobs.forEach(job => {
+      const match = priceMatrix.find(p =>
+        p.origin === job.origin &&
+        p.destination === job.destination &&
+        p.truckType === job.truckType
+      );
+
+      if (match) {
+        console.log(`Auto-Updating Job ${job.id}: Price found in Master Matrix.`);
+
+        const updatedJob: Job = {
+          ...job,
+          status: JobStatus.NEW_REQUEST,
+          cost: match.basePrice,
+          sellingPrice: match.sellingBasePrice
+        };
+
+        const auditLog: AuditLog = {
+          id: generateUUID(),
+          jobId: job.id,
+          userId: 'SYSTEM_BOT',
+          userName: 'System Auto-Price',
+          userRole: UserRole.ADMIN,
+          timestamp: new Date().toISOString(),
+          field: 'Status & Pricing',
+          oldValue: JobStatus.PENDING_PRICING,
+          newValue: JobStatus.NEW_REQUEST,
+          reason: 'Auto-transition: Matching price found in Master Matrix.'
+        };
+
+        // Update Firebase
+        set(ref(db, `jobs/${job.id}`), cleanJob(updatedJob));
+        set(ref(db, `logs/${auditLog.id}`), auditLog);
+      }
+    });
+  }, [priceMatrix, jobs]); // Runs whenever price matrix or jobs list changes
 
   const handleUserUpdate = (user: any) => {
     set(ref(db, `users/${user.id}`), user);
