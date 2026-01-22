@@ -297,7 +297,16 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                     <button
                       key={index}
                       type="button"
-                      onClick={() => setEditData({ ...editData, subcontractor: rec.subcontractor })}
+                      onClick={() => {
+                        setEditData({
+                          ...editData,
+                          subcontractor: rec.subcontractor,
+                          cost: rec.basePrice,
+                          sellingPrice: rec.sellingBasePrice || editData.sellingPrice
+                        });
+                        setPriceCalculated(true);
+                        setTimeout(() => setPriceCalculated(false), 2000);
+                      }}
                       className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all group ${editData.subcontractor === rec.subcontractor ? 'border-emerald-500 bg-emerald-50' : 'border-slate-50 bg-slate-50/50 hover:border-blue-200 hover:bg-white'}`}
                     >
                       <div className="flex items-center gap-3">
@@ -450,7 +459,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                   <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.15em]">ข้อมูลคนขับและทะเบียน (Fleet Assignment)</h4>
                 </div>
 
-                {(!editData.driverName || !editData.driverPhone || !editData.licensePlate) ? (
+                {(!editData.driverName || !editData.driverPhone || !editData.licensePlate || (editData.cost || 0) <= 0) ? (
                   <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-100 text-orange-600 rounded-full border border-orange-200 animate-pulse">
                     <CircleDot size={10} className="fill-orange-600" />
                     <span className="text-[9px] font-black uppercase tracking-widest">ข้อมูลไม่สมบูรณ์</span>

@@ -123,13 +123,13 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
 
                     {/* Assignment Details Card */}
                     <div className={`bg-gradient-to-br rounded-[2rem] p-6 shadow-lg border-2 ${isFleetInfoComplete
-                            ? 'from-emerald-50 to-teal-50 border-emerald-100'
-                            : 'from-orange-50 to-rose-50 border-orange-200'
+                        ? 'from-emerald-50 to-teal-50 border-emerald-100'
+                        : 'from-orange-50 to-rose-50 border-orange-200'
                         }`}>
                         <div className="flex items-center gap-3 mb-4">
                             <div className={`p-2 rounded-xl text-white shadow-lg ${isFleetInfoComplete
-                                    ? 'bg-emerald-600 shadow-emerald-200'
-                                    : 'bg-orange-500 shadow-orange-200'
+                                ? 'bg-emerald-600 shadow-emerald-200'
+                                : 'bg-orange-500 shadow-orange-200'
                                 }`}>
                                 <Truck size={20} />
                             </div>
@@ -173,8 +173,8 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                             <div className="space-y-3">
                                 <div className="flex items-center gap-3">
                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${editData.driverName
-                                            ? 'bg-emerald-100 text-emerald-600'
-                                            : 'bg-orange-100 text-orange-600'
+                                        ? 'bg-emerald-100 text-emerald-600'
+                                        : 'bg-orange-100 text-orange-600'
                                         }`}>
                                         <User size={16} />
                                     </div>
@@ -186,8 +186,8 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${editData.driverPhone
-                                            ? 'bg-emerald-100 text-emerald-600'
-                                            : 'bg-orange-100 text-orange-600'
+                                        ? 'bg-emerald-100 text-emerald-600'
+                                        : 'bg-orange-100 text-orange-600'
                                         }`}>
                                         <Phone size={16} />
                                     </div>
@@ -199,8 +199,8 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${editData.licensePlate
-                                            ? 'bg-emerald-100 text-emerald-600'
-                                            : 'bg-orange-100 text-orange-600'
+                                        ? 'bg-emerald-100 text-emerald-600'
+                                        : 'bg-orange-100 text-orange-600'
                                         }`}>
                                         <Hash size={16} />
                                     </div>
@@ -283,7 +283,7 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                             <div className="flex-1">
                                 <p className="text-sm font-black text-orange-900 mb-1">กรุณากรอกข้อมูลให้ครบถ้วน</p>
                                 <p className="text-xs font-bold text-orange-700">
-                                    ต้องกรอก: ชื่อคนขับ, เบอร์โทร, และทะเบียนรถ ก่อนยืนยันและล็อกราคา
+                                    ต้องกรอก: ชื่อคนขับ, เบอร์โทร, ทะเบียนรถ และ **ราคาต้นทุน (Cost)** ก่อนยืนยันและล็อกราคา
                                 </p>
                             </div>
                         </div>
@@ -302,8 +302,8 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                             onClick={onConfirm}
                             disabled={!isDataComplete}
                             className={`flex items-center gap-2 px-12 py-4 rounded-2xl font-black shadow-xl transform transition-all uppercase tracking-widest text-sm ${isDataComplete
-                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-200 hover:shadow-blue-300 hover:-translate-y-0.5 cursor-pointer'
-                                    : 'bg-slate-300 text-slate-500 shadow-slate-200 cursor-not-allowed opacity-60'
+                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-200 hover:shadow-blue-300 hover:-translate-y-0.5 cursor-pointer'
+                                : 'bg-slate-300 text-slate-500 shadow-slate-200 cursor-not-allowed opacity-60'
                                 }`}
                         >
                             <CheckCircle size={20} />

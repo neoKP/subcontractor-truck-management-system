@@ -1,9 +1,10 @@
 
 import React, { useState } from 'react';
+import Swal from 'sweetalert2';
 import { PriceMatrix, MasterData, UserRole } from '../types';
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 import { MASTER_DATA } from '../constants';
-import { Search, MapPin, Truck, Building2, CircleDollarSign, Plus, Edit, Trash2, X, Save } from 'lucide-react';
+import { Search, MapPin, Truck, Building2, CircleDollarSign, Plus, Edit, Trash2, X, Save, AlertTriangle } from 'lucide-react';
 
 interface PricingTableViewProps {
   priceMatrix: PriceMatrix[];
@@ -25,6 +26,8 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
     sellingBasePrice: 0,
     dropOffFee: 0
   });
+
+  const [isReviewing, setIsReviewing] = useState(false);
 
   // Auto-open modal if initialData is provided
   React.useEffect(() => {
@@ -64,11 +67,37 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
   const totalPages = Math.ceil(filteredPricing.length / itemsPerPage);
   const paginatedPricing = filteredPricing.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const handleDelete = (index: number) => {
-    if (window.confirm('Are you sure you want to delete this price entry?')) {
+  const handleDelete = async (index: number) => {
+    const item = priceMatrix[index];
+    const result = await Swal.fire({
+      title: 'ยืนยันการลบข้อมูล?',
+      html: `คุณกำลังจะลบราคากลางเส้นทาง<br/><b class="text-rose-600">${item.origin} → ${item.destination}</b><br/>ของ <b>${item.subcontractor}</b>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#e11d48',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'ใช่, ลบเลย!',
+      cancelButtonText: 'ยกเลิก',
+      customClass: {
+        popup: 'rounded-[2rem]',
+        confirmButton: 'rounded-xl font-bold px-8 py-3',
+        cancelButton: 'rounded-xl font-bold px-8 py-3'
+      }
+    });
+
+    if (result.isConfirmed) {
       const newList = [...priceMatrix];
       newList.splice(index, 1);
       onUpdate(newList);
+
+      Swal.fire({
+        title: 'ลบสำเร็จ!',
+        text: 'ข้อมูลราคากลางถูกนำออกจากระบบแล้ว',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false,
+        customClass: { popup: 'rounded-[2rem]' }
+      });
     }
   };
 
@@ -76,6 +105,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
     setEditingIndex(index);
     setFormData(priceMatrix[index]);
     setIsAdding(true);
+    setIsReviewing(false);
   };
 
   const handleAddNew = () => {
@@ -90,17 +120,64 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
       dropOffFee: 0
     });
     setIsAdding(true);
+    setIsReviewing(false);
   };
 
   const handleSave = () => {
+    // Basic validation
+    if (!formData.origin || !formData.destination || !formData.subcontractor || !formData.truckType) return;
+
+    // Duplicate check
+    const isDuplicate = priceMatrix.some((p, idx) =>
+      idx !== editingIndex &&
+      p.origin === formData.origin &&
+      p.destination === formData.destination &&
+      p.subcontractor === formData.subcontractor &&
+      p.truckType === formData.truckType
+    );
+
+    if (isDuplicate) {
+      Swal.fire({
+        title: 'พบข้อมูลซ้ำ! (Duplicate)',
+        html: `มีการตั้งราคากลางของ <b class="text-blue-600">${formData.subcontractor}</b><br/>เส้นทาง <b>${formData.origin} → ${formData.destination}</b><br/>สำหรับรถ <b>${formData.truckType}</b> ไว้แล้วในระบบ`,
+        icon: 'error',
+        confirmButtonColor: '#2563eb',
+        confirmButtonText: 'ตกลง (OK)',
+        customClass: { popup: 'rounded-[2rem]' }
+      });
+      return;
+    }
+
+    setIsReviewing(true);
+  };
+
+  const handleFinalConfirm = () => {
     const newList = [...priceMatrix];
+    const cleanData = {
+      ...formData,
+      basePrice: Number(formData.basePrice),
+      sellingBasePrice: Number(formData.sellingBasePrice),
+      dropOffFee: Number(formData.dropOffFee)
+    };
+
     if (editingIndex !== null) {
-      newList[editingIndex] = formData;
+      newList[editingIndex] = cleanData;
     } else {
-      newList.unshift(formData);
+      newList.unshift(cleanData);
     }
     onUpdate(newList);
+
+    Swal.fire({
+      title: 'บันทึกสำเร็จ!',
+      text: 'ข้อมูลราคากลางใน Master Data ได้รับการอัปเดตแล้ว',
+      icon: 'success',
+      timer: 1500,
+      showConfirmButton: false,
+      customClass: { popup: 'rounded-[2rem]' }
+    });
+
     setIsAdding(false);
+    setIsReviewing(false);
     setEditingIndex(null);
   };
 
@@ -296,123 +373,206 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white">
-              <h3 className="text-lg font-bold">{editingIndex !== null ? 'แก้ไขข้อมูลราคากลาง (Edit Price)' : 'เพิ่มข้อมูลราคากลางใหม่ (Add Price)'}</h3>
-              <button onClick={() => setIsAdding(false)} className="p-1 hover:bg-slate-800 rounded-lg transition-colors" title="ปิด (Close)"><X size={20} /></button>
+              <h3 className="text-lg font-bold">
+                {isReviewing
+                  ? 'ตรวจสอบความถูกต้อง (Review Data)'
+                  : (editingIndex !== null ? 'แก้ไขข้อมูลราคากลาง (Edit Price)' : 'เพิ่มข้อมูลราคากลางใหม่ (Add Price)')}
+              </h3>
+              <button onClick={() => { setIsAdding(false); setIsReviewing(false); }} className="p-1 hover:bg-slate-800 rounded-lg transition-colors" title="ปิด (Close)"><X size={20} /></button>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label htmlFor="price-origin" className="text-xs font-bold text-slate-500 uppercase">Origin (ต้นทาง)</label>
-                  <input
-                    list="origin-list"
-                    id="price-origin"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                    value={formData.origin}
-                    onChange={e => setFormData({ ...formData, origin: e.target.value })}
-                    placeholder="เลือกหรือพิมพ์ต้นทาง..."
-                    autoComplete="off"
-                  />
-                  <datalist id="origin-list">
-                    {MASTER_DATA.locations.map((l, idx) => <option key={`${l}-${idx}`} value={l} />)}
-                  </datalist>
+
+            {isReviewing ? (
+              <div className="p-6 space-y-6 animate-in slide-in-from-right-4 duration-300">
+                <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-2xl space-y-4">
+                  <div className="grid grid-cols-2 gap-y-4">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Origin</p>
+                      <p className="font-bold text-slate-800 flex items-center gap-2">
+                        <MapPin size={14} className="text-slate-400" />
+                        {formData.origin}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Destination</p>
+                      <p className="font-bold text-slate-800 flex items-center gap-2">
+                        <MapPin size={14} className="text-blue-500" />
+                        {formData.destination}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subcontractor</p>
+                      <p className="font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-lg w-fit">
+                        {formData.subcontractor}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Truck Type</p>
+                      <p className="font-bold text-slate-700 flex items-center gap-1.5">
+                        <Truck size={14} className="text-slate-400" />
+                        {formData.truckType}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label htmlFor="price-dest" className="text-xs font-bold text-slate-500 uppercase">Destination (ปลายทาง)</label>
-                  <input
-                    list="dest-list"
-                    id="price-dest"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                    value={formData.destination}
-                    onChange={e => setFormData({ ...formData, destination: e.target.value })}
-                    placeholder="เลือกหรือพิมพ์ปลายทาง..."
-                    autoComplete="off"
-                  />
-                  <datalist id="dest-list">
-                    {MASTER_DATA.locations.map((l, idx) => <option key={`${l}-${idx}`} value={l} />)}
-                  </datalist>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cost (ต้นทุน)</p>
+                    <p className="text-lg font-black text-slate-900">฿{formatThaiCurrency(formData.basePrice)}</p>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Revenue (ราคาจ้าง)</p>
+                    <p className="text-lg font-black text-blue-600">฿{formatThaiCurrency(formData.sellingBasePrice)}</p>
+                  </div>
+                  <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                    <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">Drop Fee (ค่าจุด)</p>
+                    <p className="text-lg font-black text-amber-600">฿{formatThaiCurrency(formData.dropOffFee || 0)}</p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label htmlFor="price-sub" className="text-xs font-bold text-slate-500 uppercase">Subcontractor</label>
-                  <input
-                    list="sub-list"
-                    id="price-sub"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                    value={formData.subcontractor}
-                    onChange={e => setFormData({ ...formData, subcontractor: e.target.value })}
-                    placeholder="เลือกหรือพิมพ์ชื่อบริษัท..."
-                    autoComplete="off"
-                  />
-                  <datalist id="sub-list">
-                    {MASTER_DATA.subcontractors.map((s, idx) => <option key={`${s}-${idx}`} value={s} />)}
-                  </datalist>
-                </div>
-                <div className="space-y-1">
-                  <label htmlFor="price-truck" className="text-xs font-bold text-slate-500 uppercase">Truck Type</label>
-                  <input
-                    list="truck-list"
-                    id="price-truck"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                    value={formData.truckType}
-                    onChange={e => setFormData({ ...formData, truckType: e.target.value })}
-                    placeholder="เลือกหรือพิมพ์ประเภทรถ..."
-                    autoComplete="off"
-                  />
-                  <datalist id="truck-list">
-                    {MASTER_DATA.truckTypes.map((t, idx) => <option key={`${t}-${idx}`} value={t} />)}
-                  </datalist>
-                </div>
-                <div className="space-y-1">
-                  <label htmlFor="price-base" className="text-xs font-bold text-slate-500 uppercase">Cost (ต้นทุนรถร่วม)</label>
-                  <input
-                    id="price-base"
-                    type="number"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                    value={formData.basePrice}
-                    onChange={e => setFormData({ ...formData, basePrice: Number(e.target.value) })}
-                    title="Cost Paid to Subcontractor"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label htmlFor="price-selling" className="text-xs font-bold text-blue-500 uppercase">Revenue (ราคาจ้าง)</label>
-                  <input
-                    id="price-selling"
-                    type="number"
-                    className="w-full px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-blue-700"
-                    value={formData.sellingBasePrice}
-                    onChange={e => setFormData({ ...formData, sellingBasePrice: Number(e.target.value) })}
-                    title="Revenue Billed to Customer"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label htmlFor="price-drop" className="text-xs font-bold text-slate-500 uppercase">Drop Fee (ค่าจุด)</label>
-                  <input
-                    id="price-drop"
-                    type="number"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                    value={formData.dropOffFee || 0}
-                    onChange={e => setFormData({ ...formData, dropOffFee: Number(e.target.value) })}
-                    title="Drop Fee"
-                    placeholder="0.00"
-                  />
+
+                <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-xl flex items-center gap-3">
+                  <CircleDollarSign className="text-yellow-600 shrink-0" size={20} />
+                  <p className="text-xs font-bold text-yellow-700 italic">
+                    กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนยืนยัน บันทึกแล้วจะมีผลกับงานใหม่ทันที
+                  </p>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label htmlFor="price-origin" className="text-xs font-bold text-slate-500 uppercase">Origin (ต้นทาง)</label>
+                    <input
+                      list="origin-list"
+                      id="price-origin"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      value={formData.origin}
+                      onChange={e => setFormData({ ...formData, origin: e.target.value })}
+                      placeholder="เลือกหรือพิมพ์ต้นทาง..."
+                      autoComplete="off"
+                    />
+                    <datalist id="origin-list">
+                      {MASTER_DATA.locations.map((l, idx) => <option key={`${l}-${idx}`} value={l} />)}
+                    </datalist>
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="price-dest" className="text-xs font-bold text-slate-500 uppercase">Destination (ปลายทาง)</label>
+                    <input
+                      list="dest-list"
+                      id="price-dest"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      value={formData.destination}
+                      onChange={e => setFormData({ ...formData, destination: e.target.value })}
+                      placeholder="เลือกหรือพิมพ์ปลายทาง..."
+                      autoComplete="off"
+                    />
+                    <datalist id="dest-list">
+                      {MASTER_DATA.locations.map((l, idx) => <option key={`${l}-${idx}`} value={l} />)}
+                    </datalist>
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="price-sub" className="text-xs font-bold text-slate-500 uppercase">Subcontractor</label>
+                    <input
+                      list="sub-list"
+                      id="price-sub"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      value={formData.subcontractor}
+                      onChange={e => setFormData({ ...formData, subcontractor: e.target.value })}
+                      placeholder="เลือกหรือพิมพ์ชื่อบริษัท..."
+                      autoComplete="off"
+                    />
+                    <datalist id="sub-list">
+                      {MASTER_DATA.subcontractors.map((s, idx) => <option key={`${s}-${idx}`} value={s} />)}
+                    </datalist>
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="price-truck" className="text-xs font-bold text-slate-500 uppercase">Truck Type</label>
+                    <input
+                      list="truck-list"
+                      id="price-truck"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      value={formData.truckType}
+                      onChange={e => setFormData({ ...formData, truckType: e.target.value })}
+                      placeholder="เลือกหรือพิมพ์ประเภทรถ..."
+                      autoComplete="off"
+                    />
+                    <datalist id="truck-list">
+                      {MASTER_DATA.truckTypes.map((t, idx) => <option key={`${t}-${idx}`} value={t} />)}
+                    </datalist>
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="price-base" className="text-xs font-bold text-slate-500 uppercase">Cost (ต้นทุนรถร่วม)</label>
+                    <input
+                      id="price-base"
+                      type="number"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      value={formData.basePrice}
+                      onChange={e => setFormData({ ...formData, basePrice: Number(e.target.value) })}
+                      title="Cost Paid to Subcontractor"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="price-selling" className="text-xs font-bold text-blue-500 uppercase">Revenue (ราคาจ้าง)</label>
+                    <input
+                      id="price-selling"
+                      type="number"
+                      className="w-full px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-blue-700"
+                      value={formData.sellingBasePrice}
+                      onChange={e => setFormData({ ...formData, sellingBasePrice: Number(e.target.value) })}
+                      title="Revenue Billed to Customer"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="price-drop" className="text-xs font-bold text-slate-500 uppercase">Drop Fee (ค่าจุด)</label>
+                    <input
+                      id="price-drop"
+                      type="number"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      value={formData.dropOffFee || 0}
+                      onChange={e => setFormData({ ...formData, dropOffFee: Number(e.target.value) })}
+                      title="Drop Fee"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-slate-50 px-6 py-4 flex justify-end gap-3 border-t border-slate-100">
-              <button
-                onClick={() => setIsAdding(false)}
-                className="px-6 py-2 rounded-lg font-bold text-slate-600 hover:bg-slate-200 transition-colors text-sm"
-              >
-                ยกเลิก (Cancel)
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={!formData.origin || !formData.destination || !formData.subcontractor || !formData.truckType}
-                className="bg-blue-600 disabled:bg-slate-300 hover:bg-blue-700 text-white px-8 py-2 rounded-lg font-bold shadow-lg shadow-blue-200 transition-all text-sm flex items-center gap-2"
-              >
-                <Save size={16} /> บันทึกข้อมูล (Save Price)
-              </button>
+              {isReviewing ? (
+                <>
+                  <button
+                    onClick={() => setIsReviewing(false)}
+                    className="px-6 py-2 rounded-lg font-bold text-slate-600 hover:bg-slate-200 transition-colors text-sm"
+                  >
+                    กลับไปแก้ไข (Back)
+                  </button>
+                  <button
+                    onClick={handleFinalConfirm}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2 rounded-lg font-black shadow-lg shadow-emerald-200 transition-all text-sm flex items-center gap-2 active:scale-95"
+                  >
+                    <Save size={16} /> ยืนยันข้อมูลถูกต้อง (Confirm & Save)
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setIsAdding(false)}
+                    className="px-6 py-2 rounded-lg font-bold text-slate-600 hover:bg-slate-200 transition-colors text-sm"
+                  >
+                    ยกเลิก (Cancel)
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={!formData.origin || !formData.destination || !formData.subcontractor || !formData.truckType}
+                    className="bg-blue-600 disabled:bg-slate-300 hover:bg-blue-700 text-white px-8 py-2 rounded-lg font-bold shadow-lg shadow-blue-200 transition-all text-sm flex items-center gap-2"
+                  >
+                    <Plus size={16} /> ตรวจสอบข้อมูล (Review Price)
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
