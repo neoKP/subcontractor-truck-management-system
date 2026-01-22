@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.3.2",
+    "buffer": "^6.0.3",
     "firebase": "^12.7.0",
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
