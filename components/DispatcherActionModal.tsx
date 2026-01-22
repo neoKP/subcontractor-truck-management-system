@@ -291,6 +291,17 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                     p.destination.includes(job.destination) &&
                     p.truckType === editData.truckType
                   )
+                  // Group by subcontractor and pick the lowest basePrice
+                  .reduce((unique, item) => {
+                    const existing = unique.find(u => u.subcontractor === item.subcontractor);
+                    if (!existing) {
+                      unique.push(item);
+                    } else if (item.basePrice < existing.basePrice) {
+                      const idx = unique.indexOf(existing);
+                      unique[idx] = item;
+                    }
+                    return unique;
+                  }, [] as PriceMatrix[])
                   .sort((a, b) => a.basePrice - b.basePrice)
                   .slice(0, 3)
                   .map((rec, index) => (

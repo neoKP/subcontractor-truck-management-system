@@ -3,11 +3,12 @@ import { Job, JobStatus, UserRole, AccountingStatus, AuditLog, PriceMatrix } fro
 import { Search, TrendingUp, Clock, CheckCircle, XCircle, AlertCircle, User, MapPin, Truck, Calendar, Edit, UserPlus, CheckSquare, FileText, Trash2, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDate, formatThaiCurrency } from '../utils/format';
 import DispatcherActionModal from './DispatcherActionModal';
+import ConfirmationModal from './ConfirmationModal';
 import Swal from 'sweetalert2';
 
 interface DispatcherDashboardProps {
     jobs: Job[];
-    onUpdateJob: (job: Job) => void;
+    onUpdateJob: (job: Job, logs?: AuditLog[]) => void;
     onDeleteJob: (jobId: string) => void;
     user: { id: string; name: string; role: UserRole };
     priceMatrix?: PriceMatrix[];
@@ -36,6 +37,8 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
     const [filterView, setFilterView] = useState<'all' | 'pending' | 'assigned' | 'completed' | 'rejected'>('all');
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
     const [showActionModal, setShowActionModal] = useState(false);
+    const [showCompletionModal, setShowCompletionModal] = useState(false);
+    const [selectedJobForCompletion, setSelectedJobForCompletion] = useState<Job | null>(null);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -326,8 +329,9 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
         });
 
         if (result.isConfirmed) {
-            // TODO: เปิด Job Completion Modal
-            alert(`✅ ดำเนินการต่อไปยัง Job Completion Modal\nJob ID: ${job.id}`);
+            // เปิด Job Completion Modal แทนการใช้ alert
+            setSelectedJobForCompletion(job);
+            setShowCompletionModal(true);
         }
     };
 
@@ -776,6 +780,23 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
                         setShowActionModal(false);
                         setSelectedJob(null);
                     }}
+                />
+            )}
+
+            {/* Quick Completion Modal */}
+            {showCompletionModal && selectedJobForCompletion && (
+                <ConfirmationModal
+                    job={selectedJobForCompletion}
+                    onClose={() => {
+                        setShowCompletionModal(false);
+                        setSelectedJobForCompletion(null);
+                    }}
+                    onConfirm={(job, newLogs) => {
+                        onUpdateJob(job, newLogs);
+                        setShowCompletionModal(false);
+                        setSelectedJobForCompletion(null);
+                    }}
+                    currentUser={user}
                 />
             )}
         </div>

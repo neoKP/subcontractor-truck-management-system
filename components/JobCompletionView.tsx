@@ -103,12 +103,8 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
     };
 
     const handleEditRejected = (job: Job) => {
-        if (!(window as any).Swal) {
-            alert('กรุณาโหลด SweetAlert2');
-            return;
-        }
-
         const Swal = (window as any).Swal;
+        if (!Swal) return;
 
         Swal.fire({
             title: '🔧 แก้ไขงานที่ถูก Reject',
