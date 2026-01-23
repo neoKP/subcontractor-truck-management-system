@@ -4,7 +4,8 @@ import Swal from 'sweetalert2';
 import { PriceMatrix, MasterData, UserRole } from '../types';
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 import { MASTER_DATA } from '../constants';
-import { Search, MapPin, Truck, Building2, CircleDollarSign, Plus, Edit, Trash2, X, Save, AlertTriangle } from 'lucide-react';
+import { Search, MapPin, Truck, Building2, CircleDollarSign, Plus, Edit, Trash2, X, Save, AlertTriangle, Download, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface PricingTableViewProps {
   priceMatrix: PriceMatrix[];
@@ -181,6 +182,51 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
     setEditingIndex(null);
   };
 
+  const handleExportExcel = () => {
+    // Prepare data for export - use filteredPricing to export what the user sees
+    const dataForExport = filteredPricing.map(p => ({
+      'ต้นทาง (Origin)': p.origin,
+      'ปลายทาง (Destination)': p.destination,
+      'บริษัทรถร่วม (Subcontractor)': p.subcontractor,
+      'ประเภทรถ (Truck Type)': p.truckType,
+      'ราคาทุนรถ (Base Cost)': p.basePrice,
+      'ราคาจ้างงาน (Selling Price)': p.sellingBasePrice,
+      'ค่าจุดดรอป (Drop Fee)': p.dropOffFee || 0
+    }));
+
+    // Create worksheet
+    const worksheet = XLSX.utils.json_to_sheet(dataForExport);
+
+    // Set column widths
+    const wscols = [
+      { wch: 30 }, // Origin
+      { wch: 30 }, // Destination
+      { wch: 25 }, // Subcontractor
+      { wch: 15 }, // Truck Type
+      { wch: 15 }, // Base Cost
+      { wch: 15 }, // Selling Price
+      { wch: 15 }  // Drop Fee
+    ];
+    worksheet['!cols'] = wscols;
+
+    // Create workbook and append worksheet
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Master Pricing');
+
+    // Generate Excel file and trigger download
+    const dateStr = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(workbook, `Subcontractor_Price_Matrix_${dateStr}.xlsx`);
+
+    Swal.fire({
+      title: 'Export สำเร็จ!',
+      text: 'ระบบกำลังดาวน์โหลดไฟล์ Excel...',
+      icon: 'success',
+      timer: 1500,
+      showConfirmButton: false,
+      customClass: { popup: 'rounded-[2rem]' }
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -219,14 +265,23 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
           </select>
         </div>
 
-        {canEdit && (
+        <div className="flex flex-wrap md:flex-nowrap gap-3 w-full xl:w-auto">
           <button
-            onClick={handleAddNew}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-200 transition-all text-sm whitespace-nowrap w-full md:w-auto justify-center"
+            onClick={handleExportExcel}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-emerald-100 transition-all text-sm whitespace-nowrap flex-1 md:flex-none justify-center"
           >
-            <Plus size={18} /> เพิ่มราคากลางใหม่ (Add New Price)
+            <FileSpreadsheet size={18} /> Export Excel
           </button>
-        )}
+
+          {canEdit && (
+            <button
+              onClick={handleAddNew}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-200 transition-all text-sm whitespace-nowrap flex-1 md:flex-none justify-center"
+            >
+              <Plus size={18} /> เพิ่มราคากลางใหม่ (Add New Price)
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm relative">
