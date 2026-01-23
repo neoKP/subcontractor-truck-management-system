@@ -24,8 +24,15 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     driverPhone: job.driverPhone || '',
     licensePlate: job.licensePlate || '',
     cost: job.cost || 0,
-    sellingPrice: job.sellingPrice || 0
+    sellingPrice: job.sellingPrice || 0,
+    origin: job.origin,
+    destination: job.destination
   });
+
+  const [originQuery, setOriginQuery] = useState('');
+  const [destQuery, setDestQuery] = useState('');
+  const [showOriginList, setShowOriginList] = useState(false);
+  const [showDestList, setShowDestList] = useState(false);
 
   const isViewOnly = user.role === UserRole.ACCOUNTANT;
   const isActuallyLocked = (job.isBaseCostLocked &&
@@ -40,13 +47,19 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
   const [priceCalculated, setPriceCalculated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [isContractPrice, setIsContractPrice] = useState(false);
 
   // Use stateful price matrix for lookup
   const calculatePriceLive = (origin: string, destination: string, truckType: string, sub: string): number => {
-    const match = priceMatrix.find(
-      p => p.origin.includes(origin) && p.destination.includes(destination) && p.truckType === truckType && p.subcontractor === sub
-    );
+    const match = priceMatrix.find(p => {
+      const originMatch = p.origin === origin;
+      const destMatch = p.destination === destination;
+      const truckMatch = p.truckType === truckType;
+      const subMatch = p.subcontractor === sub;
+      return originMatch && destMatch && truckMatch && subMatch;
+    });
     if (match) return match.basePrice;
+
 
     return 0; // Return 0 if no match found in matrix
   };
@@ -57,20 +70,26 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     truck: job.truckType
   });
 
-  // Auto-recalculate price when sub or truckType changes
+  // Auto-recalculate price when sub, truckType, origin or destination changes
   useEffect(() => {
     const hasSubChanged = editData.subcontractor !== sessionPriceKeys.sub;
     const hasTruckChanged = editData.truckType !== sessionPriceKeys.truck;
+    const hasOriginChanged = editData.origin !== job.origin;
+    const hasDestChanged = editData.destination !== job.destination;
 
-    // Only auto-recalculate if the subcontractor or truck type has changed DURING this session
-    // This prevents overwriting manual negotiated prices on mount or other unrelated re-renders
-    if (hasSubChanged || hasTruckChanged) {
-      if (editData.subcontractor && editData.truckType) {
-        const newPrice = calculatePriceLive(job.origin, job.destination, editData.truckType, editData.subcontractor);
-        setEditData(prev => ({ ...prev, cost: newPrice }));
-        if (newPrice > 0) {
-          setPriceCalculated(true);
-          setTimeout(() => setPriceCalculated(false), 2000);
+    // Check for contract match regardless of session changes for UI feedback
+    const currentContractPrice = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor);
+    setIsContractPrice(currentContractPrice > 0 && editData.cost === currentContractPrice);
+
+    // Only auto-recalculate if the subcontractor, truck type, or route has changed DURING this session
+    if (hasSubChanged || hasTruckChanged || hasOriginChanged || hasDestChanged) {
+      if (editData.subcontractor && editData.truckType && editData.origin && editData.destination) {
+        if (currentContractPrice > 0 || (hasOriginChanged || hasDestChanged)) {
+          setEditData(prev => ({ ...prev, cost: currentContractPrice }));
+          if (currentContractPrice > 0) {
+            setPriceCalculated(true);
+            setTimeout(() => setPriceCalculated(false), 2000);
+          }
         }
       }
       // Update session values so we don't recalculate again until another real change
@@ -79,7 +98,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
         truck: editData.truckType
       });
     }
-  }, [editData.subcontractor, editData.truckType, sessionPriceKeys, job.origin, job.destination, priceMatrix]);
+  }, [editData.subcontractor, editData.truckType, editData.origin, editData.destination, sessionPriceKeys, job.origin, job.destination, priceMatrix, editData.cost]);
 
   const handleSaveAttempt = async () => {
     if (isSubmitting) return;
@@ -126,13 +145,15 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
       }
     }
 
-    const matrixPrice = calculatePriceLive(job.origin, job.destination, editData.truckType, editData.subcontractor);
+    const matrixPrice = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor);
     const hasChanged =
       (job.status !== JobStatus.NEW_REQUEST && (
         job.subcontractor !== editData.subcontractor ||
         job.truckType !== editData.truckType ||
         job.licensePlate !== editData.licensePlate ||
-        job.cost !== editData.cost
+        job.cost !== editData.cost ||
+        job.origin !== editData.origin ||
+        job.destination !== editData.destination
       )) ||
       (job.status === JobStatus.NEW_REQUEST && editData.subcontractor && editData.cost !== matrixPrice);
 
@@ -156,7 +177,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     const finalReason = reason === 'อื่นๆ (ระบุเอง)' ? customReason : reason;
 
     if (job.status === JobStatus.NEW_REQUEST) {
-      const matrixPrice = calculatePriceLive(job.origin, job.destination, editData.truckType, editData.subcontractor);
+      const matrixPrice = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor);
 
       // Log the assignment
       logs.push(createLog('Assignment', 'Unassigned', `${editData.subcontractor} (${editData.truckType})`, 'New Job Assignment'));
@@ -169,6 +190,12 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
         logs.push(createLog('Price Override', matrixPrice.toString(), editData.cost.toString(), finalReason || 'Price Negotiation'));
       }
     } else {
+      if (job.origin !== editData.origin) {
+        logs.push(createLog('Origin', job.origin, editData.origin, finalReason));
+      }
+      if (job.destination !== editData.destination) {
+        logs.push(createLog('Destination', job.destination, editData.destination, finalReason));
+      }
       if (job.subcontractor !== editData.subcontractor) {
         logs.push(createLog('Subcontractor', job.subcontractor || 'None', editData.subcontractor, finalReason));
       }
@@ -247,16 +274,89 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
           </div>
 
           <div className="flex-1 overflow-y-auto p-8 pt-6 space-y-6 scrollbar-thin">
-            <div className="flex gap-4 p-5 bg-blue-50/50 rounded-3xl border border-blue-100/50">
-              <div className="bg-white p-3 rounded-2xl shadow-sm border border-blue-100 text-blue-600">
-                <Info size={20} />
-              </div>
-              <div className="space-y-1">
-                <p className="text-[11px] font-black text-blue-900 uppercase tracking-wider">รายละเอียดใบงาน (Service Ticket Details)</p>
-                <div className="flex flex-wrap gap-y-1 gap-x-4">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase">ID: <span className="text-slate-900 font-mono font-black">{job.id}</span></div>
-                  <div className="text-[11px] font-bold text-slate-500 uppercase">Route: <span className="text-slate-900">{job.origin} → {job.destination}</span></div>
-                  <div className="text-[11px] font-bold text-slate-500 uppercase">Weight: <span className="text-slate-900">{job.weightVolume}</span></div>
+            <div className="bg-blue-50/50 rounded-3xl border border-blue-100/50">
+              <div className="flex gap-4 p-5">
+                <div className="bg-white p-3 rounded-2xl shadow-sm border border-blue-100 text-blue-600 self-start">
+                  <Info size={20} />
+                </div>
+                <div className="flex-1 space-y-4">
+                  <p className="text-[11px] font-black text-blue-900 uppercase tracking-wider">รายละเอียดใบงาน & เส้นทาง (Ticket & Route)</p>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5 relative">
+                      <label htmlFor="origin-edit-input" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ต้นทาง (Origin)</label>
+                      <input
+                        id="origin-edit-input"
+                        title="แก้ไขต้นทาง (Edit Origin)"
+                        placeholder="พิมพ์เพื่อค้นหาต้นทาง..."
+                        type="text"
+                        disabled={isActuallyLocked}
+                        className="w-full px-3 py-2 rounded-xl border border-blue-100 bg-white/80 font-bold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+                        value={originQuery !== '' ? originQuery : editData.origin}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setOriginQuery(val);
+                          setEditData(prev => ({ ...prev, origin: val }));
+                        }}
+                        onFocus={() => { if (!isActuallyLocked) { setOriginQuery(''); setShowOriginList(true); } }}
+                        onBlur={() => setTimeout(() => { setShowOriginList(false); setOriginQuery(''); }, 200)}
+                      />
+                      {showOriginList && (
+                        <div className="absolute z-[120] left-0 right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl max-h-40 overflow-y-auto py-1 animate-in fade-in zoom-in-95 duration-200">
+                          {MASTER_DATA.locations.filter(l => l.toLowerCase().includes(originQuery.toLowerCase())).map((l, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              className="w-full text-left px-4 py-2 text-xs font-bold hover:bg-blue-50 text-slate-700 transition-colors"
+                              onClick={() => { setEditData(prev => ({ ...prev, origin: l })); setOriginQuery(''); setShowOriginList(false); }}
+                            >
+                              {l}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5 relative">
+                      <label htmlFor="dest-edit-input" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ปลายทาง (Destination)</label>
+                      <input
+                        id="dest-edit-input"
+                        title="แก้ไขปลายทาง (Edit Destination)"
+                        placeholder="พิมพ์เพื่อค้นหาปลายทาง..."
+                        type="text"
+                        disabled={isActuallyLocked}
+                        className="w-full px-3 py-2 rounded-xl border border-blue-100 bg-white/80 font-bold text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+                        value={destQuery !== '' ? destQuery : editData.destination}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setDestQuery(val);
+                          setEditData(prev => ({ ...prev, destination: val }));
+                        }}
+                        onFocus={() => { if (!isActuallyLocked) { setDestQuery(''); setShowDestList(true); } }}
+                        onBlur={() => setTimeout(() => { setShowDestList(false); setDestQuery(''); }, 200)}
+                      />
+                      {showDestList && (
+                        <div className="absolute z-[120] left-0 right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl max-h-40 overflow-y-auto py-1 animate-in fade-in zoom-in-95 duration-200">
+                          {MASTER_DATA.locations.filter(l => l.toLowerCase().includes(destQuery.toLowerCase())).map((l, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              className="w-full text-left px-4 py-2 text-xs font-bold hover:bg-blue-50 text-slate-700 transition-colors"
+                              onClick={() => { setEditData(prev => ({ ...prev, destination: l })); setDestQuery(''); setShowDestList(false); }}
+                            >
+                              {l}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-y-1 gap-x-4 pt-1">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase">Ticket ID: <span className="text-slate-900 font-mono font-black">{job.id}</span></div>
+                    <div className="text-[10px] font-bold text-slate-500 uppercase">Weight: <span className="text-slate-900">{job.weightVolume}</span></div>
+                    {isActuallyLocked && <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">ROUTE LOCKED BY ACCOUNTING</span>}
+                  </div>
                 </div>
               </div>
             </div>
@@ -287,10 +387,11 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
               <div className="grid grid-cols-1 gap-2">
                 {priceMatrix
                   .filter(p =>
-                    p.origin.includes(job.origin) &&
-                    p.destination.includes(job.destination) &&
+                    p.origin === editData.origin &&
+                    p.destination === editData.destination &&
                     p.truckType === editData.truckType
                   )
+
                   // Group by subcontractor and pick the lowest basePrice
                   .reduce((unique, item) => {
                     const existing = unique.find(u => u.subcontractor === item.subcontractor);
@@ -336,7 +437,8 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                     </button>
                   ))
                 }
-                {priceMatrix.filter(p => p.origin.includes(job.origin) && p.destination.includes(job.destination) && p.truckType === editData.truckType).length === 0 && (
+                {priceMatrix.filter(p => p.origin === editData.origin && p.destination === editData.destination && p.truckType === editData.truckType).length === 0 && (
+
                   <div className="text-[11px] font-bold text-slate-400 italic p-3 border border-dashed border-slate-200 rounded-xl text-center">
                     ไม่พบข้อมูลราคากลางสำหรับเส้นทางและประเภทรถนี้ (No pricing records found)
                   </div>
@@ -449,8 +551,18 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                       setPriceCalculated(false);
                     }}
                   />
+                  {isContractPrice && !isActuallyLocked && (
+                    <div className="absolute -top-6 left-0 flex items-center gap-1.5 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                      <CheckCircle size={10} /> MATCHED CONTRACT PRICE (ราคาตรงตามสัญญา)
+                    </div>
+                  )}
+                  {!isContractPrice && editData.cost > 0 && !isActuallyLocked && (
+                    <div className="absolute -top-6 left-0 flex items-center gap-1.5 text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                      <AlertCircle size={10} /> NEGOTIATED PRICE (ราคาพิเศษ/ต่อรอง)
+                    </div>
+                  )}
                   {priceCalculated && !isActuallyLocked && (
-                    <div className="absolute -top-6 right-0 text-[10px] font-black text-emerald-600 animate-bounce">✓ AUTO-CALCULATED</div>
+                    <div className="absolute -top-6 right-0 text-[10px] font-black text-emerald-600 animate-bounce">✓ AUTO-SYNCED</div>
                   )}
                   {isActuallyLocked && (
                     <div className="absolute -top-6 right-0 text-[10px] font-black text-rose-600 flex items-center gap-1"><Lock size={10} /> ราคานี้ผ่านการตรวจสอบแล้ว (AUDITED VALUE)</div>

@@ -3,6 +3,8 @@ import { Job, JobStatus, UserRole } from '../types';
 import { Search, Download, CheckCircle, Clock, TrendingUp, AlertCircle, User } from 'lucide-react';
 import { formatDate, formatThaiCurrency } from '../utils/format';
 import ReviewConfirmModal from './ReviewConfirmModal';
+import DispatcherActionModal from './DispatcherActionModal';
+
 
 interface ReviewConfirmDashboardProps {
     jobs: Job[];
@@ -25,7 +27,9 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+    const [editingJob, setEditingJob] = useState<Job | null>(null);
     const [filterView, setFilterView] = useState<'all' | 'incomplete' | 'complete'>('all');
+
 
     // กรองงานที่ ASSIGNED และยังไม่ล็อกราคา (เฉพาะงานที่รอตรวจทาน)
     const assignedJobs = jobs.filter(job =>
@@ -326,20 +330,18 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
 
                                     {/* Action Buttons */}
                                     <div className="flex flex-col gap-2 shrink-0">
-                                        {!isComplete && (
-                                            <button
-                                                onClick={() => {
-                                                    // TODO: Open edit modal
-                                                    alert(`แก้ไขข้อมูลงาน ${job.id}\nขาด: ${missingFields.join(', ')}`);
-                                                }}
-                                                className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black shadow-lg shadow-orange-200 transition-all flex items-center gap-2 whitespace-nowrap"
-                                            >
-                                                🔧 แก้ไขข้อมูล
-                                            </button>
-                                        )}
                                         <button
+                                            id={`rc-btn-edit-${job.id}`}
+                                            onClick={() => setEditingJob(job)}
+                                            className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black shadow-lg shadow-orange-200 transition-all flex items-center gap-2 whitespace-nowrap"
+                                        >
+                                            🔧 แก้ไขข้อมูล
+                                        </button>
+                                        <button
+                                            id={`rc-btn-review-${job.id}`}
                                             onClick={() => setSelectedJob(job)}
                                             disabled={!isComplete}
+
                                             className={`px-6 py-3 rounded-xl font-black shadow-lg transition-all flex items-center gap-2 whitespace-nowrap ${isComplete
                                                 ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 cursor-pointer'
                                                 : 'bg-slate-300 text-slate-500 shadow-slate-200 cursor-not-allowed opacity-60'
@@ -349,6 +351,7 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                                             ตรวจทาน
                                         </button>
                                     </div>
+
                                 </div>
                             </div>
                         );
@@ -395,14 +398,33 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                         }
                     }}
                     onEdit={() => {
+                        setEditingJob(selectedJob);
                         setSelectedJob(null);
                     }}
+
                     onClose={() => {
                         setSelectedJob(null);
                     }}
                 />
             )}
+
+            {/* Edit Modal */}
+            {editingJob && (
+                <DispatcherActionModal
+                    job={editingJob}
+                    user={user}
+                    priceMatrix={priceMatrix}
+                    logs={logs}
+                    logsLoaded={logsLoaded}
+                    onClose={() => setEditingJob(null)}
+                    onSave={(updatedJob) => {
+                        onSave(updatedJob);
+                        setEditingJob(null);
+                    }}
+                />
+            )}
         </div>
+
     );
 };
 

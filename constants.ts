@@ -4,7 +4,7 @@ import { MasterData, PriceMatrix } from './types';
 export const MASTER_DATA: MasterData = {
   locations: [
     'ซีโน่ คลองส่งน้ำ', 'เมืองกำแพงเพชร', 'เมืองเชียงราย', 'เมืองเชียงใหม่', 'เมืองนครสวรรค์',
-    'เมืองพิจิตร', 'เมืองพิษณุโลก', 'เมืองลำปาง', 'นิคมสมุทรสาคร', 'แม่สอด', 'แม่สาย เชียงราย',
+    'เมืองพิจิตร', 'เมืองพิษณุโลก', 'นีโอสยาม พิษณุโลก', 'Makro ST.11 พิษณุโลก', 'เมืองลำปาง', 'นิคมสมุทรสาคร', 'แม่สอด', 'แม่สาย เชียงราย',
     'รามอินทรา', 'ศาลายา', 'โบทาเร่ ลาดกระบัง', 'DC1 โพธาราม', 'DC2 ฉะเชิงเทรา', 'DC3 บางวัว',
     'DC4 ขอนแก่น', 'เมืองขอนแก่น', 'โคราช', 'ด่านคลองใหญ่', 'ด่านอรัญประเทศ', 'นครนายก',
     'นครปฐม', 'บางปะกง', 'ปราณบุรี', 'ฝั่งกรุง', 'ฝั่งธนบุรี', 'ปทุมธานี', 'พระนครศรีอยุธยา',
@@ -116,19 +116,19 @@ export const PRICE_MATRIX: PriceMatrix[] = [
   { origin: 'โบทาเร่ ลาดกระบัง', destination: 'DC3 บางวัว', subcontractor: 'YSK', truckType: '6w', basePrice: 4250, sellingBasePrice: 4250 },
   { origin: 'โบทาเร่ ลาดกระบัง', destination: 'DC4 ขอนแก่น', subcontractor: 'YSK', truckType: '6w', basePrice: 11475, sellingBasePrice: 11475 },
   { origin: 'โบทาเร่ ลาดกระบัง', destination: 'กำแพงเพชร', subcontractor: 'YSK', truckType: '6w', basePrice: 9350, sellingBasePrice: 9350 },
-  { origin: 'นีโอคอร์ปอเรท คลอง13 / ไทยเทพรส', destination: 'นีโอสยามพิษณุโลก', subcontractor: 'YSK', truckType: '10w', basePrice: 8500, sellingBasePrice: 8500 },
-  { origin: 'นีโอคอร์ปอเรท คลอง13 / ไทยเทพรส', destination: 'นีโอสยามพิษณุโลก', subcontractor: 'YSK', truckType: '18w', basePrice: 12500, sellingBasePrice: 12500 },
-  { origin: 'นีโอคอร์ปอเรท คลอง13 / ไทยเทพรส', destination: 'นีโอสยามพิษณุโลก', subcontractor: 'YSK', truckType: '6w', basePrice: 7500, sellingBasePrice: 7500 },
+  { origin: 'นีโอคอร์ปอเรท คลอง13 / ไทยเทพรส', destination: 'นีโอสยาม พิษณุโลก', subcontractor: 'YSK', truckType: '10w', basePrice: 8500, sellingBasePrice: 8500 },
+  { origin: 'นีโอคอร์ปอเรท คลอง13 / ไทยเทพรส', destination: 'นีโอสยาม พิษณุโลก', subcontractor: 'YSK', truckType: '18w', basePrice: 12500, sellingBasePrice: 12500 },
+  { origin: 'นีโอคอร์ปอเรท คลอง13 / ไทยเทพรส', destination: 'นีโอสยาม พิษณุโลก', subcontractor: 'YSK', truckType: '6w', basePrice: 7500, sellingBasePrice: 7500 },
 
   // Benjawan Transport
-  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'ekp ลำปาง', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w', basePrice: 15300, sellingBasePrice: 15300 },
-  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'ekp ลำปาง', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w พ่วง', basePrice: 21000, dropOffFee: 1000, sellingBasePrice: 21000 },
-  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'นีโอสยาม พิษณุโลก', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '10w พ่วง', basePrice: 16500, dropOffFee: 1000, sellingBasePrice: 16500 },
-  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'นีโอสยาม พิษณุโลก', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w', basePrice: 10000, sellingBasePrice: 10000 },
-  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'นีโอสยาม พิษณุโลก', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w พ่วง', basePrice: 13800, dropOffFee: 1000, sellingBasePrice: 13800 },
-  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'นีโอสยามกำแพงเพชร', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '10w พ่วง', basePrice: 16500, dropOffFee: 1000, sellingBasePrice: 16500 },
-  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'นีโอสยามกำแพงเพชร', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w', basePrice: 7500, sellingBasePrice: 7500 },
-  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'นีโอสยามกำแพงเพชร', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w พ่วง', basePrice: 13500, dropOffFee: 1000, sellingBasePrice: 13500 },
+  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองลำปาง', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w', basePrice: 15300, sellingBasePrice: 15300 },
+  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองลำปาง', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w พ่วง', basePrice: 21000, dropOffFee: 1000, sellingBasePrice: 21000 },
+  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองพิษณุโลก', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '10w พ่วง', basePrice: 16500, dropOffFee: 1000, sellingBasePrice: 16500 },
+  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองพิษณุโลก', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w', basePrice: 10000, sellingBasePrice: 10000 },
+  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองพิษณุโลก', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w พ่วง', basePrice: 13800, dropOffFee: 1000, sellingBasePrice: 13800 },
+  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองกำแพงเพชร', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '10w พ่วง', basePrice: 16500, dropOffFee: 1000, sellingBasePrice: 16500 },
+  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองกำแพงเพชร', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w', basePrice: 7500, sellingBasePrice: 7500 },
+  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองกำแพงเพชร', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w พ่วง', basePrice: 13500, dropOffFee: 1000, sellingBasePrice: 13500 },
   { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองขอนแก่น', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w พ่วง', basePrice: 15000, dropOffFee: 1000, sellingBasePrice: 15000 },
   { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองเชียงราย', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '10w', basePrice: 24500, sellingBasePrice: 24500 },
   { origin: 'นีโอ คลอง13', destination: 'เมืองเชียงราย', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '10w พ่วง', basePrice: 27000, dropOffFee: 1000, sellingBasePrice: 27000 },
@@ -152,9 +152,13 @@ export const PRICE_MATRIX: PriceMatrix[] = [
 ];
 
 export const calculatePrice = (origin: string, destination: string, truckType: string, sub: string): number => {
-  const match = PRICE_MATRIX.find(
-    p => p.origin.includes(origin) && p.destination.includes(destination) && p.truckType === truckType && p.subcontractor === sub
-  );
+  const match = PRICE_MATRIX.find(p => {
+    const originMatch = p.origin === origin;
+    const destMatch = p.destination === destination;
+    const truckMatch = p.truckType === truckType;
+    const subMatch = p.subcontractor === sub;
+    return originMatch && destMatch && truckMatch && subMatch;
+  });
   if (match) return match.basePrice;
 
   // Generic fallback logic

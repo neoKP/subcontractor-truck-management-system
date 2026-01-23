@@ -291,8 +291,11 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
 
                     <div className="flex justify-between items-center gap-4">
                         <button
+                            id={`modal-btn-edit-${job?.id || 'new'}`}
                             onClick={onEdit}
                             className="flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all uppercase tracking-widest text-sm border-2 border-slate-200 hover:border-slate-300"
+
+
                         >
                             <ArrowLeft size={18} />
                             กลับไปแก้ไข (Edit)

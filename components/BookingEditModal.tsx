@@ -19,11 +19,12 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
 
         // Find all matches for this route/truck
         const matches = priceMatrix.filter(p => {
-            const originMatch = p.origin.includes(origin) || origin.includes(p.origin);
-            const destMatch = p.destination.includes(dest) || dest.includes(p.destination);
+            const originMatch = p.origin === origin;
+            const destMatch = p.destination === dest;
             const truckMatch = p.truckType === truck;
             return originMatch && destMatch && truckMatch;
         });
+
 
         if (sub && sub !== '') {
             return matches.find(m => m.subcontractor === sub) || null;
@@ -54,8 +55,8 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
     const allMatches = (!editData.origin || !editData.destination || !editData.truckType)
         ? []
         : priceMatrix.filter(p => {
-            const originMatch = (p.origin.toLowerCase().includes(editData.origin.toLowerCase()) || editData.origin.toLowerCase().includes(p.origin.toLowerCase()));
-            const destMatch = (p.destination.toLowerCase().includes(editData.destination.toLowerCase()) || editData.destination.toLowerCase().includes(p.destination.toLowerCase()));
+            const originMatch = p.origin === editData.origin;
+            const destMatch = p.destination === editData.destination;
             const truckMatch = p.truckType === editData.truckType;
             return originMatch && destMatch && truckMatch;
         });
