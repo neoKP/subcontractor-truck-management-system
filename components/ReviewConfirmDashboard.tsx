@@ -244,7 +244,7 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                         <p className="text-sm font-bold text-slate-400">ลองเปลี่ยน Filter หรือคำค้นหา</p>
                     </div>
                 ) : (
-                    filteredJobs.map((job) => {
+                    filteredJobs.map((job, index) => {
                         const isComplete = isFleetInfoComplete(job);
                         const missingFields = [];
                         if (!job.driverName) missingFields.push('ชื่อคนขับ');
@@ -331,14 +331,14 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                                     {/* Action Buttons */}
                                     <div className="flex flex-col gap-2 shrink-0">
                                         <button
-                                            id={`rc-btn-edit-${job.id}`}
+                                            id={`rc-btn-edit-${job.id}-${filterView}-${index}`}
                                             onClick={() => setEditingJob(job)}
                                             className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black shadow-lg shadow-orange-200 transition-all flex items-center gap-2 whitespace-nowrap"
                                         >
                                             🔧 แก้ไขข้อมูล
                                         </button>
                                         <button
-                                            id={`rc-btn-review-${job.id}`}
+                                            id={`rc-btn-review-${job.id}-${filterView}-${index}`}
                                             onClick={() => setSelectedJob(job)}
                                             disabled={!isComplete}
 

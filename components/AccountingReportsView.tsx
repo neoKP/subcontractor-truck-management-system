@@ -130,7 +130,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                 if (subClean !== targetClean) return false;
             }
             if (selectedRoute) {
-                const currentRoute = `${j.origin.split(' ')[0]} → ${j.destination.split(' ')[0]}`;
+                const currentRoute = `${j.origin} → ${j.destination}`;
                 if (currentRoute !== selectedRoute) return false;
             }
 
@@ -183,7 +183,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                 if (subClean !== targetClean) return;
             }
             if (selectedRoute) {
-                const currentRoute = `${j.origin.split(' ')[0]} → ${j.destination.split(' ')[0]}`;
+                const currentRoute = `${j.origin} → ${j.destination}`;
                 if (currentRoute !== selectedRoute) return;
             }
 
@@ -218,7 +218,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
     const routePerformanceData = useMemo(() => {
         const dist: Record<string, number> = {};
         validJobs.forEach(j => {
-            const route = `${j.origin.split(' ')[0]} → ${j.destination.split(' ')[0]}`;
+            const route = `${j.origin} → ${j.destination}`;
             dist[route] = (dist[route] || 0) + (j.cost || 0);
         });
         return Object.entries(dist)
@@ -233,7 +233,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
         validJobs.forEach(j => {
             const key = groupBy === 'sub'
                 ? (j.subcontractor || 'Waiting').replace(/\s*BO$/i, '').trim()
-                : `${j.origin.split(' ')[0]} → ${j.destination.split(' ')[0]}`;
+                : `${j.origin} → ${j.destination}`;
 
             if (!groups[key]) groups[key] = { name: key, jobs: 0, cost: 0 };
             groups[key].jobs += 1;
@@ -474,11 +474,11 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                                 {isMounted && (
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart
-                                            data={routePerformanceData} layout="vertical" margin={{ left: 20, right: 40, top: 0, bottom: 0 }}
+                                            data={routePerformanceData} layout="vertical" margin={{ left: 0, right: 40, top: 0, bottom: 0 }}
                                             onClick={(e) => e && e.activePayload && setSelectedRoute(selectedRoute === e.activePayload[0].payload.name ? null : e.activePayload[0].payload.name)}
                                         >
                                             <XAxis type="number" hide />
-                                            <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 800 }} width={110} />
+                                            <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 800 }} width={220} />
                                             <Tooltip cursor={{ fill: '#f8fafc' }} />
                                             <Bar dataKey="value" radius={[0, 10, 10, 0]} className="cursor-pointer">
                                                 {routePerformanceData.map((entry, i) => (
