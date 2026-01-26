@@ -53,6 +53,7 @@ const UserManagementView: React.FC<UserManagementViewProps> = ({
               <option value="${UserRole.DISPATCHER}">Dispatcher (ฝ่ายจัดรถ)</option>
               <option value="${UserRole.ACCOUNTANT}">Accountant (ฝ่ายบัญชี)</option>
               <option value="${UserRole.ADMIN}">Admin (ผู้ดูแลระบบ)</option>
+              <option value="${UserRole.FIELD_OFFICER}">Field Officer (เจ้าหน้าที่หน้างาน)</option>
             </select>
           </div>
         </div>
@@ -119,6 +120,7 @@ const UserManagementView: React.FC<UserManagementViewProps> = ({
               <option value="${UserRole.DISPATCHER}" ${user.role === UserRole.DISPATCHER ? 'selected' : ''}>Dispatcher</option>
               <option value="${UserRole.ACCOUNTANT}" ${user.role === UserRole.ACCOUNTANT ? 'selected' : ''}>Accountant</option>
               <option value="${UserRole.ADMIN}" ${user.role === UserRole.ADMIN ? 'selected' : ''}>Admin</option>
+              <option value="${UserRole.FIELD_OFFICER}" ${user.role === UserRole.FIELD_OFFICER ? 'selected' : ''}>Field Officer</option>
             </select>
           </div>
         </div>

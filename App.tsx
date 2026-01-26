@@ -27,6 +27,7 @@ import { db, ref, onValue, set, remove } from './firebaseConfig';
 
 // Initial Users Data for Seeding
 const INITIAL_USERS = [
+  { id: 'FIELD_001', name: 'Field Operator (หน้างาน)', role: UserRole.FIELD_OFFICER, username: 'FIELD001', password: 'f111' },
   { id: 'ADMIN_001', name: 'System Admin', role: UserRole.ADMIN, username: 'ADMIN001', password: 'a888' },
   { id: 'ACCOUNTANT_001', name: 'ADMIN Accountant', role: UserRole.ACCOUNTANT, username: 'ACCOUNT001', password: 'ac999' },
   { id: 'DISPATCHER_001', name: 'Fleet Dispatcher', role: UserRole.DISPATCHER, username: 'DISPATCH001', password: 't777' },
@@ -38,7 +39,7 @@ const INITIAL_USERS = [
   { id: 'BOOKING_006', name: 'ชุติมา สีหาบุตร', role: UserRole.DISPATCHER, username: 'BOOKING006', password: 'b006' },
   { id: 'BOOKING_007', name: 'เยาวนันท์ จันทรพิทักษ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING007', password: 'b007' },
   { id: 'BOOKING_008', name: 'ขนิษฐา วัฒนวิกย์กรรม์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING008', password: 'b008' },
-  { id: 'BOOKING_009', name: 'สุพัชญ์กานต์ ธีระภัณฑ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING009', password: 'b009' },
+  { id: 'BOOKING_009', name: 'สุพัชญ์กานต์ ธีระภัณฑ์', role: UserRole.BOOKING_OFFICER, username: 'BOOKING009', password: 'b009' }
 ];
 
 const App: React.FC = () => {
@@ -141,7 +142,15 @@ const App: React.FC = () => {
     const unsubscribeUsers = onValue(usersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        setUsers(Object.values(data));
+        let allUsers = Object.values(data);
+
+        // Ensure FIELD_001 is always in the local list for the testing purpose
+        const field001Exists = allUsers.some((u: any) => u.username === 'FIELD001');
+        if (!field001Exists) {
+          allUsers.unshift(INITIAL_USERS[0]);
+        }
+
+        setUsers(allUsers);
 
         // Force sync Role for specific user if needed (one-time fix for existing DB)
         const user006 = Object.values(data).find((u: any) => u.id === 'BOOKING_006');
@@ -169,6 +178,15 @@ const App: React.FC = () => {
 
           if (needsUpdate) {
             set(ref(db, `users/${(userThanakorn as any).id}`), updatedUser);
+          }
+        }
+
+        // 3. Ensure FIELD_001 for testing exists
+        const fieldUser = Object.values(data).find((u: any) => u.id === 'FIELD_001');
+        if (!fieldUser) {
+          const newUser = INITIAL_USERS.find(u => u.id === 'FIELD_001');
+          if (newUser) {
+            set(ref(db, `users/FIELD_001`), newUser);
           }
         }
       } else {
@@ -345,6 +363,8 @@ const App: React.FC = () => {
     // Determine initial tab based on role
     if (user.role === UserRole.BOOKING_OFFICER) {
       setActiveTab('board');
+    } else if (user.role === UserRole.FIELD_OFFICER) {
+      setActiveTab('completion');
     } else {
       setActiveTab('analytics');
     }
@@ -401,12 +421,12 @@ const App: React.FC = () => {
             <DailyReportView jobs={jobs} currentUser={currentUser} />
           )}
 
-          {activeTab === 'completion' && [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.BOOKING_OFFICER].includes(currentUser.role) && (
+          {activeTab === 'completion' && [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.BOOKING_OFFICER, UserRole.FIELD_OFFICER].includes(currentUser.role) && (
             <JobCompletionView
               jobs={currentUser.role === UserRole.BOOKING_OFFICER ? jobs.filter(j => j.requestedBy === currentUser.id) : jobs}
               user={currentUser}
               onUpdateJob={updateJob}
-              hidePrice={currentUser.role === UserRole.BOOKING_OFFICER}
+              hidePrice={[UserRole.BOOKING_OFFICER, UserRole.FIELD_OFFICER].includes(currentUser.role)}
             />
           )}
 

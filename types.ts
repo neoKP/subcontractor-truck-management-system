@@ -3,14 +3,16 @@ export enum UserRole {
   BOOKING_OFFICER = 'BOOKING_OFFICER',
   DISPATCHER = 'DISPATCHER',
   ACCOUNTANT = 'ACCOUNTANT',
-  ADMIN = 'ADMIN'
+  ADMIN = 'ADMIN',
+  FIELD_OFFICER = 'FIELD_OFFICER'
 }
 
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.BOOKING_OFFICER]: 'เจ้าหน้าที่ Booking (Booking Officer)',
   [UserRole.DISPATCHER]: 'เจ้าหน้าที่จัดรถ (Dispatcher)',
   [UserRole.ACCOUNTANT]: 'เจ้าหน้าที่บัญชี (Accountant)',
-  [UserRole.ADMIN]: 'ผู้ดูแลระบบ (Admin)'
+  [UserRole.ADMIN]: 'ผู้ดูแลระบบ (Admin)',
+  [UserRole.FIELD_OFFICER]: 'เจ้าหน้าที่หน้างาน (Field Officer)'
 };
 
 export enum JobStatus {
