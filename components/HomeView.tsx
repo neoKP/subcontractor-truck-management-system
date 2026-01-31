@@ -83,7 +83,7 @@ const HomeView: React.FC<HomeViewProps> = ({ jobs, user, onTabChange, onLoginCli
                         <h2 className="text-lg font-black tracking-tighter text-white leading-none">
                             Neo<span className="text-cyan-400">Siam</span> Logistics
                         </h2>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Operational Management System</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">subcontractor-truck-management-system</p>
                     </div>
                 </div>
 
