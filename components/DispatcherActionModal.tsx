@@ -35,6 +35,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
   const [showDestList, setShowDestList] = useState(false);
 
   const isViewOnly = user.role === UserRole.ACCOUNTANT;
+  const hidePrice = [UserRole.BOOKING_OFFICER, UserRole.FIELD_OFFICER].includes(user.role);
   const isActuallyLocked = (job.isBaseCostLocked &&
     user.role !== UserRole.ADMIN &&
     job.accountingStatus !== AccountingStatus.REJECTED &&
@@ -377,74 +378,76 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
             )}
 
             {/* Smart Recommendation System */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                  Smart Recommendation / แนะนำบริษัทที่ราคาถูกที่สุด
-                </label>
-              </div>
-              <div className="grid grid-cols-1 gap-2">
-                {priceMatrix
-                  .filter(p =>
-                    p.origin === editData.origin &&
-                    p.destination === editData.destination &&
-                    p.truckType === editData.truckType
-                  )
+            {!hidePrice && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                    Smart Recommendation / แนะนำบริษัทที่ราคาถูกที่สุด
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {priceMatrix
+                    .filter(p =>
+                      p.origin === editData.origin &&
+                      p.destination === editData.destination &&
+                      p.truckType === editData.truckType
+                    )
 
-                  // Group by subcontractor and pick the lowest basePrice
-                  .reduce((unique, item) => {
-                    const existing = unique.find(u => u.subcontractor === item.subcontractor);
-                    if (!existing) {
-                      unique.push(item);
-                    } else if (item.basePrice < existing.basePrice) {
-                      const idx = unique.indexOf(existing);
-                      unique[idx] = item;
-                    }
-                    return unique;
-                  }, [] as PriceMatrix[])
-                  .sort((a, b) => a.basePrice - b.basePrice)
-                  .slice(0, 3)
-                  .map((rec, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => {
-                        setEditData({
-                          ...editData,
-                          subcontractor: rec.subcontractor,
-                          cost: rec.basePrice,
-                          sellingPrice: rec.sellingBasePrice || editData.sellingPrice
-                        });
-                        setPriceCalculated(true);
-                        setTimeout(() => setPriceCalculated(false), 2000);
-                      }}
-                      className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all group ${editData.subcontractor === rec.subcontractor ? 'border-emerald-500 bg-emerald-50' : 'border-slate-50 bg-slate-50/50 hover:border-blue-200 hover:bg-white'}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-black ${index === 0 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'bg-slate-200 text-slate-500'}`}>
-                          {index + 1}
+                    // Group by subcontractor and pick the lowest basePrice
+                    .reduce((unique, item) => {
+                      const existing = unique.find(u => u.subcontractor === item.subcontractor);
+                      if (!existing) {
+                        unique.push(item);
+                      } else if (item.basePrice < existing.basePrice) {
+                        const idx = unique.indexOf(existing);
+                        unique[idx] = item;
+                      }
+                      return unique;
+                    }, [] as PriceMatrix[])
+                    .sort((a, b) => a.basePrice - b.basePrice)
+                    .slice(0, 3)
+                    .map((rec, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => {
+                          setEditData({
+                            ...editData,
+                            subcontractor: rec.subcontractor,
+                            cost: rec.basePrice,
+                            sellingPrice: rec.sellingBasePrice || editData.sellingPrice
+                          });
+                          setPriceCalculated(true);
+                          setTimeout(() => setPriceCalculated(false), 2000);
+                        }}
+                        className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all group ${editData.subcontractor === rec.subcontractor ? 'border-emerald-500 bg-emerald-50' : 'border-slate-50 bg-slate-50/50 hover:border-blue-200 hover:bg-white'}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-black ${index === 0 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'bg-slate-200 text-slate-500'}`}>
+                            {index + 1}
+                          </div>
+                          <div className="text-left">
+                            <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{rec.subcontractor}</p>
+                            <p className="text-[10px] font-bold text-slate-400">ราคาตรงตามเส้นทาง (Perfect Match for Route)</p>
+                          </div>
                         </div>
-                        <div className="text-left">
-                          <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{rec.subcontractor}</p>
-                          <p className="text-[10px] font-bold text-slate-400">ราคาตรงตามเส้นทาง (Perfect Match for Route)</p>
+                        <div className="text-right">
+                          <p className="text-sm font-black text-emerald-600">฿{formatThaiCurrency(Number(rec.basePrice) || 0)}</p>
+                          <p className="text-[9px] font-black text-slate-300 uppercase">กดเพื่อเลือก (Select This)</p>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-black text-emerald-600">฿{formatThaiCurrency(Number(rec.basePrice) || 0)}</p>
-                        <p className="text-[9px] font-black text-slate-300 uppercase">กดเพื่อเลือก (Select This)</p>
-                      </div>
-                    </button>
-                  ))
-                }
-                {priceMatrix.filter(p => p.origin === editData.origin && p.destination === editData.destination && p.truckType === editData.truckType).length === 0 && (
+                      </button>
+                    ))
+                  }
+                  {priceMatrix.filter(p => p.origin === editData.origin && p.destination === editData.destination && p.truckType === editData.truckType).length === 0 && (
 
-                  <div className="text-[11px] font-bold text-slate-400 italic p-3 border border-dashed border-slate-200 rounded-xl text-center">
-                    ไม่พบข้อมูลราคากลางสำหรับเส้นทางและประเภทรถนี้ (No pricing records found)
-                  </div>
-                )}
+                    <div className="text-[11px] font-bold text-slate-400 italic p-3 border border-dashed border-slate-200 rounded-xl text-center">
+                      ไม่พบข้อมูลราคากลางสำหรับเส้นทางและประเภทรถนี้ (No pricing records found)
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-2 gap-5">
               <div className="col-span-2 space-y-1.5 relative">
@@ -531,44 +534,46 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                 </select>
               </div>
 
-              <div className="space-y-1.5 relative">
-                <label htmlFor="cost-input" className="text-[11px] font-black text-slate-400 uppercase tracking-wider">
-                  ค่าจ้างรถร่วม (Subcontractor Cost) {isActuallyLocked && <span className="text-rose-600 ml-1">🔒</span>}
-                </label>
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">฿</div>
-                  <input
-                    id="cost-input"
-                    title="ค่าจ้างรถร่วม (Subcontractor Cost)"
-                    placeholder="0.00"
-                    type="number"
-                    disabled={isSubmitting || isActuallyLocked}
-                    className={`w-full px-10 py-3 rounded-xl border font-bold text-lg transition-all ${isActuallyLocked ? 'bg-slate-50 border-slate-100 text-slate-400' : (priceCalculated ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-800 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none')}`}
-                    value={editData.cost || ''}
-                    onChange={e => {
-                      const val = parseFloat(e.target.value);
-                      setEditData({ ...editData, cost: val });
-                      setPriceCalculated(false);
-                    }}
-                  />
-                  {isContractPrice && !isActuallyLocked && (
-                    <div className="absolute -top-6 left-0 flex items-center gap-1.5 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-                      <CheckCircle size={10} /> MATCHED CONTRACT PRICE (ราคาตรงตามสัญญา)
-                    </div>
-                  )}
-                  {!isContractPrice && editData.cost > 0 && !isActuallyLocked && (
-                    <div className="absolute -top-6 left-0 flex items-center gap-1.5 text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
-                      <AlertCircle size={10} /> NEGOTIATED PRICE (ราคาพิเศษ/ต่อรอง)
-                    </div>
-                  )}
-                  {priceCalculated && !isActuallyLocked && (
-                    <div className="absolute -top-6 right-0 text-[10px] font-black text-emerald-600 animate-bounce">✓ AUTO-SYNCED</div>
-                  )}
-                  {isActuallyLocked && (
-                    <div className="absolute -top-6 right-0 text-[10px] font-black text-rose-600 flex items-center gap-1"><Lock size={10} /> ราคานี้ผ่านการตรวจสอบแล้ว (AUDITED VALUE)</div>
-                  )}
+              {!hidePrice && (
+                <div className="space-y-1.5 relative">
+                  <label htmlFor="cost-input" className="text-[11px] font-black text-slate-400 uppercase tracking-wider">
+                    ค่าจ้างรถร่วม (Subcontractor Cost) {isActuallyLocked && <span className="text-rose-600 ml-1">🔒</span>}
+                  </label>
+                  <div className="relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">฿</div>
+                    <input
+                      id="cost-input"
+                      title="ค่าจ้างรถร่วม (Subcontractor Cost)"
+                      placeholder="0.00"
+                      type="number"
+                      disabled={isSubmitting || isActuallyLocked}
+                      className={`w-full px-10 py-3 rounded-xl border font-bold text-lg transition-all ${isActuallyLocked ? 'bg-slate-50 border-slate-100 text-slate-400' : (priceCalculated ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-800 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none')}`}
+                      value={editData.cost || ''}
+                      onChange={e => {
+                        const val = parseFloat(e.target.value);
+                        setEditData({ ...editData, cost: val });
+                        setPriceCalculated(false);
+                      }}
+                    />
+                    {isContractPrice && !isActuallyLocked && (
+                      <div className="absolute -top-6 left-0 flex items-center gap-1.5 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                        <CheckCircle size={10} /> MATCHED CONTRACT PRICE (ราคาตรงตามสัญญา)
+                      </div>
+                    )}
+                    {!isContractPrice && editData.cost > 0 && !isActuallyLocked && (
+                      <div className="absolute -top-6 left-0 flex items-center gap-1.5 text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                        <AlertCircle size={10} /> NEGOTIATED PRICE (ราคาพิเศษ/ต่อรอง)
+                      </div>
+                    )}
+                    {priceCalculated && !isActuallyLocked && (
+                      <div className="absolute -top-6 right-0 text-[10px] font-black text-emerald-600 animate-bounce">✓ AUTO-SYNCED</div>
+                    )}
+                    {isActuallyLocked && (
+                      <div className="absolute -top-6 right-0 text-[10px] font-black text-rose-600 flex items-center gap-1"><Lock size={10} /> ราคานี้ผ่านการตรวจสอบแล้ว (AUDITED VALUE)</div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
             </div>
 

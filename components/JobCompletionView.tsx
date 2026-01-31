@@ -150,7 +150,7 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
                             <div><span style="font-weight: 600; color: #64748b;">👤 คนขับ:</span> <span style="font-weight: 700; color: #1e293b;">${job.driverName || '-'}</span></div>
                             <div><span style="font-weight: 600; color: #64748b;">📞 เบอร์:</span> <span style="font-weight: 700; color: #1e293b;">${job.driverPhone || '-'}</span></div>
                             <div><span style="font-weight: 600; color: #64748b;">🚗 ทะเบียน:</span> <span style="font-weight: 700; color: #1e293b;">${job.licensePlate || '-'}</span></div>
-                            <div><span style="font-weight: 600; color: #64748b;">💰 ราคา:</span> <span style="font-weight: 700; color: #1e293b;">฿${job.cost?.toLocaleString() || '0'}</span></div>
+                            ${!hidePrice ? `<div><span style="font-weight: 600; color: #64748b;">💰 ราคา:</span> <span style="font-weight: 700; color: #1e293b;">฿${job.cost?.toLocaleString() || '0'}</span></div>` : ''}
                         </div>
                     </div>
 
@@ -194,16 +194,16 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+            <div className="bg-white p-4 md:p-6 rounded-3xl shadow-sm border border-slate-200">
                 <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 bg-emerald-600 rounded-xl text-white">
                         <CheckCircle size={24} />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-black text-slate-800">
-                            ยืนยันการจบงาน (Job Completion Confirmation)
+                        <h2 className="text-xl md:text-2xl font-black text-slate-800">
+                            ยืนยันการจบงาน (Job Completion)
                         </h2>
-                        <p className="text-slate-500 font-medium text-sm mt-1">
+                        <p className="text-slate-500 font-medium text-[10px] md:text-sm mt-1">
                             รายการงานที่พร้อมยืนยันการเสร็จสิ้น
                         </p>
                     </div>
@@ -211,61 +211,57 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
             </div>
 
             {/* Statistics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
-                        <TrendingUp size={24} />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-3 md:p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 md:gap-4">
+                    <div className="p-2 md:p-3 bg-blue-50 text-blue-600 rounded-lg">
+                        <TrendingUp size={20} />
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase">Total Jobs</p>
-                        <p className="text-2xl font-black text-slate-800">{stats.total}</p>
-                        <p className="text-xs font-bold text-slate-500 mt-0.5">งานทั้งหมด</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Total</p>
+                        <p className="text-xl md:text-2xl font-black text-slate-800">{stats.total}</p>
                     </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-red-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-red-50 text-red-600 rounded-lg">
-                        <XCircle size={24} />
+                <div className="bg-white p-3 md:p-4 rounded-xl border border-red-200 shadow-sm flex items-center gap-3 md:gap-4">
+                    <div className="p-2 md:p-3 bg-red-50 text-red-600 rounded-lg">
+                        <XCircle size={20} />
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-red-400 uppercase">Rejected</p>
-                        <p className="text-2xl font-black text-red-600">{stats.rejected}</p>
-                        <p className="text-xs font-bold text-red-500 mt-0.5">ถูกปฏิเสธ</p>
+                        <p className="text-[10px] font-bold text-red-400 uppercase">Rejected</p>
+                        <p className="text-xl md:text-2xl font-black text-red-600">{stats.rejected}</p>
                     </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
-                        <Clock size={24} />
+                <div className="bg-white p-3 md:p-4 rounded-xl border border-amber-200 shadow-sm flex items-center gap-3 md:gap-4">
+                    <div className="p-2 md:p-3 bg-amber-50 text-amber-600 rounded-lg">
+                        <Clock size={20} />
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-amber-400 uppercase">Pending</p>
-                        <p className="text-2xl font-black text-amber-600">{stats.pending}</p>
-                        <p className="text-xs font-bold text-amber-500 mt-0.5">รอยืนยัน</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Pending</p>
+                        <p className="text-xl md:text-2xl font-black text-amber-600">{stats.pending}</p>
                     </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
-                        <CheckCircle size={24} />
+                <div className="bg-white p-3 md:p-4 rounded-xl border border-emerald-200 shadow-sm flex items-center gap-3 md:gap-4">
+                    <div className="p-2 md:p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+                        <CheckCircle size={20} />
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-emerald-400 uppercase">Completed Today</p>
-                        <p className="text-2xl font-black text-emerald-600">{stats.completed}</p>
-                        <p className="text-xs font-bold text-emerald-500 mt-0.5">เสร็จวันนี้</p>
+                        <p className="text-[10px] font-bold text-emerald-400 uppercase">Finished</p>
+                        <p className="text-xl md:text-2xl font-black text-emerald-600">{stats.completed}</p>
                     </div>
                 </div>
             </div>
 
             {/* Search & Filter Bar */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200">
                 <div className="flex flex-col gap-4">
                     {/* Search */}
                     <div className="relative">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input
                             type="text"
-                            placeholder="ค้นหา (Job ID, ทะเบียน, คนขับ, เส้นทาง)..."
+                            placeholder="ค้นหา (Job ID, ทะเบียน, คนขับ)..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-emerald-100 focus:border-emerald-400 outline-none transition-all"
@@ -273,11 +269,11 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
                     </div>
 
                     {/* Filter Buttons */}
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">แสดง:</p>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">แสดง:</p>
                         <button
                             onClick={() => setFilterView('all')}
-                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterView === 'all'
+                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] md:text-sm transition-all whitespace-nowrap ${filterView === 'all'
                                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
@@ -286,7 +282,7 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
                         </button>
                         <button
                             onClick={() => setFilterView('rejected')}
-                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterView === 'rejected'
+                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] md:text-sm transition-all whitespace-nowrap ${filterView === 'rejected'
                                 ? 'bg-red-600 text-white shadow-lg shadow-red-200'
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
@@ -295,7 +291,7 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
                         </button>
                         <button
                             onClick={() => setFilterView('pending')}
-                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterView === 'pending'
+                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] md:text-sm transition-all whitespace-nowrap ${filterView === 'pending'
                                 ? 'bg-amber-600 text-white shadow-lg shadow-amber-200'
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
@@ -304,7 +300,7 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
                         </button>
                         <button
                             onClick={() => setFilterView('completed')}
-                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterView === 'completed'
+                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] md:text-sm transition-all whitespace-nowrap ${filterView === 'completed'
                                 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
@@ -340,14 +336,14 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
                             return (
                                 <div
                                     key={job.id}
-                                    className={`p-6 transition-colors ${isRejected
+                                    className={`p-5 md:p-6 transition-colors border-b border-slate-100 ${isRejected
                                         ? 'bg-red-50/30 hover:bg-red-50/50 border-l-4 border-red-500'
                                         : isCompleted
                                             ? 'bg-emerald-50/30 hover:bg-emerald-50/50'
                                             : 'hover:bg-amber-50/30'
                                         }`}
                                 >
-                                    <div className="flex items-start justify-between gap-4">
+                                    <div className="flex flex-col md:flex-row items-stretch md:items-start justify-between gap-4">
                                         <div className="flex-1 space-y-3">
                                             {/* Job ID & Status Badge */}
                                             <div className="flex items-center gap-3 flex-wrap">
@@ -444,7 +440,7 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
                                             {isRejected ? (
                                                 <button
                                                     onClick={() => handleEditRejected(job)}
-                                                    className="flex items-center gap-2 px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm shadow-md transition-all active:scale-95 whitespace-nowrap"
+                                                    className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-4 md:py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm shadow-md transition-all active:scale-95 whitespace-nowrap"
                                                 >
                                                     <Edit size={18} />
                                                     แก้ไขและส่งใหม่
@@ -452,13 +448,13 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
                                             ) : !isCompleted ? (
                                                 <button
                                                     onClick={() => handleConfirm(job)}
-                                                    className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-md transition-all active:scale-95 whitespace-nowrap"
+                                                    className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-4 md:py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-sm shadow-lg shadow-emerald-100 transition-all active:scale-95 whitespace-nowrap"
                                                 >
                                                     <CheckCircle size={18} />
                                                     ยืนยันจบงาน
                                                 </button>
                                             ) : (
-                                                <div className="flex items-center gap-2 px-6 py-3 bg-emerald-100 text-emerald-700 rounded-xl font-bold text-sm">
+                                                <div className="flex items-center justify-center gap-2 px-6 py-3 bg-emerald-100 text-emerald-700 rounded-xl font-bold text-sm">
                                                     <CheckCircle size={18} />
                                                     เสร็จสมบูรณ์
                                                 </div>

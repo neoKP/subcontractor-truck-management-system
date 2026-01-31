@@ -109,19 +109,19 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-8">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 md:p-8">
             {/* Header */}
             <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
                     <div className="flex items-center gap-4">
-                        <div className="p-4 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl text-white shadow-xl shadow-blue-200">
-                            <div className="text-3xl">📋</div>
+                        <div className="p-3 md:p-4 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl text-white shadow-xl shadow-blue-200">
+                            <div className="text-2xl md:text-3xl">📋</div>
                         </div>
                         <div>
-                            <h1 className="text-4xl font-black text-slate-800 tracking-tight">
+                            <h1 className="text-2xl md:text-4xl font-black text-slate-800 tracking-tight">
                                 ตรวจทานและคอนเฟิร์ม
                             </h1>
-                            <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-1">
+                            <p className="text-[10px] md:text-sm font-bold text-slate-500 uppercase tracking-widest mt-1">
                                 Review & Confirm Dashboard
                             </p>
                         </div>
@@ -129,7 +129,7 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
 
                     <button
                         onClick={handleExport}
-                        className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-emerald-200 transition-all"
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-emerald-200 transition-all text-sm"
                     >
                         <Download size={18} />
                         Export รายงาน
@@ -137,50 +137,52 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                 </div>
 
                 {/* Statistics Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-white rounded-2xl p-6 shadow-lg border border-blue-100">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-blue-100">
                         <div className="flex items-center justify-between mb-2">
-                            <p className="text-xs font-black text-blue-400 uppercase tracking-widest">Total Jobs</p>
-                            <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
-                                <CheckCircle size={16} />
+                            <p className="text-[10px] md:text-xs font-black text-blue-400 uppercase tracking-widest">Total Jobs</p>
+                            <div className="p-1.5 md:p-2 bg-blue-100 rounded-lg text-blue-600">
+                                <CheckCircle size={14} />
                             </div>
                         </div>
-                        <p className="text-3xl font-black text-blue-600">{stats.total}</p>
-                        <p className="text-xs font-bold text-blue-500 mt-1">งานทั้งหมด</p>
+                        <p className="text-2xl md:text-3xl font-black text-blue-600">{stats.total}</p>
+                        <p className="text-[10px] md:text-xs font-bold text-blue-500 mt-1">งานทั้งหมด</p>
                     </div>
 
-                    <div className="bg-white rounded-2xl p-6 shadow-lg border border-orange-100">
+                    <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-orange-100">
                         <div className="flex items-center justify-between mb-2">
-                            <p className="text-xs font-black text-orange-400 uppercase tracking-widest">Incomplete</p>
-                            <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
-                                <AlertCircle size={16} />
+                            <p className="text-[10px] md:text-xs font-black text-orange-400 uppercase tracking-widest">Incomplete</p>
+                            <div className="p-1.5 md:p-2 bg-orange-100 rounded-lg text-orange-600">
+                                <AlertCircle size={14} />
                             </div>
                         </div>
-                        <p className="text-3xl font-black text-orange-600">{stats.incomplete}</p>
-                        <p className="text-xs font-bold text-orange-500 mt-1">ข้อมูลไม่ครบ</p>
+                        <p className="text-2xl md:text-3xl font-black text-orange-600">{stats.incomplete}</p>
+                        <p className="text-[10px] md:text-xs font-bold text-orange-500 mt-1">ข้อมูลไม่ครบ</p>
                     </div>
 
-                    <div className="bg-white rounded-2xl p-6 shadow-lg border border-emerald-100">
+                    <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-emerald-100">
                         <div className="flex items-center justify-between mb-2">
-                            <p className="text-xs font-black text-emerald-400 uppercase tracking-widest">Complete</p>
-                            <div className="p-2 bg-emerald-100 rounded-lg text-emerald-600">
-                                <CheckCircle size={16} />
+                            <p className="text-[10px] md:text-xs font-black text-emerald-400 uppercase tracking-widest">Complete</p>
+                            <div className="p-1.5 md:p-2 bg-emerald-100 rounded-lg text-emerald-600">
+                                <CheckCircle size={14} />
                             </div>
                         </div>
-                        <p className="text-3xl font-black text-emerald-600">{stats.complete}</p>
-                        <p className="text-xs font-bold text-emerald-500 mt-1">ข้อมูลครบ</p>
+                        <p className="text-2xl md:text-3xl font-black text-emerald-600">{stats.complete}</p>
+                        <p className="text-[10px] md:text-xs font-bold text-emerald-500 mt-1">ข้อมูลครบ</p>
                     </div>
 
-                    <div className="bg-white rounded-2xl p-6 shadow-lg border border-indigo-100">
-                        <div className="flex items-center justify-between mb-2">
-                            <p className="text-xs font-black text-indigo-400 uppercase tracking-widest">Total Value</p>
-                            <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
-                                <TrendingUp size={16} />
+                    {!hidePrice && (
+                        <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-indigo-100 col-span-2 lg:col-span-1">
+                            <div className="flex items-center justify-between mb-2">
+                                <p className="text-[10px] md:text-xs font-black text-indigo-400 uppercase tracking-widest">Total Value</p>
+                                <div className="p-1.5 md:p-2 bg-indigo-100 rounded-lg text-indigo-600">
+                                    <TrendingUp size={14} />
+                                </div>
                             </div>
+                            <p className="text-xl md:text-2xl font-black text-indigo-600">฿{formatThaiCurrency(stats.totalValue)}</p>
+                            <p className="text-[10px] md:text-xs font-bold text-indigo-500 mt-1">มูลค่ารวม</p>
                         </div>
-                        <p className="text-2xl font-black text-indigo-600">฿{formatThaiCurrency(stats.totalValue)}</p>
-                        <p className="text-xs font-bold text-indigo-500 mt-1">มูลค่ารวม</p>
-                    </div>
+                    )}
                 </div>
             </div>
 
@@ -202,11 +204,11 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                     </div>
 
                     {/* Filter Buttons */}
-                    <div className="flex items-center gap-3">
-                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">แสดง:</p>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">แสดง:</p>
                         <button
                             onClick={() => setFilterView('all')}
-                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterView === 'all'
+                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] md:text-sm transition-all whitespace-nowrap ${filterView === 'all'
                                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
@@ -215,21 +217,21 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                         </button>
                         <button
                             onClick={() => setFilterView('incomplete')}
-                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterView === 'incomplete'
+                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] md:text-sm transition-all whitespace-nowrap ${filterView === 'incomplete'
                                 ? 'bg-orange-600 text-white shadow-lg shadow-orange-200'
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
                         >
-                            ⚠️ ข้อมูลไม่ครบ ({stats.incomplete})
+                            ⚠️ ไม่ครบ ({stats.incomplete})
                         </button>
                         <button
                             onClick={() => setFilterView('complete')}
-                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterView === 'complete'
+                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] md:text-sm transition-all whitespace-nowrap ${filterView === 'complete'
                                 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
                         >
-                            ✅ ข้อมูลครบ ({stats.complete})
+                            ✅ ครบ ({stats.complete})
                         </button>
                     </div>
                 </div>
@@ -254,12 +256,12 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                         return (
                             <div
                                 key={job.id}
-                                className={`bg-white rounded-2xl p-6 shadow-lg border-2 hover:shadow-xl transition-all ${isComplete
+                                className={`bg-white rounded-[2rem] p-5 md:p-6 shadow-lg border-2 hover:shadow-xl transition-all ${isComplete
                                     ? 'border-emerald-200 hover:border-emerald-300'
                                     : 'border-orange-200 hover:border-orange-300'
                                     }`}
                             >
-                                <div className="flex items-start justify-between gap-4">
+                                <div className="flex flex-col lg:flex-row items-stretch lg:items-start justify-between gap-4">
                                     <div className="flex-1">
                                         {/* Header */}
                                         <div className="flex items-center gap-3 mb-3 flex-wrap">
@@ -329,25 +331,22 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                                     </div>
 
                                     {/* Action Buttons */}
-                                    <div className="flex flex-col gap-2 shrink-0">
+                                    <div className="flex flex-row lg:flex-col gap-2 shrink-0">
                                         <button
-                                            id={`rc-btn-edit-${job.id}-${filterView}-${index}`}
                                             onClick={() => setEditingJob(job)}
-                                            className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black shadow-lg shadow-orange-200 transition-all flex items-center gap-2 whitespace-nowrap"
+                                            className="flex-1 lg:flex-none px-4 md:px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black shadow-lg shadow-orange-200 transition-all flex items-center justify-center gap-2 whitespace-nowrap text-xs md:text-sm"
                                         >
-                                            🔧 แก้ไขข้อมูล
+                                            🔧 แก้ไข
                                         </button>
                                         <button
-                                            id={`rc-btn-review-${job.id}-${filterView}-${index}`}
                                             onClick={() => setSelectedJob(job)}
                                             disabled={!isComplete}
-
-                                            className={`px-6 py-3 rounded-xl font-black shadow-lg transition-all flex items-center gap-2 whitespace-nowrap ${isComplete
+                                            className={`flex-1 lg:flex-none px-4 md:px-6 py-3 rounded-xl font-black shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap text-xs md:text-sm ${isComplete
                                                 ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 cursor-pointer'
                                                 : 'bg-slate-300 text-slate-500 shadow-slate-200 cursor-not-allowed opacity-60'
                                                 }`}
                                         >
-                                            <CheckCircle size={18} />
+                                            <CheckCircle size={16} />
                                             ตรวจทาน
                                         </button>
                                     </div>

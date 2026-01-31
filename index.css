@@ -213,3 +213,18 @@ progress.premium-route-progress::-moz-progress-bar {
   background-color: #0f172a;
   border-radius: 9999px;
 }
+
+/* Cinematic Animations */
+@keyframes slow-zoom {
+  from {
+    transform: scale(1);
+  }
+
+  to {
+    transform: scale(1.1);
+  }
+}
+
+.animate-slow-zoom {
+  animation: slow-zoom 20s ease-in-out infinite alternate;
+}

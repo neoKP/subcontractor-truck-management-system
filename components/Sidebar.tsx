@@ -5,8 +5,8 @@ import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X,
 
 interface SidebarProps {
   currentRole: UserRole;
-  activeTab: 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion';
-  setActiveTab: (tab: 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion') => void;
+  activeTab: 'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion';
+  setActiveTab: (tab: 'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion') => void;
   onLogout: () => void;
   isOpen?: boolean;
   onClose?: () => void;
@@ -17,6 +17,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, setActiveTab, onLogout, isOpen, onClose, className, isCollapsed, onToggleCollapse }) => {
   const tabs = [
+    { id: 'home', label: 'Home / หน้าแรก', icon: LayoutDashboard, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER, UserRole.BOOKING_OFFICER, UserRole.FIELD_OFFICER] },
     { id: 'analytics', label: 'Executive Insights / ข้อมูลสรุป', icon: TrendingUp, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER] },
     { id: 'board', label: 'Job Board / กระดานงาน', icon: LayoutPanelTop, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER, UserRole.BOOKING_OFFICER] },
     { id: 'daily-report', label: 'Daily Report / สรุปงานรายวัน', icon: FileSpreadsheet, roles: [UserRole.BOOKING_OFFICER, UserRole.DISPATCHER, UserRole.ADMIN, UserRole.ACCOUNTANT] },

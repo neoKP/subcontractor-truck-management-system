@@ -558,7 +558,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
                   <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest min-w-[300px]">รายละเอียดเส้นทาง (ROUTE DETAILS)</th>
                   <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest w-48 text-center">ความคืบหน้า (PROGRESS)</th>
                   <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest min-w-[220px]">ผู้รับงาน (PROVIDER)</th>
-                  {user.role !== UserRole.BOOKING_OFFICER && (
+                  {![UserRole.BOOKING_OFFICER, UserRole.FIELD_OFFICER].includes(user.role) && (
                     <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest w-40 text-right">ค่าขนส่ง (COST)</th>
                   )}
                   <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest w-36 text-center">จัดการ (MANAGE)</th>
@@ -658,7 +658,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
                           <div className="flex items-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] italic animate-pulse">Assigning...</div>
                         )}
                       </td>
-                      {user.role !== UserRole.BOOKING_OFFICER && (
+                      {![UserRole.BOOKING_OFFICER, UserRole.FIELD_OFFICER].includes(user.role) && (
                         <td className="px-8 py-6 text-right">
                           <div className="flex flex-col items-end">
                             <span className="text-lg font-black text-slate-900 leading-none mb-1 tabular-nums">฿{formatThaiCurrency(Number(job.cost) || 0)}</span>
