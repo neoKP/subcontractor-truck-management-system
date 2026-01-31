@@ -7,9 +7,10 @@ interface HomeViewProps {
     user: { id: string; name: string; role: UserRole } | null;
     onTabChange: (tab: any) => void;
     onLoginClick: () => void;
+    onLogout: () => void;
 }
 
-const HomeView: React.FC<HomeViewProps> = ({ jobs, user, onTabChange, onLoginClick }) => {
+const HomeView: React.FC<HomeViewProps> = ({ jobs, user, onTabChange, onLoginClick, onLogout }) => {
     const [currentTime, setCurrentTime] = useState(new Date());
 
     useEffect(() => {
@@ -29,14 +30,44 @@ const HomeView: React.FC<HomeViewProps> = ({ jobs, user, onTabChange, onLoginCli
 
     const isGuest = !user;
 
+    // --- Animated Stats Logic ---
+    const [animatedStats, setAnimatedStats] = useState({ total: 0, assigned: 0, rate: 0 });
+
+    useEffect(() => {
+        if (!isGuest) {
+            const duration = 1000;
+            const startTime = Date.now();
+            const targetRate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 100;
+
+            const animate = () => {
+                const now = Date.now();
+                const progress = Math.min((now - startTime) / duration, 1);
+
+                // Ease out expo
+                const easedProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+
+                setAnimatedStats({
+                    total: Math.floor(stats.total * easedProgress),
+                    assigned: Math.floor(stats.assigned * easedProgress),
+                    rate: Math.floor(targetRate * easedProgress)
+                });
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                }
+            };
+            requestAnimationFrame(animate);
+        }
+    }, [user, jobs]);
+
     return (
         <div className="relative min-h-screen -m-6 overflow-x-hidden bg-slate-900 font-sans flex flex-col">
             {/* Cinematic Background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <img
-                    src="/hero-bg.png"
+                    src="/warehouse_bg.jpg"
                     alt="Modern Warehouse"
-                    className="w-full h-full object-cover scale-110 animate-slow-zoom opacity-40"
+                    className="w-full h-full object-cover opacity-40"
                 />
                 <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-black"></div>
             </div>
@@ -73,22 +104,22 @@ const HomeView: React.FC<HomeViewProps> = ({ jobs, user, onTabChange, onLoginCli
                         <p className="text-[10px] md:text-xs font-black text-slate-200">{dayFormat}</p>
                     </div>
                     <button
-                        onClick={isGuest ? onLoginClick : undefined}
-                        className={`flex items-center gap-3 px-3 md:px-4 py-2 rounded-xl border transition-all ${isGuest
+                        onClick={isGuest ? onLoginClick : onLogout}
+                        className={`flex items-center gap-3 px-3 md:px-4 py-2 rounded-xl border transition-all group/profile ${isGuest
                             ? 'bg-cyan-500/10 border-cyan-500/50 hover:bg-cyan-500/20 hover:scale-105 shadow-[0_0_20px_rgba(34,211,238,0.2)]'
-                            : 'bg-white/5 border-white/10 cursor-default'}`}
+                            : 'bg-white/5 border-white/10 hover:bg-rose-500/10 hover:border-rose-500/50 hover:scale-105'}`}
                     >
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden border ${isGuest ? 'bg-cyan-500/20 border-cyan-400' : 'bg-slate-700 border-white/20'}`}>
-                            {isGuest ? <Lock size={16} className="text-cyan-400" /> : <UserIcon size={16} className="text-slate-300" />}
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden border transition-colors ${isGuest ? 'bg-cyan-500/20 border-cyan-400' : 'bg-slate-700 border-white/20 group-hover/profile:bg-rose-500/20 group-hover/profile:border-rose-500'}`}>
+                            {isGuest ? <Lock size={16} className="text-cyan-400" /> : <UserIcon size={16} className="text-slate-300 group-hover/profile:text-rose-400" />}
                         </div>
                         <div className="text-left">
                             <p className="text-[9px] md:text-[10px] font-black text-white leading-none mb-1">{timeFormat}</p>
                             <div className="flex items-center gap-1">
-                                <span className={`text-[8px] font-bold ${isGuest ? 'text-rose-400' : 'text-cyan-400'}`}>
+                                <span className={`text-[8px] font-bold transition-colors ${isGuest ? 'text-rose-400' : 'text-cyan-400 group-hover/profile:text-rose-400'}`}>
                                     {isGuest ? 'LOCKED' : '+7'}
                                 </span>
-                                <span className={`px-1.5 py-0.5 rounded-[4px] text-[7px] font-black uppercase ${isGuest ? 'bg-rose-500 text-white' : 'bg-cyan-500 text-black'}`}>
-                                    {isGuest ? 'Sign In' : 'Online'}
+                                <span className={`px-1.5 py-0.5 rounded-[4px] text-[7px] font-black uppercase transition-colors ${isGuest ? 'bg-rose-500 text-white' : 'bg-cyan-500 text-black group-hover/profile:bg-rose-500 group-hover/profile:text-white'}`}>
+                                    {isGuest ? 'Sign In' : 'Sign Out'}
                                 </span>
                             </div>
                         </div>
@@ -99,52 +130,57 @@ const HomeView: React.FC<HomeViewProps> = ({ jobs, user, onTabChange, onLoginCli
             {/* Main Content Area */}
             <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 md:px-8 py-12 text-center overflow-y-auto">
                 <div className="max-w-5xl animate-in fade-in slide-in-from-bottom-8 duration-1000 mb-12">
+                    <div className="inline-block px-4 py-1.5 mb-6 rounded-full bg-cyan-500/10 border border-cyan-500/20 backdrop-blur-md">
+                        <p className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.4em] flex items-center gap-2">
+                            {isGuest ? '🔒 Security Priority Protocol' : `🛡️ Welcome Back, ${user.name.split(' ')[0]}`}
+                        </p>
+                    </div>
                     <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white tracking-tighter mb-8 leading-tight select-none">
                         NEOSIAM <br className="md:hidden" />
                         <span className="text-transparent bg-clip-text bg-gradient-to-br from-cyan-400 to-blue-600">
                             LOGISTICS & TRANSPORT
                         </span>
                     </h1>
-                    <p className="text-base md:text-xl font-bold text-slate-200 max-w-4xl mx-auto leading-relaxed">
-                        บริษัท นีโอสยาม โลจิสติกส์ แอนด์ ทรานสปอร์ต จำกัด ให้บริการด้านการขนส่ง และ กระจายสินค้า<br className="hidden md:block" />
-                        ทั้งแบบสินค้าพัสดุภัณฑ์ทั่วไป และ แบบสินค้าเหมาคัน
+                    <p className="text-base md:text-xl font-medium text-slate-300 max-w-4xl mx-auto leading-relaxed">
+                        บริษัท นีโอสยาม โลจิสติกส์ แอนด์ ทรานสปอร์ต จำกัด <span className="text-cyan-400 font-bold">ให้บริการด้านการขนส่ง และ กระจายสินค้า</span><br className="hidden md:block" />
+                        ครอบคลุมทุกความต้องการ ทั้งแบบสินค้าพัสดุภัณฑ์ทั่วไป และ แบบสินค้าเหมาคัน
                     </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 w-full max-w-6xl mb-12">
-                    <div className="group bg-black/40 backdrop-blur-2xl p-8 rounded-[2rem] border border-white/5 h-48 flex flex-col items-center justify-center transition-all hover:border-cyan-500/30">
+                    <div className="group bg-black/40 backdrop-blur-2xl p-8 rounded-[2rem] border border-white/5 h-48 flex flex-col items-center justify-center transition-all hover:border-cyan-500/30 hover:bg-black/60 hover:-translate-y-1">
                         {isGuest ? (
                             <div className="text-slate-600 flex flex-col items-center opacity-40"><Lock size={32} className="mb-2" /> <p className="text-[10px] font-black uppercase tracking-widest">Jobs Protected</p></div>
                         ) : (
                             <>
-                                <div className="w-14 h-14 bg-cyan-500/10 text-cyan-400 rounded-2xl flex items-center justify-center mb-4 border border-cyan-500/20"><Truck size={28} /></div>
+                                <div className="w-14 h-14 bg-cyan-500/10 text-cyan-400 rounded-2xl flex items-center justify-center mb-4 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)] group-hover:scale-110 transition-transform"><Truck size={28} /></div>
                                 <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Total Jobs</p>
-                                <span className="text-5xl font-black text-white tracking-tighter">{stats.total}</span>
+                                <span className="text-5xl font-black text-white tracking-tighter">{animatedStats.total}</span>
                             </>
                         )}
                     </div>
 
-                    <div className="group bg-black/40 backdrop-blur-2xl p-8 rounded-[2rem] border border-white/5 h-48 flex flex-col items-center justify-center transition-all hover:border-blue-500/30">
+                    <div className="group bg-black/40 backdrop-blur-2xl p-8 rounded-[2rem] border border-white/5 h-48 flex flex-col items-center justify-center transition-all hover:border-blue-500/30 hover:bg-black/60 hover:-translate-y-1">
                         {isGuest ? (
                             <div className="text-slate-600 flex flex-col items-center opacity-40"><Lock size={32} className="mb-2" /> <p className="text-[10px] font-black uppercase tracking-widest">Movement Protected</p></div>
                         ) : (
                             <>
-                                <div className="w-14 h-14 bg-blue-500/10 text-blue-400 rounded-2xl flex items-center justify-center mb-4 border border-blue-500/20"><Clock size={28} /></div>
+                                <div className="w-14 h-14 bg-blue-500/10 text-blue-400 rounded-2xl flex items-center justify-center mb-4 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)] group-hover:scale-110 transition-transform"><Clock size={28} /></div>
                                 <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Active Movement</p>
-                                <span className="text-5xl font-black text-white tracking-tighter">{stats.assigned}</span>
+                                <span className="text-5xl font-black text-white tracking-tighter">{animatedStats.assigned}</span>
                             </>
                         )}
                     </div>
 
-                    <div className="group bg-black/40 backdrop-blur-2xl p-8 rounded-[2rem] border border-white/5 h-48 flex flex-col items-center justify-center transition-all hover:border-emerald-500/30">
+                    <div className="group bg-black/40 backdrop-blur-2xl p-8 rounded-[2rem] border border-white/5 h-48 flex flex-col items-center justify-center transition-all hover:border-emerald-500/30 hover:bg-black/60 hover:-translate-y-1">
                         {isGuest ? (
                             <div className="text-slate-600 flex flex-col items-center opacity-40"><Lock size={32} className="mb-2" /> <p className="text-[10px] font-black uppercase tracking-widest">Metrics Protected</p></div>
                         ) : (
                             <>
-                                <div className="w-14 h-14 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center mb-4 border border-emerald-500/20"><CheckCircle2 size={28} /></div>
+                                <div className="w-14 h-14 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center mb-4 border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)] group-hover:scale-110 transition-transform"><CheckCircle2 size={28} /></div>
                                 <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Success Rate</p>
                                 <span className="text-5xl font-black text-white tracking-tighter">
-                                    {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 100}%
+                                    {animatedStats.rate}%
                                 </span>
                             </>
                         )}

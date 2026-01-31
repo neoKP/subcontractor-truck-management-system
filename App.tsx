@@ -393,6 +393,7 @@ const App: React.FC = () => {
               user={currentUser}
               onTabChange={setActiveTab}
               onLoginClick={() => setShowLogin(true)}
+              onLogout={handleLogout}
             />
           </div>
         </main>
