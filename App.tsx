@@ -132,22 +132,9 @@ const App: React.FC = () => {
     const unsubscribePricing = onValue(pricingRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        // Merge DB data with local constants to ensure critical updates appear
-        const dbPrices = Object.values(data) as PriceMatrix[];
-        const merged = [...dbPrices];
-
-        PRICE_MATRIX.forEach(constItem => {
-          const exists = dbPrices.some(dbItem =>
-            dbItem.origin === constItem.origin &&
-            dbItem.destination === constItem.destination &&
-            dbItem.subcontractor === constItem.subcontractor &&
-            dbItem.truckType === constItem.truckType
-          );
-          if (!exists) {
-            merged.push(constItem);
-          }
-        });
-        setPriceMatrix(merged);
+        // Use data from DB directly. 
+        // We stop auto-merging with constants to allow user to delete items.
+        setPriceMatrix(Object.values(data) as PriceMatrix[]);
       } else {
         // Seed if empty
         set(pricingRef, PRICE_MATRIX);
