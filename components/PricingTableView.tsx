@@ -156,9 +156,9 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
     const newList = [...priceMatrix];
     const cleanData = {
       ...formData,
-      basePrice: Number(formData.basePrice),
-      sellingBasePrice: Number(formData.sellingBasePrice),
-      dropOffFee: Number(formData.dropOffFee)
+      basePrice: Number(formData.basePrice) || 0,
+      sellingBasePrice: Number(formData.sellingBasePrice) || 0,
+      dropOffFee: Number(formData.dropOffFee) || 0
     };
 
     if (editingIndex !== null) {
@@ -622,7 +622,10 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                       type="number"
                       className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                       value={formData.basePrice}
-                      onChange={e => setFormData({ ...formData, basePrice: Number(e.target.value) })}
+                      onChange={e => {
+                        const val = e.target.value === '' ? 0 : Number(e.target.value);
+                        setFormData({ ...formData, basePrice: isNaN(val) ? 0 : val });
+                      }}
                       title="Cost Paid to Subcontractor"
                       placeholder="0.00"
                     />
@@ -634,7 +637,10 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                       type="number"
                       className="w-full px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-blue-700"
                       value={formData.sellingBasePrice}
-                      onChange={e => setFormData({ ...formData, sellingBasePrice: Number(e.target.value) })}
+                      onChange={e => {
+                        const val = e.target.value === '' ? 0 : Number(e.target.value);
+                        setFormData({ ...formData, sellingBasePrice: isNaN(val) ? 0 : val });
+                      }}
                       title="Revenue Billed to Customer"
                       placeholder="0.00"
                     />
@@ -646,7 +652,10 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                       type="number"
                       className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                       value={formData.dropOffFee || 0}
-                      onChange={e => setFormData({ ...formData, dropOffFee: Number(e.target.value) })}
+                      onChange={e => {
+                        const val = e.target.value === '' ? 0 : Number(e.target.value);
+                        setFormData({ ...formData, dropOffFee: isNaN(val) ? 0 : val });
+                      }}
                       title="Drop Fee"
                       placeholder="0.00"
                     />

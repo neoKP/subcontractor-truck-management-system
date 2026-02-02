@@ -273,10 +273,10 @@ const App: React.FC = () => {
   };
   const cleanJob = (job: Job): Job => {
     const cleaned = { ...job };
-    // Numeric defaults
-    cleaned.cost = cleaned.cost ?? 0;
-    cleaned.sellingPrice = cleaned.sellingPrice ?? 0;
-    cleaned.extraCharge = cleaned.extraCharge ?? 0;
+    // Numeric defaults & NaN protection
+    cleaned.cost = (!cleaned.cost || isNaN(Number(cleaned.cost))) ? 0 : Number(cleaned.cost);
+    cleaned.sellingPrice = (!cleaned.sellingPrice || isNaN(Number(cleaned.sellingPrice))) ? 0 : Number(cleaned.sellingPrice);
+    cleaned.extraCharge = (!cleaned.extraCharge || isNaN(Number(cleaned.extraCharge))) ? 0 : Number(cleaned.extraCharge);
 
     // Explicitly remove any undefined fields that Firebase might complain about
     Object.keys(cleaned).forEach(key => {
@@ -333,8 +333,15 @@ const App: React.FC = () => {
   };
 
   const updatePriceMatrix = (newList: PriceMatrix[]) => {
-    setPriceMatrix(newList);
-    set(ref(db, 'priceMatrix'), newList);
+    // Sanitize data to prevent NaN from breaking Firebase
+    const sanitizedList = newList.map(p => ({
+      ...p,
+      basePrice: Number(p.basePrice) || 0,
+      sellingBasePrice: Number(p.sellingBasePrice) || 0,
+      dropOffFee: Number(p.dropOffFee) || 0
+    }));
+    setPriceMatrix(sanitizedList);
+    set(ref(db, 'priceMatrix'), sanitizedList);
   };
 
   const deleteJob = (jobId: string) => {
