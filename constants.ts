@@ -133,6 +133,8 @@ export const PRICE_MATRIX: PriceMatrix[] = [
   { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองเชียงราย', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '10w', basePrice: 24500, sellingBasePrice: 24500 },
   { origin: 'นีโอ คลอง13', destination: 'เมืองเชียงราย', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '10w พ่วง', basePrice: 27000, dropOffFee: 1000, sellingBasePrice: 27000 },
   { origin: 'สหพัฒน์ ศรีราชา', destination: 'เมืองเชียงราย', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '10w พ่วง', basePrice: 36000, dropOffFee: 1000, sellingBasePrice: 36000 },
+  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองนครสวรรค์', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w', basePrice: 6500, sellingBasePrice: 6500 },
+  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองนครสวรรค์', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w พ่วง', basePrice: 9500, sellingBasePrice: 9500 },
 
   // Comma Plus
   { origin: 'ยำยำ', destination: 'แม็คโคร กำแพงเพชร', subcontractor: 'คอมม่าพลัส', truckType: '18w', basePrice: 10000, sellingBasePrice: 10000 },

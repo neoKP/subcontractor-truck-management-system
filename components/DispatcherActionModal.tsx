@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus } from '../types';
-import { MASTER_DATA } from '../constants';
+import { MASTER_DATA, PRICE_MATRIX as FALLBACK_PRICE_MATRIX } from '../constants';
 import { AlertTriangle, Info, X, Lock, CheckCircle, User, Phone, Hash, CircleDot, DollarSign, Wallet, FileText, Clock, AlertCircle, Calendar, TrendingUp } from 'lucide-react';
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 import ReviewConfirmModal from './ReviewConfirmModal';
@@ -16,7 +16,10 @@ interface DispatcherActionModalProps {
   logsLoaded: boolean;
 }
 
-const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onClose, onSave, user, priceMatrix, logs, logsLoaded }) => {
+const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onClose, onSave, user, priceMatrix: propPriceMatrix, logs, logsLoaded }) => {
+  // Merge Prop Matrix with Fallback to ensure we have critical hardcoded paths if missing from DB
+  const priceMatrix = React.useMemo(() => [...propPriceMatrix, ...FALLBACK_PRICE_MATRIX], [propPriceMatrix]);
+
   const [editData, setEditData] = useState({
     subcontractor: job.subcontractor || '',
     truckType: job.truckType,
@@ -406,7 +409,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                       return unique;
                     }, [] as PriceMatrix[])
                     .sort((a, b) => a.basePrice - b.basePrice)
-                    .slice(0, 3)
+
                     .map((rec, index) => (
                       <button
                         key={index}
@@ -546,7 +549,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                       title="ค่าจ้างรถร่วม (Subcontractor Cost)"
                       placeholder="0.00"
                       type="number"
-                      disabled={isSubmitting || isActuallyLocked}
+                      disabled={isSubmitting || isActuallyLocked || (isContractPrice && user.role !== UserRole.ADMIN)}
                       className={`w-full px-10 py-3 rounded-xl border font-bold text-lg transition-all ${isActuallyLocked ? 'bg-slate-50 border-slate-100 text-slate-400' : (priceCalculated ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-800 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none')}`}
                       value={editData.cost || ''}
                       onChange={e => {
