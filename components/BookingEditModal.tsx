@@ -77,6 +77,44 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
     const [showOriginList, setShowOriginList] = useState(false);
     const [showDestList, setShowDestList] = useState(false);
     const [showSubList, setShowSubList] = useState(false);
+    const [showDropList, setShowDropList] = useState<boolean[]>([]);
+
+    // Intelligence: Master Pricing Context
+    const masterPricingOrigins = React.useMemo(() => Array.from(new Set(priceMatrix.map(p => p.origin))) as string[], [priceMatrix]);
+    const masterPricingDests = React.useMemo(() => Array.from(new Set(priceMatrix.map(p => p.destination))) as string[], [priceMatrix]);
+
+    const allKnownOrigins = React.useMemo(() => Array.from(new Set([...MASTER_DATA.locations, ...masterPricingOrigins])) as string[], [masterPricingOrigins]);
+    const allKnownDests = React.useMemo(() => Array.from(new Set([...MASTER_DATA.locations, ...masterPricingDests])) as string[], [masterPricingDests]);
+
+    const filteredOrigins = React.useMemo(() => allKnownOrigins
+        .filter(l => l.toLowerCase().includes(originQuery.toLowerCase()))
+        .sort((a, b) => {
+            const aHas = masterPricingOrigins.includes(a);
+            const bHas = masterPricingOrigins.includes(b);
+            return aHas === bHas ? 0 : aHas ? -1 : 1;
+        }), [allKnownOrigins, originQuery, masterPricingOrigins]);
+
+    const filteredDests = React.useMemo(() => allKnownDests
+        .filter(l => l.toLowerCase().includes(destQuery.toLowerCase()))
+        .sort((a, b) => {
+            const aHas = masterPricingDests.includes(a);
+            const bHas = masterPricingDests.includes(b);
+            return aHas === bHas ? 0 : aHas ? -1 : 1;
+        }), [allKnownDests, destQuery, masterPricingDests]);
+
+    const highlightMatch = (text: string, query: string) => {
+        if (!query) return text;
+        const parts = text.split(new RegExp(`(${query})`, 'gi'));
+        return (
+            <>
+                {parts.map((part, i) =>
+                    part.toLowerCase() === query.toLowerCase()
+                        ? <span key={i} className="text-blue-600 underline decoration-2">{part}</span>
+                        : part
+                )}
+            </>
+        );
+    };
 
     // POD Image Management States
     const [podImages, setPodImages] = useState<string[]>(job.podImageUrls || []);
@@ -388,33 +426,47 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                             </div>
                             {showOriginList && (
                                 <div className="absolute z-[60] w-full mt-1 bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-slate-100 max-h-60 overflow-y-auto py-2 animate-in fade-in zoom-in-95 duration-200">
-                                    {MASTER_DATA.locations
-                                        .filter(l => l.toLowerCase().includes(originQuery.toLowerCase()))
-                                        .map((l, i) => {
-                                            const isSelected = editData.origin === l;
-                                            return (
-                                                <button
-                                                    key={i}
-                                                    type="button"
-                                                    className={`w-full text-left px-6 py-3 text-sm font-bold transition-colors flex items-center justify-between group ${isSelected ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'}`}
-                                                    onClick={() => {
-                                                        setEditData(prev => {
-                                                            const newData = { ...prev, origin: l };
-                                                            const contract = findContractMatch(l, prev.destination, prev.truckType, prev.subcontractor)
-                                                                || findContractMatch(l, prev.destination, prev.truckType);
-                                                            if (contract) newData.cost = contract.basePrice;
-                                                            return newData;
-                                                        });
-                                                        setOriginQuery('');
-                                                        setShowOriginList(false);
-                                                    }}
-                                                >
-                                                    <span>{l}</span>
-                                                    {(isSelected || originQuery === l) && <BadgeCheck size={14} className="text-blue-500" />}
-                                                    {!isSelected && <BadgeCheck size={14} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
-                                                </button>
-                                            );
-                                        })}
+                                    {filteredOrigins.some(l => masterPricingOrigins.includes(l)) && (
+                                        <div className="px-6 py-2 bg-blue-50/50 text-[9px] font-black text-blue-500 uppercase tracking-widest border-b border-blue-50 flex items-center gap-2">
+                                            <ShieldCheck size={10} /> 🎯 สถานที่ตามราคากลาง (Contract Locations)
+                                        </div>
+                                    )}
+                                    {filteredOrigins.map((l, i) => {
+                                        const isSelected = editData.origin === l;
+                                        const isMaster = masterPricingOrigins.includes(l);
+                                        return (
+                                            <button
+                                                key={i}
+                                                type="button"
+                                                className={`w-full text-left px-6 py-3 text-sm font-bold transition-all flex items-center justify-between group ${isSelected ? 'bg-blue-600 text-white' : isMaster ? 'bg-blue-50/20 text-blue-900 border-b border-blue-50/50' : 'hover:bg-slate-50 text-slate-700 border-b border-slate-50'}`}
+                                                onClick={() => {
+                                                    setEditData(prev => {
+                                                        const newData = { ...prev, origin: l };
+                                                        const contract = findContractMatch(l, prev.destination, prev.truckType, prev.subcontractor)
+                                                            || findContractMatch(l, prev.destination, prev.truckType);
+                                                        if (contract) {
+                                                            const drops = prev.drops || [];
+                                                            newData.cost = contract.basePrice + (drops.length * (contract.dropOffFee || 0));
+                                                            newData.sellingPrice = contract.sellingBasePrice + (drops.length * (contract.dropOffFee || 0));
+                                                        }
+                                                        return newData;
+                                                    });
+                                                    setOriginQuery('');
+                                                    setShowOriginList(false);
+                                                }}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    {isMaster ? <ShieldCheck size={14} className={isSelected ? 'text-white' : 'text-emerald-500'} /> : <MapPin size={14} className={isSelected ? 'text-white' : 'text-slate-300'} />}
+                                                    <span>{highlightMatch(l, originQuery)}</span>
+                                                </div>
+                                                {isMaster && (
+                                                    <div className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider ${isSelected ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                        Price Found
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
                                     {MASTER_DATA.locations.filter(l => l.toLowerCase().includes(originQuery.toLowerCase())).length === 0 && (
                                         <div className="p-4 text-center text-xs text-slate-400 font-bold italic">
                                             No matching locations found...
@@ -483,43 +535,57 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                         <ChevronDown size={18} />
                                     </button>
                                 </div>
-                            </div>
-                            {showDestList && (
-                                <div className="absolute z-[60] w-full mt-1 bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-slate-100 max-h-60 overflow-y-auto py-2 animate-in fade-in zoom-in-95 duration-200">
-                                    {MASTER_DATA.locations
-                                        .filter(l => l.toLowerCase().includes(destQuery.toLowerCase()))
-                                        .map((l, i) => {
+                                {showDestList && (
+                                    <div className="absolute z-[60] w-full mt-1 bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-slate-100 max-h-60 overflow-y-auto py-2 animate-in fade-in zoom-in-95 duration-200">
+                                        {filteredDests.some(l => masterPricingDests.includes(l)) && (
+                                            <div className="px-6 py-2 bg-emerald-50 text-[9px] font-black text-emerald-600 uppercase tracking-widest border-b border-emerald-50 flex items-center gap-2">
+                                                <ShieldCheck size={10} /> 🎯 ปลายทางตามราคากลาง (Verified Destinations)
+                                            </div>
+                                        )}
+                                        {filteredDests.map((l, i) => {
                                             const isSelected = editData.destination === l;
+                                            const isMaster = masterPricingDests.includes(l);
                                             return (
                                                 <button
                                                     key={i}
                                                     type="button"
-                                                    className={`w-full text-left px-6 py-3 text-sm font-bold transition-colors flex items-center justify-between group ${isSelected ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                                    className={`w-full text-left px-6 py-3 text-sm font-bold transition-all flex items-center justify-between group ${isSelected ? 'bg-emerald-600 text-white' : isMaster ? 'bg-emerald-50/20 text-emerald-900 border-b border-emerald-50/50' : 'hover:bg-slate-50 text-slate-700 border-b border-slate-50'}`}
                                                     onClick={() => {
                                                         setEditData(prev => {
                                                             const newData = { ...prev, destination: l };
                                                             const contract = findContractMatch(prev.origin, l, prev.truckType, prev.subcontractor)
                                                                 || findContractMatch(prev.origin, l, prev.truckType);
-                                                            if (contract) newData.cost = contract.basePrice;
+                                                            if (contract) {
+                                                                const drops = prev.drops || [];
+                                                                newData.cost = contract.basePrice + (drops.length * (contract.dropOffFee || 0));
+                                                                newData.sellingPrice = contract.sellingBasePrice + (drops.length * (contract.dropOffFee || 0));
+                                                            }
                                                             return newData;
                                                         });
                                                         setDestQuery('');
                                                         setShowDestList(false);
                                                     }}
                                                 >
-                                                    <span>{l}</span>
-                                                    {(isSelected || destQuery === l) && <BadgeCheck size={14} className="text-blue-500" />}
-                                                    {!isSelected && <BadgeCheck size={14} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                    <div className="flex items-center gap-2">
+                                                        {isMaster ? <ShieldCheck size={14} className={isSelected ? 'text-white' : 'text-emerald-500'} /> : <MapPin size={14} className={isSelected ? 'text-white' : 'text-slate-300'} />}
+                                                        <span>{highlightMatch(l, destQuery)}</span>
+                                                    </div>
+                                                    {isMaster && (
+                                                        <div className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider ${isSelected ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                            Price Found
+                                                        </div>
+                                                    )}
                                                 </button>
                                             );
                                         })}
-                                    {MASTER_DATA.locations.filter(l => l.toLowerCase().includes(destQuery.toLowerCase())).length === 0 && (
-                                        <div className="p-4 text-center text-xs text-slate-400 font-bold italic">
-                                            No matching locations found...
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                                        {filteredDests.length === 0 && (
+                                            <div className="p-4 text-center text-xs text-slate-400 font-bold italic">
+                                                No matching locations found...
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Drop Points Section */}
@@ -530,7 +596,7 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                 </label>
                                 <button
                                     type="button"
-                                    onClick={() => setEditData(prev => ({ ...prev, drops: [...(prev.drops || []), ''] }))}
+                                    onClick={() => setEditData(prev => ({ ...prev, drops: [...(prev.drops || []), { location: '', status: 'PENDING' }] }))}
                                     className="text-[10px] font-black text-blue-600 uppercase hover:underline flex items-center gap-1"
                                 >
                                     + เพิ่มจุดส่งสินค้า
@@ -545,16 +611,42 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                                 type="text"
                                                 placeholder={`จุดส่งสินค้าที่ ${index + 1}...`}
                                                 className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 transition-all text-sm"
-                                                value={drop}
+                                                value={drop.location}
+                                                onFocus={() => { const newList = [...showDropList]; newList[index] = true; setShowDropList(newList); }}
+                                                onBlur={() => setTimeout(() => { const newList = [...showDropList]; newList[index] = false; setShowDropList(newList); }, 200)}
                                                 onChange={e => {
                                                     const newValue = e.target.value;
                                                     setEditData(prev => {
                                                         const newDrops = [...(prev.drops || [])];
-                                                        newDrops[index] = newValue;
+                                                        newDrops[index] = { ...newDrops[index], location: newValue };
                                                         return { ...prev, drops: newDrops };
                                                     });
                                                 }}
                                             />
+                                            {showDropList[index] && (
+                                                <div className="absolute z-[120] left-0 right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl max-h-40 overflow-y-auto py-1">
+                                                    {allKnownDests.filter(l => l.toLowerCase().includes(drop.location.toLowerCase())).map((l, i) => (
+                                                        <button
+                                                            key={i}
+                                                            type="button"
+                                                            className="w-full text-left px-4 py-2 text-[10px] font-bold hover:bg-blue-50 text-slate-700 transition-colors flex items-center justify-between"
+                                                            onClick={() => {
+                                                                setEditData(prev => {
+                                                                    const newDrops = [...(prev.drops || [])];
+                                                                    newDrops[index] = { ...newDrops[index], location: l };
+                                                                    return { ...prev, drops: newDrops };
+                                                                });
+                                                            }}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                {masterPricingDests.includes(l) && <ShieldCheck size={10} className="text-emerald-500" />}
+                                                                {highlightMatch(l, drop.location)}
+                                                            </div>
+                                                            {masterPricingDests.includes(l) && <span className="text-[7px] font-black text-emerald-600 uppercase">Master</span>}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -674,26 +766,43 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                         .filter(s => s.toLowerCase().includes(subQuery.toLowerCase()))
                                         .map((s, i) => {
                                             const isSelected = editData.subcontractor === s;
+                                            const hasContractForRoute = priceMatrix.some(p =>
+                                                p.origin === editData.origin &&
+                                                p.destination === editData.destination &&
+                                                p.truckType === editData.truckType &&
+                                                p.subcontractor === s
+                                            );
+
                                             return (
                                                 <button
                                                     key={i}
                                                     type="button"
-                                                    className={`w-full text-left px-6 py-3 text-sm font-bold transition-colors flex items-center justify-between group ${isSelected ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                                    className={`w-full text-left px-6 py-3 text-sm font-bold transition-all flex items-center justify-between group ${isSelected ? 'bg-blue-600 text-white' : hasContractForRoute ? 'bg-emerald-50/30 text-emerald-900 border-b border-emerald-50/50' : 'hover:bg-slate-50 text-slate-700 border-b border-slate-50'}`}
                                                     onClick={() => {
                                                         setEditData(prev => {
                                                             const newData = { ...prev, subcontractor: s };
                                                             const contract = findContractMatch(prev.origin, prev.destination, prev.truckType, s)
                                                                 || findContractMatch(prev.origin, prev.destination, prev.truckType);
-                                                            if (contract) newData.cost = contract.basePrice;
+                                                            if (contract) {
+                                                                const drops = prev.drops || [];
+                                                                newData.cost = contract.basePrice + (drops.length * (contract.dropOffFee || 0));
+                                                                newData.sellingPrice = contract.sellingBasePrice + (drops.length * (contract.dropOffFee || 0));
+                                                            }
                                                             return newData;
                                                         });
                                                         setSubQuery('');
                                                         setShowSubList(false);
                                                     }}
                                                 >
-                                                    <span>{s}</span>
-                                                    {(isSelected || subQuery === s) && <BadgeCheck size={14} className="text-blue-500" />}
-                                                    {!isSelected && <BadgeCheck size={14} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                    <div className="flex items-center gap-2">
+                                                        {hasContractForRoute ? <ShieldCheck size={14} className={isSelected ? 'text-white' : 'text-emerald-500'} /> : <Truck size={14} className={isSelected ? 'text-white' : 'text-slate-300'} />}
+                                                        <span>{highlightMatch(s, subQuery)}</span>
+                                                    </div>
+                                                    {hasContractForRoute && (
+                                                        <div className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider ${isSelected ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                            Contract Path
+                                                        </div>
+                                                    )}
                                                 </button>
                                             );
                                         })}

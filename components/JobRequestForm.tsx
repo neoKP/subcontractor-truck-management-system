@@ -33,7 +33,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     driverPhone: '',
     licensePlate: '',
     cost: 0,
-    drops: [] as string[]
+    drops: [] as { location: string; status: 'PENDING' | 'COMPLETED'; podUrl?: string; completedAt?: string }[]
   });
 
   const [showOriginList, setShowOriginList] = useState(false);
@@ -48,13 +48,43 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     );
   };
 
-  const filteredOrigins = MASTER_DATA.locations.filter(l =>
-    l.toLowerCase().includes(originQuery.toLowerCase())
-  );
+  // Intelligence: Extract locations from Price Matrix to prioritize
+  const masterPricingOrigins = Array.from(new Set(priceMatrix.map(p => p.origin))) as string[];
+  const masterPricingDests = Array.from(new Set(priceMatrix.map(p => p.destination))) as string[];
 
-  const filteredDests = MASTER_DATA.locations.filter(l =>
-    l.toLowerCase().includes(destQuery.toLowerCase())
-  );
+  const allKnownOrigins = Array.from(new Set([...MASTER_DATA.locations, ...masterPricingOrigins])) as string[];
+  const allKnownDests = Array.from(new Set([...MASTER_DATA.locations, ...masterPricingDests])) as string[];
+
+  const filteredOrigins = allKnownOrigins
+    .filter(l => l.toLowerCase().includes(originQuery.toLowerCase()))
+    .sort((a, b) => {
+      const aHas = masterPricingOrigins.includes(a);
+      const bHas = masterPricingOrigins.includes(b);
+      return aHas === bHas ? 0 : aHas ? -1 : 1;
+    });
+
+  const filteredDests = allKnownDests
+    .filter(l => l.toLowerCase().includes(destQuery.toLowerCase()))
+    .sort((a, b) => {
+      const aHas = masterPricingDests.includes(a);
+      const bHas = masterPricingDests.includes(b);
+      return aHas === bHas ? 0 : aHas ? -1 : 1;
+    });
+
+  // Function to highlight match
+  const highlightMatch = (text: string, query: string) => {
+    if (!query) return text;
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    return (
+      <>
+        {parts.map((part, i) =>
+          part.toLowerCase() === query.toLowerCase()
+            ? <span key={i} className="text-blue-600 underline decoration-2">{part}</span>
+            : part
+        )}
+      </>
+    );
+  };
 
   /* 
      HANDLE FORM SUBMISSION (Enter Key)
@@ -253,20 +283,39 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                   </div>
                   {showOriginList && filteredOrigins.length > 0 && (
                     <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 max-h-60 overflow-y-auto animate-in fade-in zoom-in duration-200">
-                      {filteredOrigins.map((l, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          className="w-full text-left px-5 py-3.5 hover:bg-blue-50 text-sm font-bold text-slate-700 transition-colors border-b border-slate-50 last:border-0"
-                          onClick={() => {
-                            setFormData({ ...formData, origin: l });
-                            setOriginQuery(l);
-                            setShowOriginList(false);
-                          }}
-                        >
-                          {l}
-                        </button>
-                      ))}
+                      {/* Priority Locations */}
+                      {filteredOrigins.some(l => masterPricingOrigins.includes(l)) && (
+                        <div className="px-5 py-2 bg-blue-50/50 text-[10px] font-black text-blue-500 uppercase tracking-widest border-b border-blue-50">
+                          🎯 สถานที่ตามราคากลาง (Contract)
+                        </div>
+                      )}
+
+                      {filteredOrigins.map((l, i) => {
+                        const isMaster = masterPricingOrigins.includes(l);
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            className={`w-full text-left px-5 py-3.5 hover:bg-blue-50 text-sm font-bold transition-all border-b border-slate-50 last:border-0 flex items-center justify-between ${isMaster ? 'bg-blue-50/20 text-blue-900' : 'text-slate-700'
+                              }`}
+                            onClick={() => {
+                              setFormData({ ...formData, origin: l });
+                              setOriginQuery(l);
+                              setShowOriginList(false);
+                            }}
+                          >
+                            <div className="flex items-center gap-2">
+                              {isMaster ? <ShieldCheck size={14} className="text-emerald-500" /> : <MapPin size={14} className="text-slate-300" />}
+                              <span>{highlightMatch(l, originQuery)}</span>
+                            </div>
+                            {isMaster && (
+                              <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider">
+                                PRICE FOUND
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -293,20 +342,39 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                   </div>
                   {showDestList && filteredDests.length > 0 && (
                     <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 max-h-60 overflow-y-auto animate-in fade-in zoom-in duration-200">
-                      {filteredDests.map((l, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          className="w-full text-left px-5 py-3.5 hover:bg-blue-50 text-sm font-bold text-slate-700 transition-colors border-b border-slate-50 last:border-0"
-                          onClick={() => {
-                            setFormData({ ...formData, destination: l });
-                            setDestQuery(l);
-                            setShowDestList(false);
-                          }}
-                        >
-                          {l}
-                        </button>
-                      ))}
+                      {/* Priority Locations */}
+                      {filteredDests.some(l => masterPricingDests.includes(l)) && (
+                        <div className="px-5 py-2 bg-emerald-50 text-[10px] font-black text-emerald-600 uppercase tracking-widest border-b border-emerald-50">
+                          🎯 ปลายทางตามราคากล่าวง (Verified Destinations)
+                        </div>
+                      )}
+
+                      {filteredDests.map((l, i) => {
+                        const isMaster = masterPricingDests.includes(l);
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            className={`w-full text-left px-5 py-3.5 hover:bg-blue-50 text-sm font-bold transition-all border-b border-slate-50 last:border-0 flex items-center justify-between ${isMaster ? 'bg-emerald-50/10 text-slate-900' : 'text-slate-700'
+                              }`}
+                            onClick={() => {
+                              setFormData({ ...formData, destination: l });
+                              setDestQuery(l);
+                              setShowDestList(false);
+                            }}
+                          >
+                            <div className="flex items-center gap-2">
+                              {isMaster ? <ShieldCheck size={14} className="text-emerald-500" /> : <MapPin size={14} className="text-slate-300" />}
+                              <span>{highlightMatch(l, destQuery)}</span>
+                            </div>
+                            {isMaster && (
+                              <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider">
+                                PRICE FOUND
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -322,7 +390,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                   <button
                     type="button"
                     onClick={() => {
-                      setFormData({ ...formData, drops: [...formData.drops, ''] });
+                      setFormData({ ...formData, drops: [...formData.drops, { location: '', status: 'PENDING' }] });
                     }}
                     className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95"
                   >
@@ -342,10 +410,10 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                           type="text"
                           placeholder="ระบุสถานที่ส่งสินค้า..."
                           className="w-full pl-10 pr-10 py-3 rounded-xl border border-slate-100 bg-slate-50/30 focus:bg-white focus:border-blue-500 outline-none transition-all font-bold text-slate-700 text-sm"
-                          value={drop}
+                          value={drop.location}
                           onChange={(e) => {
                             const newDrops = [...formData.drops];
-                            newDrops[index] = e.target.value;
+                            newDrops[index] = { ...newDrops[index], location: e.target.value };
                             setFormData({ ...formData, drops: newDrops });
                           }}
                           onFocus={() => {
@@ -374,16 +442,16 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                         </button>
 
                         {/* Drop Auto-complete (Simplified) */}
-                        {showDropList[index] && filteredLocations(drop).length > 0 && (
+                        {showDropList[index] && filteredLocations(drop.location).length > 0 && (
                           <div className="absolute z-[60] w-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 max-h-40 overflow-y-auto">
-                            {filteredLocations(drop).slice(0, 10).map((l, i) => (
+                            {filteredLocations(drop.location).slice(0, 10).map((l, i) => (
                               <button
                                 key={i}
                                 type="button"
                                 className="w-full text-left px-4 py-2 hover:bg-blue-50 text-[11px] font-bold text-slate-600 transition-colors border-b border-slate-50 last:border-0"
                                 onClick={() => {
                                   const newDrops = [...formData.drops];
-                                  newDrops[index] = l;
+                                  newDrops[index] = { ...newDrops[index], location: l };
                                   setFormData({ ...formData, drops: newDrops });
                                 }}
                               >
@@ -506,21 +574,27 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                     </div>
 
                     {hasPricing && (
-                      <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-emerald-100">
-                        <div className="flex items-center justify-between mb-3">
+                      <div className="bg-white/60 backdrop-blur-sm rounded-3xl p-5 border border-emerald-100">
+                        <div className="flex items-center justify-between mb-4 px-1">
                           <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                            <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Smart Recommendation / แนะนำอัจฉริยะ</div>
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                            <div className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Available Options / ตัวเลือกที่ตรวจพบ</div>
                           </div>
-                          <div className="text-[9px] font-bold text-emerald-500">เรียงตามราคาถูกสุด</div>
+                          <div className="text-[9px] font-bold text-slate-400 uppercase">Sorted by Lowest Cost</div>
                         </div>
-                        <div className="space-y-2">
+
+                        <div className="grid grid-cols-1 gap-3">
                           {matchedPricing
-                            .sort((a, b) => a.basePrice - b.basePrice) // Sort by cheapest price first
+                            .sort((a, b) => {
+                              const totalA = a.basePrice + (formData.drops.length * (a.dropOffFee || 0));
+                              const totalB = b.basePrice + (formData.drops.length * (b.dropOffFee || 0));
+                              return totalA - totalB;
+                            })
                             .map((p, idx) => {
                               const isSelected = formData.subcontractor === p.subcontractor;
                               const dropFeeTotal = (formData.drops.length) * (p.dropOffFee || 0);
                               const totalWithDrops = p.basePrice + dropFeeTotal;
+                              const isCheapest = idx === 0;
 
                               return (
                                 <button
@@ -528,48 +602,56 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                                   type="button"
                                   onClick={() => {
                                     if (isSelected) {
-                                      setFormData({
-                                        ...formData,
-                                        subcontractor: '',
-                                        cost: 0
-                                      });
+                                      setFormData(prev => ({ ...prev, subcontractor: '', cost: 0, sellingPrice: 0 }));
                                     } else {
-                                      setFormData({
-                                        ...formData,
+                                      setFormData(prev => ({
+                                        ...prev,
                                         subcontractor: p.subcontractor,
                                         cost: totalWithDrops,
                                         sellingPrice: p.sellingBasePrice + dropFeeTotal
-                                      });
+                                      }));
                                     }
                                   }}
-                                  className={`w-full text-left p-4 rounded-2xl border-2 transition-all duration-200 ${isSelected
-                                    ? 'bg-emerald-500 border-emerald-600 shadow-lg shadow-emerald-200'
-                                    : 'bg-white border-emerald-100 hover:border-emerald-300 hover:bg-emerald-50'
+                                  className={`group relative w-full text-left p-4 rounded-2xl border-2 transition-all duration-300 ${isSelected
+                                    ? 'bg-gradient-to-r from-emerald-500 to-teal-600 border-emerald-600 shadow-xl shadow-emerald-200 -translate-y-1'
+                                    : 'bg-white border-slate-100 hover:border-emerald-200 hover:shadow-md'
                                     }`}
                                 >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-[12px] font-black ${idx === 0 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'bg-slate-200 text-slate-500'}`}>
-                                        {idx + 1}
+                                  {isCheapest && !isSelected && (
+                                    <div className="absolute -top-2 -right-2 bg-amber-400 text-white text-[8px] font-black px-2 py-1 rounded-lg shadow-lg z-10 animate-bounce">
+                                      CHEAPEST
+                                    </div>
+                                  )}
+
+                                  <div className="flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-4">
+                                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600'
+                                        }`}>
+                                        <Truck size={24} />
                                       </div>
-                                      <div className="text-left">
-                                        <p className={`font-black text-sm ${isSelected ? 'text-white' : 'text-slate-800'}`}>
+
+                                      <div>
+                                        <h4 className={`font-black text-sm mb-1 ${isSelected ? 'text-white' : 'text-slate-800'}`}>
                                           {p.subcontractor}
-                                        </p>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                          <p className={`text-[10px] font-bold ${isSelected ? 'text-emerald-100' : 'text-emerald-600'}`}>
-                                            ฿{p.basePrice.toLocaleString()} (ฐาน)
-                                          </p>
+                                        </h4>
+                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                          <div className={`flex items-center gap-1 text-[10px] font-bold ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
+                                            <span>Base: ฿{p.basePrice.toLocaleString()}</span>
+                                          </div>
                                           {formData.drops.length > 0 && (
-                                            <p className={`text-[10px] font-bold ${isSelected ? 'text-white' : 'text-blue-600'}`}>
-                                              + Drop Fee: ฿{dropFeeTotal.toLocaleString()} ({formData.drops.length} จุดแวะส่ง)
-                                            </p>
+                                            <div className={`flex items-center gap-1 text-[10px] font-bold ${isSelected ? 'text-white' : 'text-blue-600'}`}>
+                                              <span>Drop(x{formData.drops.length}): ฿{dropFeeTotal.toLocaleString()}</span>
+                                            </div>
                                           )}
                                         </div>
                                       </div>
                                     </div>
+
                                     <div className="text-right">
-                                      <p className={`text-sm font-black ${isSelected ? 'text-white' : 'text-slate-900'}`}>
+                                      <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
+                                        Total Cost
+                                      </p>
+                                      <p className={`text-xl font-black ${isSelected ? 'text-white' : 'text-emerald-600'}`}>
                                         ฿{totalWithDrops.toLocaleString()}
                                       </p>
                                     </div>
@@ -578,11 +660,15 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                               );
                             })}
                         </div>
+
                         {formData.subcontractor && (
-                          <div className="mt-3 p-2 bg-emerald-100 rounded-xl text-center">
-                            <p className="text-[10px] font-bold text-emerald-700 font-display">
-                              ✓ เลือก {formData.subcontractor} แล้ว | คลิกซ้ำเพื่อยกเลิก
-                            </p>
+                          <div className="mt-4 pt-4 border-t border-emerald-100/50">
+                            <div className="flex items-center justify-center gap-2 bg-emerald-500/10 py-2 rounded-xl">
+                              <CheckCircle2 size={14} className="text-emerald-600" />
+                              <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">
+                                Selected: {formData.subcontractor}
+                              </p>
+                            </div>
                           </div>
                         )}
                       </div>

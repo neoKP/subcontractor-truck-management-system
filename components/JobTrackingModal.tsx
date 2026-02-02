@@ -4,7 +4,7 @@ import { Job, JobStatus, AccountingStatus, UserRole } from '../types';
 import {
     FileText, Truck, Receipt, CreditCard, CheckCircle,
     Clock, MapPin, User, Phone, Calendar, X, ExternalLink,
-    ShieldCheck, FileCheck, DollarSign
+    ShieldCheck, FileCheck, DollarSign, CircleDot, CheckCircle2
 } from 'lucide-react';
 import { formatDate } from '../utils/format';
 
@@ -158,15 +158,44 @@ const JobTrackingModal: React.FC<JobTrackingModalProps> = ({ job, onClose, curre
                                 </div>
                             )}
 
-                            {/* POD Thumbnail */}
+                            {/* Drop Checkpoints Timeline */}
+                            {job.drops && job.drops.length > 0 && (
+                                <div className="mt-4 space-y-4 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-100">
+                                    <p className="text-[9px] font-black text-slate-400 mb-2 uppercase tracking-widest pl-1">Checkpoints & Location Proofs</p>
+                                    {job.drops.map((drop, idx) => (
+                                        <div key={idx} className="relative pl-7 group">
+                                            <div className={`absolute left-0 top-1 w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center transition-all z-10 ${drop.status === 'COMPLETED' ? 'bg-emerald-500 border-emerald-500 text-white shadow-emerald-100' : 'bg-white border-slate-200 text-slate-300'}`}>
+                                                {drop.status === 'COMPLETED' ? <CheckCircle2 size={12} /> : <CircleDot size={10} />}
+                                            </div>
+                                            <div className={`p-3 rounded-xl border transition-all ${drop.status === 'COMPLETED' ? 'bg-emerald-50/30 border-emerald-100' : 'bg-slate-50/30 border-slate-100'}`}>
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <p className={`text-[11px] font-bold ${drop.status === 'COMPLETED' ? 'text-emerald-700' : 'text-slate-600'}`}>{drop.location}</p>
+                                                        {drop.completedAt && <p className="text-[8px] text-emerald-500 font-mono mt-0.5">Time: {formatDate(drop.completedAt)}</p>}
+                                                    </div>
+                                                    {drop.podUrl && (
+                                                        <div className="w-10 h-10 rounded-lg overflow-hidden border-2 border-white shadow-sm shrink-0 hover:scale-110 transition-transform cursor-pointer">
+                                                            <img src={drop.podUrl} className="w-full h-full object-cover" alt="Point POD" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Main POD Thumbnail (Final Destination) */}
                             {job.podImageUrls && job.podImageUrls.length > 0 && (
-                                <div className="mt-2">
-                                    <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase">หลักฐานการส่งมอบ (Proof of Delivery)</p>
+                                <div className="mt-4 pt-4 border-t border-slate-100">
+                                    <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase flex items-center gap-2">
+                                        <ShieldCheck size={14} className="text-emerald-500" />
+                                        จุดส่งสินค้าปลายทาง (Final POD)
+                                    </p>
                                     <div className="flex -space-x-2 overflow-hidden">
                                         {job.podImageUrls.map((url, i) => (
-                                            <div key={i} className="w-10 h-10 rounded-lg border-2 border-white shadow-sm overflow-hidden bg-slate-200">
-                                                <img src={url} className="w-full h-full object-cover" alt="POD" onError={(e) => {
-                                                    // Fallback for PDF or broken link
+                                            <div key={i} className="w-12 h-12 rounded-xl border-2 border-white shadow-md overflow-hidden bg-slate-200">
+                                                <img src={url} className="w-full h-full object-cover" alt="Final POD" onError={(e) => {
                                                     e.currentTarget.src = 'https://placehold.co/100?text=DOC';
                                                 }} />
                                             </div>

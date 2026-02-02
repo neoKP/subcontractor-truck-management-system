@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus } from '../types';
 import { MASTER_DATA, PRICE_MATRIX as FALLBACK_PRICE_MATRIX } from '../constants';
-import { AlertTriangle, Info, X, Lock, CheckCircle, User, Phone, Hash, CircleDot, DollarSign, Wallet, FileText, Clock, AlertCircle, Calendar, TrendingUp } from 'lucide-react';
+import { AlertTriangle, Info, X, Lock, CheckCircle, User, Phone, Hash, CircleDot, DollarSign, Wallet, FileText, Clock, AlertCircle, Calendar, TrendingUp, ShieldCheck, MapPin, Upload, Camera, CheckCircle2 } from 'lucide-react';
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 import ReviewConfirmModal from './ReviewConfirmModal';
 
@@ -15,6 +15,7 @@ interface DispatcherActionModalProps {
   logs: AuditLog[];
   logsLoaded: boolean;
 }
+const Swal = (window as any).Swal;
 
 const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onClose, onSave, user, priceMatrix: propPriceMatrix, logs, logsLoaded }) => {
   // Merge Prop Matrix with Fallback to ensure we have critical hardcoded paths if missing from DB
@@ -30,7 +31,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     sellingPrice: job.sellingPrice || 0,
     origin: job.origin,
     destination: job.destination,
-    drops: job.drops || []
+    drops: job.drops || [] as { location: string; status: 'PENDING' | 'COMPLETED'; podUrl?: string; completedAt?: string }[]
   });
 
   const [originQuery, setOriginQuery] = useState('');
@@ -53,6 +54,44 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [isContractPrice, setIsContractPrice] = useState(false);
+  const [showDropList, setShowDropList] = useState<boolean[]>([]);
+
+  // Intelligence: Extract locations from Price Matrix
+  const masterPricingOrigins = React.useMemo(() => Array.from(new Set(priceMatrix.map(p => p.origin))) as string[], [priceMatrix]);
+  const masterPricingDests = React.useMemo(() => Array.from(new Set(priceMatrix.map(p => p.destination))) as string[], [priceMatrix]);
+
+  const allKnownOrigins = React.useMemo(() => Array.from(new Set([...MASTER_DATA.locations, ...masterPricingOrigins])) as string[], [masterPricingOrigins]);
+  const allKnownDests = React.useMemo(() => Array.from(new Set([...MASTER_DATA.locations, ...masterPricingDests])) as string[], [masterPricingDests]);
+
+  const filteredOrigins = React.useMemo(() => allKnownOrigins
+    .filter(l => l.toLowerCase().includes(originQuery.toLowerCase()))
+    .sort((a, b) => {
+      const aHas = masterPricingOrigins.includes(a);
+      const bHas = masterPricingOrigins.includes(b);
+      return aHas === bHas ? 0 : aHas ? -1 : 1;
+    }), [allKnownOrigins, originQuery, masterPricingOrigins]);
+
+  const filteredDests = React.useMemo(() => allKnownDests
+    .filter(l => l.toLowerCase().includes(destQuery.toLowerCase()))
+    .sort((a, b) => {
+      const aHas = masterPricingDests.includes(a);
+      const bHas = masterPricingDests.includes(b);
+      return aHas === bHas ? 0 : aHas ? -1 : 1;
+    }), [allKnownDests, destQuery, masterPricingDests]);
+
+  const highlightMatch = (text: string, query: string) => {
+    if (!query) return text;
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    return (
+      <>
+        {parts.map((part, i) =>
+          part.toLowerCase() === query.toLowerCase()
+            ? <span key={i} className="text-blue-600 underline decoration-2">{part}</span>
+            : part
+        )}
+      </>
+    );
+  };
 
   // Use stateful price matrix for lookup
   const calculatePriceLive = (origin: string, destination: string, truckType: string, sub: string, dropCount: number): number => {
@@ -311,16 +350,28 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                       />
                       {showOriginList && (
                         <div className="absolute z-[120] left-0 right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl max-h-40 overflow-y-auto py-1 animate-in fade-in zoom-in-95 duration-200">
-                          {MASTER_DATA.locations.filter(l => l.toLowerCase().includes(originQuery.toLowerCase())).map((l, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              className="w-full text-left px-4 py-2 text-xs font-bold hover:bg-blue-50 text-slate-700 transition-colors"
-                              onClick={() => { setEditData(prev => ({ ...prev, origin: l })); setOriginQuery(''); setShowOriginList(false); }}
-                            >
-                              {l}
-                            </button>
-                          ))}
+                          {filteredOrigins.some(l => masterPricingOrigins.includes(l)) && (
+                            <div className="px-4 py-1 bg-blue-50/50 text-[8px] font-black text-blue-500 uppercase tracking-widest border-b border-blue-50">
+                              🎯 Contract Locations
+                            </div>
+                          )}
+                          {filteredOrigins.map((l, i) => {
+                            const isMaster = masterPricingOrigins.includes(l);
+                            return (
+                              <button
+                                key={i}
+                                type="button"
+                                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${isMaster ? 'hover:bg-blue-50 text-blue-900 bg-blue-50/10' : 'hover:bg-slate-50 text-slate-700'}`}
+                                onClick={() => { setEditData(prev => ({ ...prev, origin: l })); setOriginQuery(''); setShowOriginList(false); }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  {isMaster && <ShieldCheck size={10} className="text-emerald-500" />}
+                                  {highlightMatch(l, originQuery)}
+                                </div>
+                                {isMaster && <span className="text-[8px] font-black text-emerald-600 uppercase">Master</span>}
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -345,16 +396,28 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                       />
                       {showDestList && (
                         <div className="absolute z-[120] left-0 right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl max-h-40 overflow-y-auto py-1 animate-in fade-in zoom-in-95 duration-200">
-                          {MASTER_DATA.locations.filter(l => l.toLowerCase().includes(destQuery.toLowerCase())).map((l, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              className="w-full text-left px-4 py-2 text-xs font-bold hover:bg-blue-50 text-slate-700 transition-colors"
-                              onClick={() => { setEditData(prev => ({ ...prev, destination: l })); setDestQuery(''); setShowDestList(false); }}
-                            >
-                              {l}
-                            </button>
-                          ))}
+                          {filteredDests.some(l => masterPricingDests.includes(l)) && (
+                            <div className="px-4 py-1 bg-emerald-50 text-[8px] font-black text-emerald-600 uppercase tracking-widest border-b border-emerald-50">
+                              🎯 Verified Destinations
+                            </div>
+                          )}
+                          {filteredDests.map((l, i) => {
+                            const isMaster = masterPricingDests.includes(l);
+                            return (
+                              <button
+                                key={i}
+                                type="button"
+                                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${isMaster ? 'hover:bg-blue-50 text-blue-900 bg-emerald-50/10' : 'hover:bg-slate-50 text-slate-700'}`}
+                                onClick={() => { setEditData(prev => ({ ...prev, destination: l })); setDestQuery(''); setShowDestList(false); }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  {isMaster && <ShieldCheck size={10} className="text-emerald-500" />}
+                                  {highlightMatch(l, destQuery)}
+                                </div>
+                                {isMaster && <span className="text-[8px] font-black text-emerald-600 uppercase">Master</span>}
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -367,7 +430,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                       {!isActuallyLocked && (
                         <button
                           type="button"
-                          onClick={() => setEditData(prev => ({ ...prev, drops: [...(prev.drops || []), ''] }))}
+                          onClick={() => setEditData(prev => ({ ...prev, drops: [...(prev.drops || []), { location: '', status: 'PENDING' }] }))}
                           className="text-[9px] font-black text-blue-600 uppercase hover:underline"
                         >
                           + เพิ่มจุดส่งสินค้า
@@ -383,16 +446,111 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                               disabled={isActuallyLocked}
                               placeholder={`จุดส่งสินค้าที่ ${index + 1}...`}
                               className={`w-full px-3 py-2 rounded-xl border font-bold text-xs outline-none focus:ring-2 focus:ring-blue-100 transition-all ${isActuallyLocked ? 'border-slate-100 bg-slate-50 text-slate-400' : 'border-blue-100 bg-white/80 text-slate-800'}`}
-                              value={drop}
+                              value={drop.location}
+                              onFocus={() => { if (!isActuallyLocked) { const newList = [...showDropList]; newList[index] = true; setShowDropList(newList); } }}
+                              onBlur={() => setTimeout(() => { const newList = [...showDropList]; newList[index] = false; setShowDropList(newList); }, 200)}
                               onChange={e => {
                                 const newValue = e.target.value;
                                 setEditData(prev => {
                                   const newDrops = [...(prev.drops || [])];
-                                  newDrops[index] = newValue;
+                                  newDrops[index] = { ...newDrops[index], location: newValue };
                                   return { ...prev, drops: newDrops };
                                 });
                               }}
                             />
+                            {showDropList[index] && (
+                              <div className="absolute z-[120] left-0 right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl max-h-40 overflow-y-auto py-1">
+                                {allKnownDests.filter(l => l.toLowerCase().includes(drop.location.toLowerCase())).map((l, i) => (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    className="w-full text-left px-4 py-2 text-[10px] font-bold hover:bg-blue-50 text-slate-700 transition-colors flex items-center justify-between"
+                                    onClick={() => {
+                                      setEditData(prev => {
+                                        const newDrops = [...(prev.drops || [])];
+                                        newDrops[index] = { ...newDrops[index], location: l };
+                                        return { ...prev, drops: newDrops };
+                                      });
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      {masterPricingDests.includes(l) && <ShieldCheck size={10} className="text-emerald-500" />}
+                                      {highlightMatch(l, drop.location)}
+                                    </div>
+                                    {masterPricingDests.includes(l) && <span className="text-[7px] font-black text-emerald-600 uppercase">Master</span>}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Drop Point Status & Tools */}
+                            <div className="flex items-center gap-2 mt-2 px-1">
+                              <button
+                                type="button"
+                                disabled={isActuallyLocked}
+                                onClick={() => {
+                                  if (drop.status !== 'COMPLETED' && !drop.podUrl) {
+                                    if (typeof Swal !== 'undefined') {
+                                      Swal.fire({
+                                        icon: 'warning',
+                                        title: 'ต้องอัปโหลดหลักฐาน POD ก่อน',
+                                        text: `กรุณาถ่ายรูปหรืออัปโหลดหลักฐานส่งสินค้าสำหรับจุดนี้ เพื่อยืนยันการจบงาน`,
+                                        confirmButtonText: 'รับทราบ',
+                                        confirmButtonColor: '#3b82f6',
+                                        customClass: { popup: 'rounded-[1.5rem]' }
+                                      });
+                                    } else {
+                                      alert('กรุณาอัปโหลดหลักฐาน POD ก่อนกดจบงานในแต่ละจุด');
+                                    }
+                                    return;
+                                  }
+
+                                  setEditData(prev => {
+                                    const newDrops = [...(prev.drops || [])];
+                                    const isDone = newDrops[index].status === 'COMPLETED';
+                                    newDrops[index] = {
+                                      ...newDrops[index],
+                                      status: isDone ? 'PENDING' : 'COMPLETED',
+                                      completedAt: isDone ? undefined : new Date().toISOString()
+                                    };
+                                    return { ...prev, drops: newDrops };
+                                  });
+                                }}
+                                className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-lg border text-[9px] font-black uppercase transition-all shadow-sm active:scale-95 ${drop.status === 'COMPLETED' ? 'bg-emerald-600 border-emerald-600 text-white' : drop.podUrl ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-blue-300'}`}
+                              >
+                                {drop.status === 'COMPLETED' ? <CheckCircle2 size={12} /> : drop.podUrl ? <Camera size={12} /> : <CircleDot size={12} />}
+                                {drop.status === 'COMPLETED' ? 'Job Completed' : drop.podUrl ? 'Ready to Confirm' : 'POD Required'}
+                              </button>
+
+                              <div className="relative">
+                                <input
+                                  type="file"
+                                  id={`drop-pod-${index}`}
+                                  className="hidden"
+                                  accept="image/*"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onloadend = () => {
+                                        setEditData(prev => {
+                                          const newDrops = [...(prev.drops || [])];
+                                          newDrops[index] = { ...newDrops[index], podUrl: reader.result as string, status: 'COMPLETED' as const };
+                                          return { ...prev, drops: newDrops };
+                                        });
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                />
+                                <label
+                                  htmlFor={`drop-pod-${index}`}
+                                  className={`p-2 rounded-lg border flex items-center justify-center cursor-pointer transition-all ${drop.podUrl ? 'bg-blue-50 border-blue-100 text-blue-600' : 'bg-white border-slate-100 text-slate-400 hover:text-blue-500'}`}
+                                >
+                                  {drop.podUrl ? <CheckCircle size={12} /> : <Camera size={12} />}
+                                </label>
+                              </div>
+                            </div>
                             {!isActuallyLocked && (
                               <button
                                 type="button"
@@ -401,7 +559,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                                   setEditData(prev => ({ ...prev, drops: newDrops }));
                                 }}
                                 title="Remove drop point"
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-rose-500 p-1 transition-colors"
+                                className="absolute right-2 top-0.5 text-slate-300 hover:text-rose-500 p-1 transition-colors"
                               >
                                 <X size={14} />
                               </button>
@@ -743,7 +901,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
               </div>
             </div>
           )}
-        </div>
+        </div >
 
         <div className="bg-slate-50 px-8 py-6 flex justify-end gap-4 border-t border-slate-100 shrink-0">
           <button
@@ -770,7 +928,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
             </button>
           )}
         </div>
-      </div>
+      </div >
 
       {/* Review & Confirm Modal */}
       {

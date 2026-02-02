@@ -58,6 +58,13 @@ export interface ExtraChargeDetail {
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
 }
 
+export interface DropDetail {
+  location: string;
+  status: 'PENDING' | 'COMPLETED';
+  podUrl?: string; // Specific POD for this drop
+  completedAt?: string;
+}
+
 export interface Job {
   id: string;
   createdAt?: string; // Timestamp of job creation
@@ -69,7 +76,7 @@ export interface Job {
   weightVolume: string;
   remark?: string;
   referenceNo?: string;
-  drops?: string[];
+  drops?: DropDetail[]; // Upgraded from string[]
   status: JobStatus;
 
   // Requester information
