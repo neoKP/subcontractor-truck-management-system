@@ -190,6 +190,14 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
   const isStep1Valid = formData.dateOfService && formData.truckType;
   const isStep2Valid = formData.origin && formData.destination;
 
+  // Rule: Check if pricing exists for the given combination
+  const currentMatchedPricing = priceMatrix.find(p =>
+    (p.origin || '').trim() === (formData.origin || '').trim() &&
+    (p.destination || '').trim() === (formData.destination || '').trim() &&
+    (p.truckType || '').trim() === (formData.truckType || '').trim()
+  );
+  const canSaveJob = !!currentMatchedPricing;
+
   return (
     <div className="max-w-4xl mx-auto">
       {/* Wizard Progress Header */}
@@ -837,13 +845,25 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                   </div>
                 </div>
 
-                <div className="bg-orange-50/50 border border-orange-100 p-6 rounded-2xl flex items-start gap-4">
-                  <div className="shrink-0 p-2 bg-white rounded-xl shadow-sm">
-                    <Truck size={20} className="text-orange-500" />
+                <div className={`p-6 rounded-2xl flex items-start gap-4 border ${canSaveJob ? 'bg-orange-50/50 border-orange-100' : 'bg-rose-50 border-rose-200 animate-pulse'}`}>
+                  <div className={`shrink-0 p-2 bg-white rounded-xl shadow-sm ${canSaveJob ? '' : 'text-rose-500'}`}>
+                    {canSaveJob ? <Truck size={20} className="text-orange-500" /> : <AlertTriangle size={20} />}
                   </div>
-                  <p className="text-xs font-bold text-orange-800 leading-relaxed">
-                    โปรดตรวจสอบความถูกต้องของข้อมูลก่อนกดยืนยัน ข้อมูลนี้จะถูกส่งไปที่ฝ่าย Operation เพื่อจัดรถและซับคอนแทรคเตอร์ต่อไป
-                  </p>
+                  <div className="flex-1">
+                    {canSaveJob ? (
+                      <p className="text-xs font-bold text-orange-800 leading-relaxed">
+                        โปรดตรวจสอบความถูกต้องของข้อมูลก่อนกดยืนยัน ข้อมูลนี้จะถูกส่งไปที่ฝ่าย Operation เพื่อจัดรถและซับคอนแทรคเตอร์ต่อไป
+                      </p>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="text-sm font-black text-rose-900 uppercase">ไม่สามารถสร้างใบงานได้ (Invalid Request)</p>
+                        <p className="text-xs font-bold text-rose-700 leading-relaxed">
+                          เส้นทาง ({formData.origin} → {formData.destination}) สำหรับประเภทรถ {formData.truckType} <span className="underline decoration-2">ยังไม่มีราคากลางในระบบ</span>
+                          กรุณาแจ้งแอดมินให้เพิ่มราคาก่อนจึงจะสามารถสร้างใบงานได้
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -881,8 +901,11 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={isSubmitting}
-                className={`flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 rounded-2xl font-black shadow-xl shadow-blue-200 hover:shadow-blue-300 transform hover:-translate-y-1 transition-all uppercase tracking-widest text-sm ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+                disabled={isSubmitting || !canSaveJob}
+                className={`flex items-center gap-2 px-12 py-4 rounded-2xl font-black shadow-xl transform transition-all uppercase tracking-widest text-sm ${isSubmitting || !canSaveJob
+                  ? 'bg-slate-300 text-slate-500 shadow-none cursor-not-allowed opacity-60'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 hover:shadow-blue-300 hover:-translate-y-1'
+                  }`}
               >
                 {isSubmitting ? (
                   <>Processing... / กำลังบันทึก <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div></>
