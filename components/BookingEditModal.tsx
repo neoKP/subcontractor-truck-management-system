@@ -47,8 +47,9 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
             driverName: job.driverName || '',
             driverPhone: job.driverPhone || '',
             licensePlate: job.licensePlate || '',
-            cost: job.cost || (contract ? contract.basePrice : 0),
-            sellingPrice: job.sellingPrice || (contract ? contract.sellingBasePrice : 0)
+            cost: job.cost || (contract ? contract.basePrice + ((job.drops?.length || 0) * (contract.dropOffFee || 0)) : 0),
+            sellingPrice: job.sellingPrice || (contract ? contract.sellingBasePrice + ((job.drops?.length || 0) * (contract.dropOffFee || 0)) : 0),
+            drops: job.drops || []
         };
     });
 
@@ -517,6 +518,56 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                             No matching locations found...
                                         </div>
                                     )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Drop Points Section */}
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                    <MapPin size={12} className="text-blue-400" /> จุดแวะส่งสินค้า (Drop-off Points)
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditData(prev => ({ ...prev, drops: [...(prev.drops || []), ''] }))}
+                                    className="text-[10px] font-black text-blue-600 uppercase hover:underline flex items-center gap-1"
+                                >
+                                    + เพิ่มจุดส่งสินค้า
+                                </button>
+                            </div>
+
+                            {editData.drops && editData.drops.length > 0 && (
+                                <div className="space-y-3">
+                                    {editData.drops.map((drop, index) => (
+                                        <div key={index} className="relative group animate-in slide-in-from-left-2 duration-200">
+                                            <input
+                                                type="text"
+                                                placeholder={`จุดส่งสินค้าที่ ${index + 1}...`}
+                                                className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 outline-none focus:ring-4 focus:ring-blue-100 transition-all text-sm"
+                                                value={drop}
+                                                onChange={e => {
+                                                    const newValue = e.target.value;
+                                                    setEditData(prev => {
+                                                        const newDrops = [...(prev.drops || [])];
+                                                        newDrops[index] = newValue;
+                                                        return { ...prev, drops: newDrops };
+                                                    });
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newDrops = (editData.drops || []).filter((_, i) => i !== index);
+                                                    setEditData(prev => ({ ...prev, drops: newDrops }));
+                                                }}
+                                                title="Remove drop point"
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-rose-500 p-1 transition-colors"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>

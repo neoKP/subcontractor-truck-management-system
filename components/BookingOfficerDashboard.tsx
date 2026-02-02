@@ -485,7 +485,7 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
             {/* Personalized Header */}
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-6 text-white shadow-xl">
                 <div className="flex items-center justify-between">
-                    <div>
+                    <div className="font-display">
                         <h1 className="text-2xl font-black mb-1">สวัสดี {user.name} 👋</h1>
                         <p className="text-sm text-blue-100 font-medium">ระบบจัดการใบขอรถของคุณ</p>
                     </div>
@@ -506,14 +506,14 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
                     { label: 'เสร็จสิ้น', count: completedJobs.length, icon: CheckCircle, color: 'emerald' },
                     { label: 'ต้องแก้ไข', count: rejectedJobs.length, icon: AlertCircle, color: 'rose' },
                 ].map((item, idx) => (
-                    <div key={idx} className={`bg-white rounded-2xl p-5 border-2 border-${item.color}-200 shadow-sm`}>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className={`p-2 bg-${item.color}-100 rounded-xl`}>
-                                <item.icon className={`text-${item.color}-600`} size={20} />
+                    <div key={idx} className={`bg-white rounded-[2rem] p-6 border-2 border-${item.color}-200 shadow-sm transition-all hover:scale-[1.02] hover:shadow-md cursor-pointer hover-lift`}>
+                        <div className="flex items-center gap-4 mb-3">
+                            <div className={`p-3 bg-${item.color}-100 rounded-2xl`}>
+                                <item.icon className={`text-${item.color}-600`} size={24} />
                             </div>
-                            <div className="text-3xl font-black text-slate-900">{item.count}</div>
+                            <div className="text-4xl font-black text-slate-900 font-display">{item.count}</div>
                         </div>
-                        <div className={`text-xs font-black text-${item.color}-600 uppercase tracking-wider`}>{item.label}</div>
+                        <div className={`text-[10px] font-black text-${item.color}-600 uppercase tracking-[0.2em] font-display`}>{item.label}</div>
                     </div>
                 ))}
             </div>

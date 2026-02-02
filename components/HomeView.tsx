@@ -61,7 +61,7 @@ const HomeView: React.FC<HomeViewProps> = ({ jobs, user, onTabChange, onLoginCli
     }, [user, jobs]);
 
     return (
-        <div className="relative min-h-screen -m-6 overflow-x-hidden bg-slate-900 font-sans flex flex-col">
+        <div className="relative min-h-screen -m-6 overflow-x-hidden bg-slate-900 flex flex-col cursor-pointer-all">
             {/* Cinematic Background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <img
@@ -135,9 +135,9 @@ const HomeView: React.FC<HomeViewProps> = ({ jobs, user, onTabChange, onLoginCli
                             {isGuest ? '🔒 Security Priority Protocol' : `🛡️ Welcome Back, ${user.name.split(' ')[0]}`}
                         </p>
                     </div>
-                    <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white tracking-tighter mb-8 leading-tight select-none">
+                    <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white tracking-tighter mb-8 leading-tight select-none font-display">
                         NEOSIAM <br className="md:hidden" />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-br from-cyan-400 to-blue-600">
+                        <span className="text-gradient">
                             LOGISTICS & TRANSPORT
                         </span>
                     </h1>

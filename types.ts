@@ -69,6 +69,7 @@ export interface Job {
   weightVolume: string;
   remark?: string;
   referenceNo?: string;
+  drops?: string[];
   status: JobStatus;
 
   // Requester information

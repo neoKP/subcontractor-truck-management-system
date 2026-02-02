@@ -394,9 +394,9 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
     <div className="space-y-10">
       {/* Power BI Inspired Header Dashboard */}
       <section>
-        <div className="mb-8">
+        <div className="mb-8 font-display">
           <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase">
-            Billing & Financial <span className="text-blue-600">Command Center</span>
+            Billing & Financial <span className="text-gradient">Command Center</span>
           </h2>
           <p className="text-sm text-slate-400 font-bold uppercase tracking-widest mt-1">
             Management console for end-to-end financial workflows
@@ -421,8 +421,8 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
             viewTab === 'TO_BILL' ? 'bg-indigo-600' :
               viewTab === 'TO_PAY' ? 'bg-amber-500' : 'bg-emerald-500'
             }`}></div>
-          <h3 className="text-xs font-black text-slate-800 uppercase tracking-[0.3em]">
-            Active Stream: {viewTab.replace('_', ' ')}
+          <h3 className="text-xs font-black text-slate-800 uppercase tracking-[0.3em] font-display">
+            Active Stream: <span className="text-blue-600">{viewTab.replace('_', ' ')}</span>
           </h3>
         </div>
 

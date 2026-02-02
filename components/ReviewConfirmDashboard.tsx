@@ -369,7 +369,8 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                         driverPhone: selectedJob.driverPhone || '',
                         licensePlate: selectedJob.licensePlate || '',
                         cost: selectedJob.cost || 0,
-                        sellingPrice: selectedJob.sellingPrice || 0
+                        sellingPrice: selectedJob.sellingPrice || 0,
+                        drops: selectedJob.drops || []
                     }}
                     user={user}
                     onConfirm={() => {

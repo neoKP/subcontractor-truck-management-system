@@ -18,6 +18,7 @@ interface ReviewConfirmModalProps {
         licensePlate: string;
         cost: number;
         sellingPrice: number;
+        drops?: string[];
     };
     onConfirm: () => void;
     onEdit: () => void;
@@ -111,6 +112,19 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                                     <MapPin size={10} /> Route
                                 </p>
                                 <p className="text-sm font-black text-slate-800">{job.origin} → {job.destination}</p>
+                                {editData.drops && editData.drops.length > 0 && (
+                                    <div className="mt-2">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">จุดแวะส่งสินค้า</p>
+                                        <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                            {editData.drops.map((drop, idx) => (
+                                                <div key={idx} className="flex items-center gap-1">
+                                                    <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                                                    <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{drop}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <div className="space-y-1">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">

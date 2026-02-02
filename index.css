@@ -1,5 +1,50 @@
 @import "tailwindcss";
 
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+
+:root {
+  /* Premium Design System Colors */
+  --primary-glow: conic-gradient(from 180deg at 50% 50%, #164e63 0deg, #0891b2 55deg, #06b6d4 120deg, #0891b2 160deg, transparent 360deg);
+  --secondary-glow: radial-gradient(rgba(255, 255, 255, 1), rgba(255, 255, 255, 0));
+
+  --brand-primary: #06b6d4;
+  --brand-secondary: #3b82f6;
+  --brand-accent: #f59e0b;
+
+  --bg-dark: #020617;
+  --bg-dark-soft: #0f172a;
+
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  color: var(--text-main);
+  background: var(--bg-dark);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-display {
+  font-family: 'Outfit', sans-serif;
+}
+
+.cursor-pointer-all *:where(button, [role="button"], a, input[type="submit"], input[type="button"]) {
+  cursor: pointer !important;
+}
+
+.text-gradient {
+  background: linear-gradient(to right, var(--brand-primary), var(--brand-secondary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
 /* Glassmorphism */
 .glass {
   background-color: rgba(255, 255, 255, 0.7);

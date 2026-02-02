@@ -32,13 +32,21 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     driverName: '',
     driverPhone: '',
     licensePlate: '',
-    cost: 0
+    cost: 0,
+    drops: [] as string[]
   });
 
   const [showOriginList, setShowOriginList] = useState(false);
   const [showDestList, setShowDestList] = useState(false);
   const [originQuery, setOriginQuery] = useState('');
   const [destQuery, setDestQuery] = useState('');
+  const [showDropList, setShowDropList] = useState<boolean[]>([]);
+
+  const filteredLocations = (query: string) => {
+    return MASTER_DATA.locations.filter(l =>
+      l.toLowerCase().includes(query.toLowerCase())
+    );
+  };
 
   const filteredOrigins = MASTER_DATA.locations.filter(l =>
     l.toLowerCase().includes(originQuery.toLowerCase())
@@ -102,8 +110,8 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       ...formData,
       id: `${yearPrefix}${formattedSeq}`,
       status: initialStatus,
-      cost: hasPricing ? (matchedPricing?.basePrice ?? 0) : 0,
-      sellingPrice: hasPricing ? (matchedPricing?.sellingBasePrice ?? 0) : 0,
+      cost: hasPricing ? (matchedPricing?.basePrice ?? 0) + ((formData.drops?.length || 0) * (matchedPricing?.dropOffFee || 0)) : 0,
+      sellingPrice: hasPricing ? (matchedPricing?.sellingBasePrice ?? 0) + ((formData.drops?.length || 0) * (matchedPricing?.dropOffFee || 0)) : 0,
       requestedBy: user.id,
       requestedByName: user.name,
       createdAt: new Date().toISOString(), // Add creation timestamp
@@ -303,6 +311,99 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                   )}
                 </div>
               </div>
+
+              {/* Drops Management UI */}
+              <div className="pt-4 border-t border-slate-50">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">จุดแวะส่งสินค้า (Drop-off Points)</h3>
+                    <p className="text-[9px] font-medium text-slate-400 ml-1 mt-0.5">ระบบจะคิดค่าจุดอัตโนมัติตามที่มีข้อมูลในราคากลาง</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData({ ...formData, drops: [...formData.drops, ''] });
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95"
+                  >
+                    + เพิ่มจุดเพิ่ม (Add)
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {formData.drops.map((drop, index) => (
+                    <div key={index} className="flex items-center gap-3 animate-in slide-in-from-left-4 duration-200">
+                      <div className="shrink-0 w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-400 border border-slate-200">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 relative group">
+                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={16} />
+                        <input
+                          type="text"
+                          placeholder="ระบุสถานที่ส่งสินค้า..."
+                          className="w-full pl-10 pr-10 py-3 rounded-xl border border-slate-100 bg-slate-50/30 focus:bg-white focus:border-blue-500 outline-none transition-all font-bold text-slate-700 text-sm"
+                          value={drop}
+                          onChange={(e) => {
+                            const newDrops = [...formData.drops];
+                            newDrops[index] = e.target.value;
+                            setFormData({ ...formData, drops: newDrops });
+                          }}
+                          onFocus={() => {
+                            const newShowDrops = [...showDropList];
+                            newShowDrops[index] = true;
+                            setShowDropList(newShowDrops);
+                          }}
+                          onBlur={() => {
+                            setTimeout(() => {
+                              const newShowDrops = [...showDropList];
+                              newShowDrops[index] = false;
+                              setShowDropList(newShowDrops);
+                            }, 200);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newDrops = formData.drops.filter((_, i) => i !== index);
+                            setFormData({ ...formData, drops: newDrops });
+                          }}
+                          title="Remove drop point"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-rose-500 p-1 rounded-full hover:bg-rose-50 transition-all"
+                        >
+                          <AlertTriangle size={16} />
+                        </button>
+
+                        {/* Drop Auto-complete (Simplified) */}
+                        {showDropList[index] && filteredLocations(drop).length > 0 && (
+                          <div className="absolute z-[60] w-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 max-h-40 overflow-y-auto">
+                            {filteredLocations(drop).slice(0, 10).map((l, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                className="w-full text-left px-4 py-2 hover:bg-blue-50 text-[11px] font-bold text-slate-600 transition-colors border-b border-slate-50 last:border-0"
+                                onClick={() => {
+                                  const newDrops = [...formData.drops];
+                                  newDrops[index] = l;
+                                  setFormData({ ...formData, drops: newDrops });
+                                }}
+                              >
+                                {l}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {formData.drops.length === 0 && (
+                    <div className="p-10 border-2 border-dashed border-slate-100 rounded-3xl flex flex-col items-center justify-center opacity-40">
+                      <MapPin size={24} className="text-slate-300 mb-2" />
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">ไม่มีจุดแวะส่งสินค้าระหว่างทาง<br />(Only Origin to Destination)</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <label htmlFor="weight-vol" className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">น้ำหนัก-ปริมาตร (Weight / Volume - Optional)</label>
                 <input
@@ -418,12 +519,14 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                             .sort((a, b) => a.basePrice - b.basePrice) // Sort by cheapest price first
                             .map((p, idx) => {
                               const isSelected = formData.subcontractor === p.subcontractor;
+                              const dropFeeTotal = (formData.drops.length) * (p.dropOffFee || 0);
+                              const totalWithDrops = p.basePrice + dropFeeTotal;
+
                               return (
                                 <button
                                   key={idx}
                                   type="button"
                                   onClick={() => {
-                                    // Toggle selection: Click again to clear
                                     if (isSelected) {
                                       setFormData({
                                         ...formData,
@@ -434,34 +537,41 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                                       setFormData({
                                         ...formData,
                                         subcontractor: p.subcontractor,
-                                        cost: p.basePrice,
-                                        sellingPrice: p.sellingBasePrice
+                                        cost: totalWithDrops,
+                                        sellingPrice: p.sellingBasePrice + dropFeeTotal
                                       });
                                     }
                                   }}
-                                  className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-200 ${isSelected
+                                  className={`w-full text-left p-4 rounded-2xl border-2 transition-all duration-200 ${isSelected
                                     ? 'bg-emerald-500 border-emerald-600 shadow-lg shadow-emerald-200'
                                     : 'bg-white border-emerald-100 hover:border-emerald-300 hover:bg-emerald-50'
                                     }`}
                                 >
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-black ${idx === 0 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'bg-slate-200 text-slate-500'}`}>
+                                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-[12px] font-black ${idx === 0 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'bg-slate-200 text-slate-500'}`}>
                                         {idx + 1}
                                       </div>
                                       <div className="text-left">
                                         <p className={`font-black text-sm ${isSelected ? 'text-white' : 'text-slate-800'}`}>
                                           {p.subcontractor}
                                         </p>
-                                        <p className={`text-[10px] font-bold ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
-                                          ราคาตรงตามเส้นทาง (Perfect Match for Route)
-                                        </p>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                          <p className={`text-[10px] font-bold ${isSelected ? 'text-emerald-100' : 'text-emerald-600'}`}>
+                                            ฿{p.basePrice.toLocaleString()} (ฐาน)
+                                          </p>
+                                          {formData.drops.length > 0 && (
+                                            <p className={`text-[10px] font-bold ${isSelected ? 'text-white' : 'text-blue-600'}`}>
+                                              + Drop Fee: ฿{dropFeeTotal.toLocaleString()} ({formData.drops.length} จุดแวะส่ง)
+                                            </p>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                      {isSelected && (
-                                        <CheckCircle2 size={16} className="text-white" />
-                                      )}
+                                    <div className="text-right">
+                                      <p className={`text-sm font-black ${isSelected ? 'text-white' : 'text-slate-900'}`}>
+                                        ฿{totalWithDrops.toLocaleString()}
+                                      </p>
                                     </div>
                                   </div>
                                 </button>
@@ -469,8 +579,8 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                             })}
                         </div>
                         {formData.subcontractor && (
-                          <div className="mt-3 p-2 bg-emerald-100 rounded-lg text-center">
-                            <p className="text-[10px] font-bold text-emerald-700">
+                          <div className="mt-3 p-2 bg-emerald-100 rounded-xl text-center">
+                            <p className="text-[10px] font-bold text-emerald-700 font-display">
                               ✓ เลือก {formData.subcontractor} แล้ว | คลิกซ้ำเพื่อยกเลิก
                             </p>
                           </div>
@@ -511,10 +621,12 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                               p.truckType === formData.truckType &&
                               p.subcontractor === sub
                             );
+                            const dropFeeTotal = (formData.drops.length) * (match?.dropOffFee || 0);
                             setFormData({
                               ...formData,
                               subcontractor: sub,
-                              cost: match ? match.basePrice : 0
+                              cost: match ? match.basePrice + dropFeeTotal : 0,
+                              sellingPrice: match ? match.sellingBasePrice + dropFeeTotal : 0
                             });
                           }}
                         >
@@ -589,6 +701,21 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                             <div className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">จุดส่งสินค้า (Drop-off)</div>
                           </div>
                         </div>
+
+                        {/* Drops Visualization in Review */}
+                        {formData.drops.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-slate-100">
+                            <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-3">จุดแวะส่งสินค้าระหว่างทาง ({formData.drops.length} จุด)</p>
+                            <div className="space-y-3">
+                              {formData.drops.map((drop, i) => (
+                                <div key={i} className="flex items-center gap-3">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                  <span className="text-xs font-bold text-slate-600">{drop}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

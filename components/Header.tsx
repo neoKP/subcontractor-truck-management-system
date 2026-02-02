@@ -89,7 +89,7 @@ const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header id="header" className={`h-20 bg-white border-b border-slate-200 px-4 md:px-8 flex items-center justify-between sticky top-0 z-20 box-border ${className || ''}`} >
+    <header id="header" className={`h-20 glass px-4 md:px-8 flex items-center justify-between sticky top-0 z-40 box-border border-b border-slate-200/50 ${className || ''}`} >
       {/* Backdrop for closing dropdown */}
       {
         showNotifications && (
@@ -238,7 +238,7 @@ const Header: React.FC<HeaderProps> = ({
 
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
-            <p className="text-xs font-black text-slate-800 leading-tight uppercase tracking-tight">{user.name}</p>
+            <p className="text-xs font-black text-slate-800 leading-tight uppercase tracking-tight font-display">{user.name}</p>
             <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{user.role.replace('_', ' ')}</p>
           </div>
           <div className="w-10 h-10 bg-gradient-to-tr from-slate-50 to-white rounded-2xl flex items-center justify-center text-slate-500 border border-slate-200 shadow-sm transition-transform hover:scale-105">

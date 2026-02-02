@@ -29,7 +29,8 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     cost: job.cost || 0,
     sellingPrice: job.sellingPrice || 0,
     origin: job.origin,
-    destination: job.destination
+    destination: job.destination,
+    drops: job.drops || []
   });
 
   const [originQuery, setOriginQuery] = useState('');
@@ -54,7 +55,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
   const [isContractPrice, setIsContractPrice] = useState(false);
 
   // Use stateful price matrix for lookup
-  const calculatePriceLive = (origin: string, destination: string, truckType: string, sub: string): number => {
+  const calculatePriceLive = (origin: string, destination: string, truckType: string, sub: string, dropCount: number): number => {
     const match = priceMatrix.find(p => {
       const originMatch = p.origin === origin;
       const destMatch = p.destination === destination;
@@ -62,7 +63,10 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
       const subMatch = p.subcontractor === sub;
       return originMatch && destMatch && truckMatch && subMatch;
     });
-    if (match) return match.basePrice;
+    if (match) {
+      const dropFeeTotal = dropCount * (match.dropOffFee || 0);
+      return match.basePrice + dropFeeTotal;
+    }
 
 
     return 0; // Return 0 if no match found in matrix
@@ -82,7 +86,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     const hasDestChanged = editData.destination !== job.destination;
 
     // Check for contract match regardless of session changes for UI feedback
-    const currentContractPrice = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor);
+    const currentContractPrice = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor, editData.drops.length);
     setIsContractPrice(currentContractPrice > 0 && editData.cost === currentContractPrice);
 
     // Only auto-recalculate if the subcontractor, truck type, or route has changed DURING this session
@@ -149,7 +153,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
       }
     }
 
-    const matrixPrice = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor);
+    const matrixPrice = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor, editData.drops.length);
     const hasChanged =
       (job.status !== JobStatus.NEW_REQUEST && (
         job.subcontractor !== editData.subcontractor ||
@@ -181,7 +185,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     const finalReason = reason === 'อื่นๆ (ระบุเอง)' ? customReason : reason;
 
     if (job.status === JobStatus.NEW_REQUEST) {
-      const matrixPrice = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor);
+      const matrixPrice = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor, editData.drops.length);
 
       // Log the assignment
       logs.push(createLog('Assignment', 'Unassigned', `${editData.subcontractor} (${editData.truckType})`, 'New Job Assignment'));
@@ -354,6 +358,58 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* Drop Points Section */}
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between px-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">จุดแวะส่งสินค้า (Drop-off Points)</label>
+                      {!isActuallyLocked && (
+                        <button
+                          type="button"
+                          onClick={() => setEditData(prev => ({ ...prev, drops: [...(prev.drops || []), ''] }))}
+                          className="text-[9px] font-black text-blue-600 uppercase hover:underline"
+                        >
+                          + เพิ่มจุดส่งสินค้า
+                        </button>
+                      )}
+                    </div>
+                    {editData.drops && editData.drops.length > 0 && (
+                      <div className="space-y-2">
+                        {editData.drops.map((drop, index) => (
+                          <div key={index} className="relative group animate-in slide-in-from-left-2 duration-200">
+                            <input
+                              type="text"
+                              disabled={isActuallyLocked}
+                              placeholder={`จุดส่งสินค้าที่ ${index + 1}...`}
+                              className={`w-full px-3 py-2 rounded-xl border font-bold text-xs outline-none focus:ring-2 focus:ring-blue-100 transition-all ${isActuallyLocked ? 'border-slate-100 bg-slate-50 text-slate-400' : 'border-blue-100 bg-white/80 text-slate-800'}`}
+                              value={drop}
+                              onChange={e => {
+                                const newValue = e.target.value;
+                                setEditData(prev => {
+                                  const newDrops = [...(prev.drops || [])];
+                                  newDrops[index] = newValue;
+                                  return { ...prev, drops: newDrops };
+                                });
+                              }}
+                            />
+                            {!isActuallyLocked && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newDrops = (editData.drops || []).filter((_, i) => i !== index);
+                                  setEditData(prev => ({ ...prev, drops: newDrops }));
+                                }}
+                                title="Remove drop point"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-rose-500 p-1 transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap gap-y-1 gap-x-4 pt-1">

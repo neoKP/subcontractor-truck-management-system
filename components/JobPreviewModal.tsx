@@ -224,6 +224,12 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
                                         <span className="text-[#64748b] w-[160px] font-bold">ต้นทาง (ORIGIN):</span>
                                         <span className="font-bold text-[#1e293b] pl-2">{job.origin}</span>
                                     </div>
+                                    {job.drops && job.drops.length > 0 && job.drops.map((drop, idx) => (
+                                        <div key={idx} className="flex border-b border-[#f1f5f9] pb-1">
+                                            <span className="text-[#64748b] w-[160px] font-bold">จุดแวะส่งสินค้า ({idx + 1}):</span>
+                                            <span className="font-bold text-[#1e293b] pl-2">{drop}</span>
+                                        </div>
+                                    ))}
                                     <div className="flex">
                                         <span className="text-[#64748b] w-[160px] font-bold">ปลายทาง (DESTINATION):</span>
                                         <span className="font-bold text-[#1e293b] pl-2">{job.destination}</span>
