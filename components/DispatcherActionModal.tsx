@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus } from '../types';
 import { MASTER_DATA, PRICE_MATRIX as FALLBACK_PRICE_MATRIX } from '../constants';
-import { AlertTriangle, Info, X, Lock, CheckCircle, User, Phone, Hash, CircleDot, DollarSign, Wallet, FileText, Clock, AlertCircle, Calendar, TrendingUp, ShieldCheck, MapPin, Upload, Camera, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Info, X, Lock, CheckCircle, User, Phone, Hash, CircleDot, DollarSign, Wallet, FileText, Clock, AlertCircle, Calendar, TrendingUp, ShieldCheck, MapPin, Upload, Camera, CheckCircle2, ClipboardCheck, CircleDollarSign } from 'lucide-react';
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 import ReviewConfirmModal from './ReviewConfirmModal';
 
@@ -94,21 +94,26 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
   };
 
   // Use stateful price matrix for lookup
-  const calculatePriceLive = (origin: string, destination: string, truckType: string, sub: string, dropCount: number): number => {
-    const match = priceMatrix.find(p => {
-      const originMatch = p.origin === origin;
-      const destMatch = p.destination === destination;
-      const truckMatch = p.truckType === truckType;
-      const subMatch = p.subcontractor === sub;
+  const findContractMatch = (origin: string, destination: string, truckType: string, sub: string) => {
+    return priceMatrix.find(p => {
+      const originMatch = (p.origin || '').trim() === (origin || '').trim();
+      const destMatch = (p.destination || '').trim() === (destination || '').trim();
+      const truckMatch = (p.truckType || '').trim() === (truckType || '').trim();
+      const subMatch = (p.subcontractor || '').trim() === (sub || '').trim();
       return originMatch && destMatch && truckMatch && subMatch;
     });
+  };
+
+  const calculatePriceLive = (origin: string, destination: string, truckType: string, sub: string, dropCount: number): { cost: number; revenue: number } | null => {
+    const match = findContractMatch(origin, destination, truckType, sub);
     if (match) {
       const dropFeeTotal = dropCount * (match.dropOffFee || 0);
-      return match.basePrice + dropFeeTotal;
+      return {
+        cost: (match.basePrice || 0) + dropFeeTotal,
+        revenue: (match.sellingBasePrice || 0) + dropFeeTotal
+      };
     }
-
-
-    return 0; // Return 0 if no match found in matrix
+    return null;
   };
 
   // Track the fields that trigger a price recalculation within this session
@@ -125,14 +130,21 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     const hasDestChanged = editData.destination !== job.destination;
 
     // Check for contract match regardless of session changes for UI feedback
-    const currentContractPrice = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor, editData.drops.length);
+    const matchedData = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor, editData.drops.length);
+    const currentContractPrice = matchedData?.cost || 0;
+    const currentContractRevenue = matchedData?.revenue || 0;
+
     setIsContractPrice(currentContractPrice > 0 && editData.cost === currentContractPrice);
 
     // Only auto-recalculate if the subcontractor, truck type, or route has changed DURING this session
     if (hasSubChanged || hasTruckChanged || hasOriginChanged || hasDestChanged) {
       if (editData.subcontractor && editData.truckType && editData.origin && editData.destination) {
         if (currentContractPrice > 0 || (hasOriginChanged || hasDestChanged)) {
-          setEditData(prev => ({ ...prev, cost: currentContractPrice }));
+          setEditData(prev => ({
+            ...prev,
+            cost: currentContractPrice,
+            sellingPrice: currentContractRevenue > 0 ? currentContractRevenue : prev.sellingPrice
+          }));
           if (currentContractPrice > 0) {
             setPriceCalculated(true);
             setTimeout(() => setPriceCalculated(false), 2000);
@@ -145,7 +157,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
         truck: editData.truckType
       });
     }
-  }, [editData.subcontractor, editData.truckType, editData.origin, editData.destination, sessionPriceKeys, job.origin, job.destination, priceMatrix, editData.cost]);
+  }, [editData.subcontractor, editData.truckType, editData.origin, editData.destination, sessionPriceKeys, job.origin, job.destination, priceMatrix, editData.cost, editData.drops.length]);
 
   const handleSaveAttempt = async () => {
     if (isSubmitting) return;
@@ -164,35 +176,36 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
       return;
     }
 
-    // 🔒 2. Double-Deduction Alert System
-    // Check if this job was updated recently (within 1 minute)
-    if (logs && logs.length > 0) {
-      const recentLog = logs.find(l =>
-        l.jobId === job.id &&
-        (new Date().getTime() - new Date(l.timestamp).getTime() < 60000) // 1 minute window
-      );
+    // 🔒 3. Strict Verification Guard (User Requested Rule)
+    const priceValid = !!findContractMatch(editData.origin, editData.destination, editData.truckType, editData.subcontractor);
+    const podsValid = (editData.drops || []).every(d => d.status === 'COMPLETED');
+    const infoValid = !!(editData.driverName && editData.driverPhone && editData.licensePlate && (editData.cost || 0) > 0);
 
-      if (recentLog) {
-        const result = await (window as any).Swal.fire({
-          title: '⚠️ Double-Action Warning',
-          html: `ระบบพบว่ามีการบันทึกข้อมูลสำหรับใบงาน <b>#${job.id}</b> เมื่อสักครู่นี้...<br/><br/>(โดย: ${recentLog.userName})<br/><br/>คุณแน่ใจหรือไม่ว่าต้องการบันทึกซ้ำ?`,
-          icon: 'warning',
-          showCancelButton: true,
-          confirmButtonColor: '#f59e0b',
-          cancelButtonColor: '#64748b',
-          confirmButtonText: 'ยืนยันบันทึกซ้ำ (Confirm)',
-          cancelButtonText: 'ยกเลิก (Cancel)',
-          customClass: { popup: 'rounded-[2rem]' },
-          footer: '<span class="text-xs text-slate-400">Double-Entry Protection System Active</span>'
+    // Only block if we're trying to move towards confirmation
+    if (!priceValid || !podsValid || !infoValid) {
+      const missing = [];
+      if (!priceValid) missing.push('● ราคาจองต้องตรงกับต้นทุนใน Master Pricing');
+      if (!podsValid) missing.push('● ต้องอัปโหลดรูปภาพ POD ให้ครบทุกจุดแวะส่ง');
+      if (!infoValid) missing.push('● ข้อมูลคนขับ/ทะเบียน/ค่าจ้าง ต้องระบุให้ครบ');
+
+      if (typeof (window as any).Swal !== 'undefined') {
+        (window as any).Swal.fire({
+          title: 'ไม่สามารถส่งตรวจทานได้ / Validation Failed',
+          html: `<div class="text-left bg-rose-50 p-4 rounded-2xl border border-rose-100 mt-2">
+                   <p class="font-black text-rose-900 mb-2 uppercase text-[10px] tracking-widest">สิ่งที่ต้องแก้ไข:</p>
+                   <div class="text-rose-700 text-xs font-bold leading-loose">${missing.join('<br/>')}</div>
+                 </div>`,
+          icon: 'error',
+          confirmButtonColor: '#e11d48',
+          confirmButtonText: 'กลับไปแก้ไข (Fix Errors)',
+          customClass: { popup: 'rounded-[2rem]' }
         });
-
-        if (!result.isConfirmed) {
-          return;
-        }
       }
+      return;
     }
 
-    const matrixPrice = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor, editData.drops.length);
+    const matrixPriceData = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor, editData.drops.length);
+    const matrixPrice = matrixPriceData?.cost || 0;
     const hasChanged =
       (job.status !== JobStatus.NEW_REQUEST && (
         job.subcontractor !== editData.subcontractor ||
@@ -300,6 +313,10 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     newValue: newVal.toString(),
     reason: r
   });
+
+  // Global Status Checks
+  const isMasterPriceMatched = !!findContractMatch(editData.origin, editData.destination, editData.truckType, editData.subcontractor);
+  const isFleetInfoComplete = editData.driverName && editData.driverPhone && editData.licensePlate && (editData.cost || 0) > 0;
 
   return (
     <>
@@ -579,6 +596,39 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
               </div>
             </div>
 
+            {/* Dashboard Status Bar */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className={`flex items-center justify-between p-3 rounded-2xl border-2 transition-all ${isMasterPriceMatched ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100 opacity-60'}`}>
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 rounded-lg ${isMasterPriceMatched ? 'bg-emerald-600' : 'bg-slate-400'} text-white`}>
+                    <ShieldCheck size={14} />
+                  </div>
+                  <div>
+                    <p className={`text-[10px] font-black uppercase tracking-tight ${isMasterPriceMatched ? 'text-emerald-700' : 'text-slate-500'}`}>สถานะราคากลาง</p>
+                    <p className={`text-[9px] font-bold ${isMasterPriceMatched ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {isMasterPriceMatched ? 'Verified Master Price ✓' : 'Custom / No Contract'}
+                    </p>
+                  </div>
+                </div>
+                {isMasterPriceMatched && <CheckCircle2 size={16} className="text-emerald-500" />}
+              </div>
+
+              <div className={`flex items-center justify-between p-3 rounded-2xl border-2 transition-all ${isFleetInfoComplete ? 'bg-blue-50 border-blue-100' : 'bg-orange-50 border-orange-100 animate-pulse'}`}>
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 rounded-lg ${isFleetInfoComplete ? 'bg-blue-600' : 'bg-orange-500'} text-white`}>
+                    <ClipboardCheck size={14} />
+                  </div>
+                  <div>
+                    <p className={`text-[10px] font-black uppercase tracking-tight ${isFleetInfoComplete ? 'text-blue-700' : 'text-orange-700'}`}>ความครบถ้วนของงาน</p>
+                    <p className={`text-[9px] font-bold ${isFleetInfoComplete ? 'text-blue-600' : 'text-orange-600'}`}>
+                      {isFleetInfoComplete ? 'Ready to Verify ✅' : 'Information Incomplete ⚠️'}
+                    </p>
+                  </div>
+                </div>
+                {!isFleetInfoComplete && <AlertCircle size={16} className="text-orange-500" />}
+              </div>
+            </div>
+
             {/* Accounting Rejection Remark */}
             {job.accountingStatus === AccountingStatus.REJECTED && (
               <div className="flex gap-4 p-5 bg-rose-50 rounded-3xl border border-rose-100 animate-pulse">
@@ -703,20 +753,33 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                     >
                       {MASTER_DATA.subcontractors
                         .filter(s => s.toLowerCase().includes((editData.subcontractor || '').toLowerCase()))
-                        .map((s, idx) => (
-                          <button
-                            key={`${s}-${idx}`}
-                            type="button"
-                            className="w-full text-left px-5 py-3 hover:bg-blue-50 text-sm font-bold text-slate-700 transition-colors border-b border-slate-50 last:border-0 flex items-center justify-between group"
-                            onClick={() => {
-                              setEditData({ ...editData, subcontractor: s });
-                              document.getElementById('sub-dropdown')?.classList.add('hidden');
-                            }}
-                          >
-                            {s}
-                            <span className="text-[10px] text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity uppercase font-black">Select</span>
-                          </button>
-                        ))}
+                        .map((s, idx) => {
+                          const hasContract = findContractMatch(editData.origin, editData.destination, editData.truckType, s);
+                          return (
+                            <button
+                              key={`${s}-${idx}`}
+                              type="button"
+                              className={`w-full text-left px-5 py-3 transition-colors border-b border-slate-50 last:border-0 flex items-center justify-between group ${hasContract ? 'hover:bg-emerald-50 bg-emerald-50/20' : 'hover:bg-blue-50'}`}
+                              onClick={() => {
+                                setEditData({ ...editData, subcontractor: s });
+                                document.getElementById('sub-dropdown')?.classList.add('hidden');
+                              }}
+                            >
+                              <div className="flex flex-col">
+                                <span className="text-sm font-black text-slate-800 uppercase tracking-tighter">{s}</span>
+                                {hasContract && <span className="text-[8px] font-black text-emerald-600 uppercase">Master Pricing Verified ✓</span>}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {hasContract && (
+                                  <div className="px-2 py-0.5 bg-white border border-emerald-200 rounded text-[9px] font-black text-emerald-600 flex items-center gap-1 shadow-sm">
+                                    <CircleDollarSign size={10} /> ฿ PRICE SET
+                                  </div>
+                                )}
+                                <span className="text-[10px] text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity uppercase font-black tracking-widest">Select</span>
+                              </div>
+                            </button>
+                          );
+                        })}
                       {MASTER_DATA.subcontractors.filter(s => s.toLowerCase().includes((editData.subcontractor || '').toLowerCase())).length === 0 && (
                         <div className="p-5 text-center">
                           <p className="text-xs font-bold text-slate-400">ไม่พบข้อมูลบริษัท / No match found</p>
@@ -746,8 +809,14 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                   disabled={isSubmitting || isActuallyLocked}
                   onChange={e => setEditData({ ...editData, truckType: e.target.value })}
                 >
-                  <option value="">-- เลือกประเภทรถ --</option>
-                  {MASTER_DATA.truckTypes.map((t, idx) => <option key={`${t}-${idx}`} value={t}>{t}</option>)}
+                  {MASTER_DATA.truckTypes.map((t, idx) => {
+                    const hasContract = findContractMatch(editData.origin, editData.destination, t, editData.subcontractor);
+                    return (
+                      <option key={`${t}-${idx}`} value={t} className={hasContract ? 'font-black text-emerald-600' : ''}>
+                        {t} {hasContract ? ' (Verified Contract ฿)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -937,6 +1006,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
             job={job}
             editData={editData}
             user={user}
+            priceMatrix={priceMatrix}
             onConfirm={() => {
               setShowReviewModal(false);
               finalizeSave();

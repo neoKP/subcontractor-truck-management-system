@@ -156,6 +156,10 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
     const newList = [...priceMatrix];
     const cleanData = {
       ...formData,
+      origin: (formData.origin || '').trim(),
+      destination: (formData.destination || '').trim(),
+      subcontractor: (formData.subcontractor || '').trim(),
+      truckType: (formData.truckType || '').trim(),
       basePrice: Number(formData.basePrice) || 0,
       sellingBasePrice: Number(formData.sellingBasePrice) || 0,
       dropOffFee: Number(formData.dropOffFee) || 0

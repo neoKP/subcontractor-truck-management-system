@@ -37,9 +37,28 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
         !job.isBaseCostLocked  // เฉพาะงานที่ยังไม่ล็อก
     );
 
-    // ตรวจสอบว่าข้อมูล Fleet Information ครบหรือไม่
+    // Check if price matches Master Pricing
+    const hasPriceMatch = (job: Job) => {
+        return priceMatrix.some(p =>
+            (p.origin || '').trim() === (job.origin || '').trim() &&
+            (p.destination || '').trim() === (job.destination || '').trim() &&
+            (p.truckType || '').trim() === (job.truckType || '').trim() &&
+            (p.subcontractor || '').trim() === (job.subcontractor || '').trim()
+        );
+    };
+
+    // Check if all drops have POD (Completed)
+    const hasAllPODs = (job: Job) => {
+        if (!job.drops || job.drops.length === 0) return true;
+        return job.drops.every(drop => drop.status === 'COMPLETED');
+    };
+
+    // ตรวจสอบว่าข้อมูลครบถ้วนตามกฏ (Strict Rules)
     const isFleetInfoComplete = (job: Job) => {
-        return !!(job.driverName && job.driverPhone && job.licensePlate);
+        const infoDone = !!(job.driverName && job.driverPhone && job.licensePlate);
+        const podsDone = hasAllPODs(job);
+        const priceValid = hasPriceMatch(job);
+        return infoDone && podsDone && priceValid;
     };
 
     // แยกงานออกเป็น 2 กลุ่ม
@@ -252,6 +271,8 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                         if (!job.driverName) missingFields.push('ชื่อคนขับ');
                         if (!job.driverPhone) missingFields.push('เบอร์โทร');
                         if (!job.licensePlate) missingFields.push('ทะเบียนรถ');
+                        if (!hasAllPODs(job)) missingFields.push('รูปภาพหลักฐาน POD');
+                        if (!hasPriceMatch(job)) missingFields.push('ข้อมูลราคากลาง (Master Pricing)');
 
                         return (
                             <div
@@ -373,6 +394,7 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                         drops: selectedJob.drops || []
                     }}
                     user={user}
+                    priceMatrix={priceMatrix}
                     onConfirm={() => {
                         // Lock the price and update job status
                         const updatedJob = {

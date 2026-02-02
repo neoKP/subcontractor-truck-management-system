@@ -24,6 +24,7 @@ interface ReviewConfirmModalProps {
     onEdit: () => void;
     onClose: () => void;
     user: { id: string; name: string; role: UserRole };
+    priceMatrix: any[];
 }
 
 const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
@@ -32,7 +33,8 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
     onConfirm,
     onEdit,
     onClose,
-    user
+    user,
+    priceMatrix
 }) => {
     const margin = editData.sellingPrice - editData.cost;
     const marginPercent = editData.cost > 0 ? ((margin / editData.cost) * 100).toFixed(1) : '0.0';
@@ -44,12 +46,21 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
         editData.licensePlate
     );
 
+    // Check if price matches Master Pricing
+    const hasPriceMatch = priceMatrix.some(p =>
+        (p.origin || '').trim() === (job.origin || '').trim() &&
+        (p.destination || '').trim() === (job.destination || '').trim() &&
+        (p.truckType || '').trim() === (editData.truckType || '').trim() &&
+        (p.subcontractor || '').trim() === (editData.subcontractor || '').trim()
+    );
+
     // ตรวจสอบว่าข้อมูลพื้นฐานครบหรือไม่
     const isDataComplete = !!(
         editData.subcontractor &&
         editData.truckType &&
         editData.cost > 0 &&
-        isFleetInfoComplete
+        isFleetInfoComplete &&
+        hasPriceMatch
     );
 
     return (
@@ -297,7 +308,19 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                             <div className="flex-1">
                                 <p className="text-sm font-black text-orange-900 mb-1">กรุณากรอกข้อมูลให้ครบถ้วน</p>
                                 <p className="text-xs font-bold text-orange-700">
-                                    ต้องกรอก: ชื่อคนขับ, เบอร์โทร, ทะเบียนรถ และ **ราคาต้นทุน (Cost)** ก่อนยืนยันและล็อกราคา
+                                    ข้อมูลพื้นฐานและการจัดรถต้องระบุให้ครบ และ <span className="underline decoration-2 text-rose-600">**ต้องมีราคากลาง (Master Pricing)**</span> รองรับเส้นทางนี้
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {!hasPriceMatch && isDataComplete === false && (
+                        <div className="bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 flex items-start gap-3">
+                            <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                                <p className="text-sm font-black text-rose-900 mb-1">ไม่พบราคากลางในระบบ (Master Pricing Missing)</p>
+                                <p className="text-xs font-bold text-rose-700">
+                                    เส้นทางนี้ ({job.origin} → {job.destination}) สำหรับบริษัท {editData.subcontractor} ยังไม่ได้ระบุราคากลาง กรุณาแจ้งแอดมินให้เพิ่มราคาก่อนยืนยัน
                                 </p>
                             </div>
                         </div>

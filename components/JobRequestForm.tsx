@@ -129,15 +129,26 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
 
     // Check for pricing availability
     const matchedPricing = priceMatrix.find(p =>
-      p.origin === formData.origin &&
-      p.destination === formData.destination &&
-      p.truckType === formData.truckType
+      (p.origin || '').trim() === (formData.origin || '').trim() &&
+      (p.destination || '').trim() === (formData.destination || '').trim() &&
+      (p.truckType || '').trim() === (formData.truckType || '').trim()
     );
     const hasPricing = !!matchedPricing;
     const initialStatus = hasPricing ? JobStatus.NEW_REQUEST : JobStatus.PENDING_PRICING;
 
-    const newJob: Job = {
+    // Clean up string data entries before creating job
+    const cleanFormData = {
       ...formData,
+      origin: (formData.origin || '').trim(),
+      destination: (formData.destination || '').trim(),
+      subcontractor: (formData.subcontractor || '').trim(),
+      truckType: (formData.truckType || '').trim(),
+      driverName: (formData.driverName || '').trim(),
+      licensePlate: (formData.licensePlate || '').trim(),
+    };
+
+    const newJob: Job = {
+      ...cleanFormData,
       id: `${yearPrefix}${formattedSeq}`,
       status: initialStatus,
       cost: hasPricing ? (matchedPricing?.basePrice ?? 0) + ((formData.drops?.length || 0) * (matchedPricing?.dropOffFee || 0)) : 0,
