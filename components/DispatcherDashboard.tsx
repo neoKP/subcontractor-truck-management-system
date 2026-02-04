@@ -74,7 +74,8 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
         // 1. Filter by Date Range (dateOfService)
         if (startDate || endDate) {
             jobsToFilter = jobsToFilter.filter(job => {
-                const serviceDate = job.dateOfService.split('T')[0];
+                if (!job.dateOfService) return false;
+                const serviceDate = (job.dateOfService || '').split('T')[0];
                 if (startDate && serviceDate < startDate) return false;
                 if (endDate && serviceDate > endDate) return false;
                 return true;

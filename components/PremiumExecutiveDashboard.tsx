@@ -26,6 +26,7 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
     // --- 0. Filter Jobs by Selected Period ---
     const periodJobs = useMemo(() => {
         return jobs.filter(j => {
+            if (!j.dateOfService) return false;
             const jobDate = new Date(j.dateOfService);
             const jobYear = jobDate.getFullYear().toString();
             const jobMonth = (jobDate.getMonth() + 1).toString().padStart(2, '0');
@@ -66,10 +67,10 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
     // --- 2. Volume Trend (by Day) ---
     const trendData = useMemo(() => {
         // Find all unique days in the selected period
-        const daysInPeriod = Array.from(new Set(periodJobs.map(j => j.dateOfService.split('T')[0]))).sort();
+        const daysInPeriod = Array.from(new Set(periodJobs.filter(j => j.dateOfService).map(j => (j.dateOfService || '').split('T')[0]))).sort();
 
         return daysInPeriod.map((date: any) => {
-            const dayJobs = periodJobs.filter(j => j.dateOfService.split('T')[0] === date);
+            const dayJobs = periodJobs.filter(j => j.dateOfService && (j.dateOfService || '').split('T')[0] === date);
             return {
                 date: (date as string).split('-').slice(2).join('/'), // Show only Day part for cleaner axis
                 volume: dayJobs.length,
@@ -216,6 +217,15 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
                         </div>
                     </div>
                     <div className="h-[300px] w-full">
+                        {trendData.length === 0 ? (
+                            <div className="flex items-center justify-center h-full text-slate-300">
+                                <div className="text-center">
+                                    <TrendingUp size={48} className="mx-auto mb-3 opacity-30" />
+                                    <p className="font-bold">ไม่มีข้อมูลในเดือนนี้</p>
+                                    <p className="text-xs mt-1">ลองเปลี่ยนเดือนหรือปี</p>
+                                </div>
+                            </div>
+                        ) : (
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={trendData}>
                                 <defs>
@@ -246,6 +256,7 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
                                 <Area type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={4} fillOpacity={1} fill="url(#colorRev)" />
                             </AreaChart>
                         </ResponsiveContainer>
+                        )}
                     </div>
                 </div>
 

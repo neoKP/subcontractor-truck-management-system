@@ -54,7 +54,8 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
     if (!searchMatch) return false;
 
     // Date Range Filter
-    const jobDate = j.dateOfService.split('T')[0];
+    if (!j.dateOfService) return false;
+    const jobDate = (j.dateOfService || '').split('T')[0];
     if (filterDateStart && jobDate < filterDateStart) return false;
     if (filterDateEnd && jobDate > filterDateEnd) return false;
 

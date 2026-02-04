@@ -61,8 +61,9 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
     // --- Filter Logic ---
     const filteredJobs = useMemo(() => {
         return jobs.filter(j => {
+            if (!j.dateOfService) return false;
             const jobDate = new Date(j.dateOfService);
-            const jobDateStr = j.dateOfService.split('T')[0];
+            const jobDateStr = (j.dateOfService || '').split('T')[0];
             let matchesTime = false;
             switch (filterType) {
                 case 'day': matchesTime = jobDateStr === filterDay; break;
@@ -111,7 +112,7 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
 
         // Populate days based on filter
         filteredJobs.forEach(j => {
-            const dateStr = j.dateOfService.split('T')[0];
+            const dateStr = (j.dateOfService || '').split('T')[0];
             const rev = (j.sellingPrice || 0) + (j.extraCharge || 0);
             const cost = (j.cost || 0);
             const profit = rev - cost;
@@ -353,6 +354,15 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
                         </div>
                     </div>
                     <div className="h-[400px] w-full">
+                        {trendData.length === 0 ? (
+                            <div className="flex items-center justify-center h-full text-slate-300">
+                                <div className="text-center">
+                                    <Activity size={48} className="mx-auto mb-3 opacity-30" />
+                                    <p className="font-bold">ไม่มีข้อมูลในช่วงเวลานี้</p>
+                                    <p className="text-xs mt-1">ลองเปลี่ยนช่วงเวลาหรือ filter</p>
+                                </div>
+                            </div>
+                        ) : (
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                 <defs>
@@ -400,6 +410,7 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
+                        )}
                     </div>
                 </div>
 
@@ -412,6 +423,14 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Status and workload distribution</p>
                     </div>
                     <div className="flex-1 min-h-[300px]">
+                        {statusData.length === 0 ? (
+                            <div className="flex items-center justify-center h-full text-slate-300">
+                                <div className="text-center">
+                                    <PieChartIcon size={48} className="mx-auto mb-3 opacity-30" />
+                                    <p className="font-bold">ไม่มีข้อมูล</p>
+                                </div>
+                            </div>
+                        ) : (
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
@@ -435,6 +454,7 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
                                 />
                             </PieChart>
                         </ResponsiveContainer>
+                        )}
                     </div>
                     <div className="mt-6 p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
                         <div className="flex justify-between items-center mb-2">

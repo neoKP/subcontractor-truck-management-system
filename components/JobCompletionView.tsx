@@ -85,7 +85,9 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
             if (!a.actualArrivalTime && b.actualArrivalTime) return 1;
 
             // Fallback: service date
-            return new Date(a.dateOfService).getTime() - new Date(b.dateOfService).getTime();
+            const aDate = a.dateOfService ? new Date(a.dateOfService).getTime() : 0;
+            const bDate = b.dateOfService ? new Date(b.dateOfService).getTime() : 0;
+            return aDate - bDate;
         });
     }, [categorizedJobs, searchTerm, filterView]);
 

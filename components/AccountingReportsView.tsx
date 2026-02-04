@@ -134,8 +134,9 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                 if (currentRoute !== selectedRoute) return false;
             }
 
+            if (!j.dateOfService) return false;
             const jobDate = new Date(j.dateOfService);
-            const jobDateStr = j.dateOfService.split('T')[0];
+            const jobDateStr = (j.dateOfService || '').split('T')[0];
 
             let matchesTime = false;
             switch (filterType) {
@@ -187,6 +188,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                 if (currentRoute !== selectedRoute) return;
             }
 
+            if (!j.dateOfService) return;
             const d = new Date(j.dateOfService);
             if (d.getFullYear() === currentYear) {
                 const mIdx = d.getMonth();
