@@ -130,7 +130,7 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                                             {editData.drops.map((drop, idx) => (
                                                 <div key={idx} className="flex items-center gap-1">
                                                     <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                                                    <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{drop}</span>
+                                                    <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{typeof drop === 'string' ? drop : drop.location}</span>
                                                 </div>
                                             ))}
                                         </div>

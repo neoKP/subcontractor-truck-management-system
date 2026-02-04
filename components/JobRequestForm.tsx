@@ -815,7 +815,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                               {formData.drops.map((drop, i) => (
                                 <div key={i} className="flex items-center gap-3">
                                   <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                                  <span className="text-xs font-bold text-slate-600">{drop}</span>
+                                  <span className="text-xs font-bold text-slate-600">{typeof drop === 'string' ? drop : drop.location}</span>
                                 </div>
                               ))}
                             </div>
