@@ -451,13 +451,12 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         <Header
           user={currentUser}
-          onOpenSidebar={toggleSidebar}
-          onLogout={handleLogout}
-          onSearch={handleSearchJob}
+          onMenuToggle={toggleSidebar}
           jobs={jobs}
           logs={logs}
           onShowPendingPricing={() => setShowPendingPricingModal(true)}
           onNavigateToLogs={() => setActiveTab('logs')}
+          onSearchJob={handleSearchJob}
         />
 
 
