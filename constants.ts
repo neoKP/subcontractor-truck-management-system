@@ -130,6 +130,8 @@ export const PRICE_MATRIX: PriceMatrix[] = [
   { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองกำแพงเพชร', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w', basePrice: 7500, sellingBasePrice: 7500 },
   { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองกำแพงเพชร', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w พ่วง', basePrice: 13500, dropOffFee: 1000, sellingBasePrice: 13500 },
   { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองขอนแก่น', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w พ่วง', basePrice: 15000, dropOffFee: 1000, sellingBasePrice: 15000 },
+  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองเชียงใหม่', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w', basePrice: 17000, sellingBasePrice: 17000 },
+  { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองเชียงใหม่', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '6w พ่วง', basePrice: 22000, dropOffFee: 1000, sellingBasePrice: 22000 },
   { origin: 'ซีโน่ คลองส่งน้ำ', destination: 'เมืองเชียงราย', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '10w', basePrice: 24500, sellingBasePrice: 24500 },
   { origin: 'นีโอ คลอง13', destination: 'เมืองเชียงราย', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '10w พ่วง', basePrice: 27000, dropOffFee: 1000, sellingBasePrice: 27000 },
   { origin: 'สหพัฒน์ ศรีราชา', destination: 'เมืองเชียงราย', subcontractor: 'เบญจวรรณ ขนส่ง', truckType: '10w พ่วง', basePrice: 36000, dropOffFee: 1000, sellingBasePrice: 36000 },

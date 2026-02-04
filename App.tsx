@@ -48,7 +48,7 @@ const App: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [priceMatrix, setPriceMatrix] = useState<PriceMatrix[]>(PRICE_MATRIX);
+  const [priceMatrix, setPriceMatrix] = useState<PriceMatrix[]>([]); // Firebase only - no initial data from constants
   const [activeTab, setActiveTab] = useState<'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion'>('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logSearch, setLogSearch] = useState('');

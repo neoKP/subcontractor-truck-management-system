@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus } from '../types';
-import { MASTER_DATA, PRICE_MATRIX as FALLBACK_PRICE_MATRIX } from '../constants';
+import { MASTER_DATA } from '../constants';
 import { AlertTriangle, Info, X, Lock, CheckCircle, User, Phone, Hash, CircleDot, DollarSign, Wallet, FileText, Clock, AlertCircle, Calendar, TrendingUp, ShieldCheck, MapPin, Upload, Camera, CheckCircle2, ClipboardCheck, CircleDollarSign } from 'lucide-react';
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 import ReviewConfirmModal from './ReviewConfirmModal';
@@ -17,9 +17,8 @@ interface DispatcherActionModalProps {
 }
 const Swal = (window as any).Swal;
 
-const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onClose, onSave, user, priceMatrix: propPriceMatrix, logs, logsLoaded }) => {
-  // Merge Prop Matrix with Fallback to ensure we have critical hardcoded paths if missing from DB
-  const priceMatrix = React.useMemo(() => [...propPriceMatrix, ...FALLBACK_PRICE_MATRIX], [propPriceMatrix]);
+const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onClose, onSave, user, priceMatrix, logs, logsLoaded }) => {
+  // Use Firebase data only - single source of truth
 
   const [editData, setEditData] = useState({
     subcontractor: job.subcontractor || '',
@@ -178,14 +177,13 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
 
     // 🔒 3. Strict Verification Guard (User Requested Rule)
     const priceValid = !!findContractMatch(editData.origin, editData.destination, editData.truckType, editData.subcontractor);
-    const podsValid = (editData.drops || []).every(d => d.status === 'COMPLETED');
+    // POD validation moved to Job Confirmation step
     const infoValid = !!(editData.driverName && editData.driverPhone && editData.licensePlate && (editData.cost || 0) > 0);
 
     // Only block if we're trying to move towards confirmation
-    if (!priceValid || !podsValid || !infoValid) {
+    if (!priceValid || !infoValid) {
       const missing = [];
       if (!priceValid) missing.push('● ราคาจองต้องตรงกับต้นทุนใน Master Pricing');
-      if (!podsValid) missing.push('● ต้องอัปโหลดรูปภาพ POD ให้ครบทุกจุดแวะส่ง');
       if (!infoValid) missing.push('● ข้อมูลคนขับ/ทะเบียน/ค่าจ้าง ต้องระบุให้ครบ');
 
       if (typeof (window as any).Swal !== 'undefined') {

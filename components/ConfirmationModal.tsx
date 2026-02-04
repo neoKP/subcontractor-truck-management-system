@@ -23,6 +23,11 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
   const [isVerified, setIsVerified] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  
+  // Drop POD state - initialize from job.drops
+  const [dropPods, setDropPods] = useState<{ location: string; podUrl?: string; status: 'PENDING' | 'COMPLETED' }[]>(
+    (job.drops || []).map(d => ({ location: d.location, podUrl: d.podUrl, status: d.status || 'PENDING' }))
+  );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -158,6 +163,9 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
       return;
     }
 
+    // Drop POD is optional - user can upload later or leave empty
+    // Only main POD is required
+
     setIsSubmitting(true);
 
     try {
@@ -177,7 +185,8 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
         extraCharge,
         accountingStatus: AccountingStatus.PENDING_REVIEW, // Trigger Accounting Workflow
         podImageUrls: base64Images,
-        status: JobStatus.COMPLETED
+        status: JobStatus.COMPLETED,
+        drops: dropPods.map(d => ({ ...d, status: 'COMPLETED' as const }))
       };
 
       // Create Audit Logs
@@ -327,6 +336,72 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
               </div>
             </div>
           </div>
+
+          {/* Drop Points POD Upload Section */}
+          {dropPods.length > 0 && (
+            <div className="bg-amber-50/50 border border-amber-100 rounded-[1.5rem] p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center text-amber-600">
+                  <MapPin size={16} />
+                </div>
+                <div>
+                  <h4 className="text-[11px] font-black text-amber-900 uppercase tracking-wider">จุดแวะส่งสินค้า (Drop-off Points)</h4>
+                  <p className="text-[9px] font-bold text-amber-600">อัปโหลด POD ได้ (ไม่บังคับ) - Optional</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {dropPods.map((drop, index) => (
+                  <div key={index} className="bg-white rounded-xl border border-amber-100 p-4 flex items-center gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center text-[10px] font-black text-amber-700">{index + 1}</span>
+                        <span className="text-sm font-bold text-slate-700">{drop.location}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {drop.podUrl ? (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100">
+                          <CheckCircle2 size={14} />
+                          <span className="text-[10px] font-black uppercase">POD Uploaded</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 text-slate-400 rounded-lg border border-slate-200">
+                          <Camera size={14} />
+                          <span className="text-[10px] font-black uppercase">Optional</span>
+                        </div>
+                      )}
+                      <input
+                        type="file"
+                        id={`drop-pod-confirm-${index}`}
+                        className="hidden"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setDropPods(prev => {
+                                const updated = [...prev];
+                                updated[index] = { ...updated[index], podUrl: reader.result as string, status: 'COMPLETED' };
+                                return updated;
+                              });
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={`drop-pod-confirm-${index}`}
+                        className={`p-2.5 rounded-lg border cursor-pointer transition-all ${drop.podUrl ? 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100' : 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100'}`}
+                      >
+                        <Camera size={16} />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             <div className="space-y-1.5">
