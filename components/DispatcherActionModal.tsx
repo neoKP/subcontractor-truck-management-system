@@ -19,6 +19,22 @@ const Swal = (window as any).Swal;
 
 const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onClose, onSave, user, priceMatrix, logs, logsLoaded }) => {
   // Use Firebase data only - single source of truth
+  
+  // Calculate initial cost including drop fees
+  const getInitialCost = () => {
+    const match = priceMatrix.find(p =>
+      (p.origin || '').trim() === (job.origin || '').trim() &&
+      (p.destination || '').trim() === (job.destination || '').trim() &&
+      (p.truckType || '').trim() === (job.truckType || '').trim() &&
+      (p.subcontractor || '').trim() === (job.subcontractor || '').trim()
+    );
+    if (match) {
+      const dropCount = (job.drops || []).length;
+      const dropFeeTotal = dropCount * (match.dropOffFee || 0);
+      return (match.basePrice || 0) + dropFeeTotal;
+    }
+    return job.cost || 0;
+  };
 
   const [editData, setEditData] = useState({
     subcontractor: job.subcontractor || '',
@@ -26,7 +42,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     driverName: job.driverName || '',
     driverPhone: job.driverPhone || '',
     licensePlate: job.licensePlate || '',
-    cost: job.cost || 0,
+    cost: getInitialCost(),
     sellingPrice: job.sellingPrice || 0,
     origin: job.origin,
     destination: job.destination,
@@ -121,12 +137,16 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     truck: job.truckType
   });
 
-  // Auto-recalculate price when sub, truckType, origin or destination changes
+  // Track previous drop count for recalculation
+  const [prevDropCount, setPrevDropCount] = useState(editData.drops.length);
+
+  // Auto-recalculate price when sub, truckType, origin, destination, or drops changes
   useEffect(() => {
     const hasSubChanged = editData.subcontractor !== sessionPriceKeys.sub;
     const hasTruckChanged = editData.truckType !== sessionPriceKeys.truck;
     const hasOriginChanged = editData.origin !== job.origin;
     const hasDestChanged = editData.destination !== job.destination;
+    const hasDropsChanged = editData.drops.length !== prevDropCount;
 
     // Check for contract match regardless of session changes for UI feedback
     const matchedData = calculatePriceLive(editData.origin, editData.destination, editData.truckType, editData.subcontractor, editData.drops.length);
@@ -135,8 +155,8 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
 
     setIsContractPrice(currentContractPrice > 0 && editData.cost === currentContractPrice);
 
-    // Only auto-recalculate if the subcontractor, truck type, or route has changed DURING this session
-    if (hasSubChanged || hasTruckChanged || hasOriginChanged || hasDestChanged) {
+    // Auto-recalculate if the subcontractor, truck type, route, or drops has changed
+    if (hasSubChanged || hasTruckChanged || hasOriginChanged || hasDestChanged || hasDropsChanged) {
       if (editData.subcontractor && editData.truckType && editData.origin && editData.destination) {
         if (currentContractPrice > 0 || (hasOriginChanged || hasDestChanged)) {
           setEditData(prev => ({
@@ -155,8 +175,9 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
         sub: editData.subcontractor,
         truck: editData.truckType
       });
+      setPrevDropCount(editData.drops.length);
     }
-  }, [editData.subcontractor, editData.truckType, editData.origin, editData.destination, sessionPriceKeys, job.origin, job.destination, priceMatrix, editData.cost, editData.drops.length]);
+  }, [editData.subcontractor, editData.truckType, editData.origin, editData.destination, sessionPriceKeys, job.origin, job.destination, priceMatrix, editData.cost, editData.drops.length, prevDropCount]);
 
   const handleSaveAttempt = async () => {
     if (isSubmitting) return;

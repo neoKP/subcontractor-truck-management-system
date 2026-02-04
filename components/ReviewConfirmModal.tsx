@@ -47,12 +47,19 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
     );
 
     // Check if price matches Master Pricing
-    const hasPriceMatch = priceMatrix.some(p =>
+    const matchedPricing = priceMatrix.find(p =>
         (p.origin || '').trim() === (job.origin || '').trim() &&
         (p.destination || '').trim() === (job.destination || '').trim() &&
         (p.truckType || '').trim() === (editData.truckType || '').trim() &&
         (p.subcontractor || '').trim() === (editData.subcontractor || '').trim()
     );
+    const hasPriceMatch = !!matchedPricing;
+    
+    // Calculate Drop Fee breakdown
+    const dropCount = (job.drops || []).length;
+    const dropFeePerPoint = matchedPricing?.dropOffFee || 0;
+    const totalDropFee = dropCount * dropFeePerPoint;
+    const basePrice = matchedPricing?.basePrice || 0;
 
     // ตรวจสอบว่าข้อมูลพื้นฐานครบหรือไม่
     const isDataComplete = !!(
@@ -252,7 +259,7 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Cost */}
+                            {/* Cost with Drop Fee Breakdown */}
                             <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-blue-100">
                                 <div className="flex items-center justify-between mb-2">
                                     <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Cost (ต้นทุน)</p>
@@ -261,7 +268,24 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                                     </div>
                                 </div>
                                 <p className="text-2xl font-black text-blue-900">฿{formatThaiCurrency(editData.cost)}</p>
-                                <p className="text-xs font-bold text-blue-600 mt-1">ค่าจ้างรถร่วง (Subcontractor Cost)</p>
+                                
+                                {/* Drop Fee Breakdown */}
+                                <div className="mt-3 pt-3 border-t border-blue-100 space-y-1.5">
+                                    <div className="flex justify-between text-[11px]">
+                                        <span className="font-bold text-slate-500">ราคาฐาน (Base)</span>
+                                        <span className="font-black text-slate-700">฿{formatThaiCurrency(basePrice)}</span>
+                                    </div>
+                                    {dropCount > 0 && (
+                                        <div className="flex justify-between text-[11px]">
+                                            <span className="font-bold text-amber-600">+ ค่าดร็อป ({dropCount} จุด × ฿{formatThaiCurrency(dropFeePerPoint)})</span>
+                                            <span className="font-black text-amber-700">฿{formatThaiCurrency(totalDropFee)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between text-xs pt-1 border-t border-dashed border-blue-200">
+                                        <span className="font-black text-blue-700">รวมทั้งหมด</span>
+                                        <span className="font-black text-blue-900">฿{formatThaiCurrency(editData.cost)}</span>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Selling Price */}

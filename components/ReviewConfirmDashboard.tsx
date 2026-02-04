@@ -54,11 +54,11 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
     };
 
     // ตรวจสอบว่าข้อมูลครบถ้วนตามกฏ (Strict Rules)
+    // POD moved to Job Confirmation step - not required here
     const isFleetInfoComplete = (job: Job) => {
         const infoDone = !!(job.driverName && job.driverPhone && job.licensePlate);
-        const podsDone = hasAllPODs(job);
         const priceValid = hasPriceMatch(job);
-        return infoDone && podsDone && priceValid;
+        return infoDone && priceValid;
     };
 
     // แยกงานออกเป็น 2 กลุ่ม
@@ -271,7 +271,7 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                         if (!job.driverName) missingFields.push('ชื่อคนขับ');
                         if (!job.driverPhone) missingFields.push('เบอร์โทร');
                         if (!job.licensePlate) missingFields.push('ทะเบียนรถ');
-                        if (!hasAllPODs(job)) missingFields.push('รูปภาพหลักฐาน POD');
+                        // POD moved to Job Confirmation step - not required here
                         if (!hasPriceMatch(job)) missingFields.push('ข้อมูลราคากลาง (Master Pricing)');
 
                         return (
