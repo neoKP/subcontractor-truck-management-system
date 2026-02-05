@@ -602,7 +602,7 @@ const App: React.FC = () => {
                   <span>ระบบตรวจสอบพิเศษสำหรับบัญชี: อนุมัติการจ่ายเงินและตรวจสอบหลักฐาน (Accounting Verification Module)</span>
                 </div>
                 <div className="p-6">
-                  <AccountingVerificationView jobs={jobs} onUpdateJob={handleVerifyJob} userRole={currentUser.role} />
+                  <AccountingVerificationView jobs={jobs} onUpdateJob={handleVerifyJob} userRole={currentUser.role} priceMatrix={priceMatrix} />
                 </div>
               </div>
             )}
