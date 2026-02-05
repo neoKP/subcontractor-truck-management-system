@@ -403,6 +403,28 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
                                                 <span className="text-xs font-bold text-slate-600">{job.destination}</span>
                                             </div>
 
+                                            {/* Drop-off Points */}
+                                            {job.drops && job.drops.length > 0 && (
+                                                <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
+                                                    <p className="text-[10px] font-black text-purple-700 uppercase tracking-wider mb-2">
+                                                        📦 จุดส่งสินค้า ({job.drops.length} จุด)
+                                                    </p>
+                                                    <div className="space-y-1.5">
+                                                        {job.drops.map((drop, idx) => (
+                                                            <div key={idx} className="flex items-center gap-2 text-xs">
+                                                                <span className="w-5 h-5 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-bold text-[9px]">
+                                                                    {idx + 1}
+                                                                </span>
+                                                                <span className="flex-1 font-medium text-slate-700">{drop.location}</span>
+                                                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${drop.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-600' : 'bg-yellow-100 text-yellow-600'}`}>
+                                                                    {drop.status === 'COMPLETED' ? '✅ ส่งแล้ว' : '⏳ รอส่ง'}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             {/* Driver */}
                                             {job.driverName && (
                                                 <div className="flex items-center gap-2">

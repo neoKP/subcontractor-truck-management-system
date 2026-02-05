@@ -327,6 +327,18 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                                             <div>
                                                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Route</p>
                                                 <p className="text-sm font-black text-slate-800">{job.origin} → {job.destination}</p>
+                                                {/* Drop-off Points */}
+                                                {job.drops && job.drops.length > 0 && (
+                                                    <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                                        <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-[9px] font-bold">
+                                                            📍 {job.drops.length} จุดส่ง
+                                                        </span>
+                                                        <span className="text-[9px] text-slate-400">
+                                                            {job.drops.slice(0, 2).map(d => d.location).join(', ')}
+                                                            {job.drops.length > 2 && ` +${job.drops.length - 2}`}
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div>
                                                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Subcontractor</p>

@@ -310,6 +310,17 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                                                     <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
                                                     {job.origin}
                                                 </div>
+                                                {/* Drop-off Points */}
+                                                {job.drops && job.drops.length > 0 && (
+                                                    <div className="flex items-center gap-1 ml-3">
+                                                        {job.drops.map((drop, idx) => (
+                                                            <span key={idx} className="flex items-center gap-0.5 text-[9px] text-purple-600">
+                                                                <div className="w-1 h-1 rounded-full bg-purple-400"></div>
+                                                                {drop.location}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-1.5 h-1.5 rounded-full bg-orange-500"></div>
                                                     {job.destination}
@@ -387,6 +398,17 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                                         <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></div>
                                         <span className="text-xs font-bold text-slate-600 truncate">{job.origin}</span>
                                     </div>
+                                    {/* Drop-off Points for Mobile */}
+                                    {job.drops && job.drops.length > 0 && (
+                                        <div className="flex items-center gap-1 ml-3 flex-wrap">
+                                            <MapPin size={10} className="text-purple-500" />
+                                            {job.drops.map((drop, idx) => (
+                                                <span key={idx} className="text-[9px] text-purple-600 font-bold">
+                                                    {drop.location}{idx < job.drops!.length - 1 ? ',' : ''}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                     <div className="flex items-center gap-2">
                                         <div className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0"></div>
                                         <span className="text-xs font-bold text-slate-600 truncate">{job.destination}</span>

@@ -488,7 +488,21 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                                                         <td className="border border-slate-200 p-2 text-center text-slate-400">{(pageIndex * ITEMS_PER_PAGE) + idx + 1}</td>
                                                         <td className="border border-slate-200 p-2 leading-relaxed">
                                                             <div className="font-bold text-slate-900 underline decoration-slate-200">ค่าระวางขนส่ง: {j.origin} - {j.destination}</div>
-                                                            <div className="text-[9px] text-slate-500 font-medium">
+                                                            {/* Drop-off Points List */}
+                                                            {j.drops && j.drops.length > 0 && (
+                                                                <div className="mt-1.5 space-y-0.5">
+                                                                    <div className="text-[9px] font-bold text-purple-600">📍 จุดส่งสินค้า ({j.drops.length} จุด):</div>
+                                                                    <div className="text-[9px] text-slate-500 ml-2">
+                                                                        {j.drops.map((drop, i) => (
+                                                                            <span key={i} className="inline-flex items-center gap-1 mr-2">
+                                                                                <span className="w-3.5 h-3.5 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-[7px] font-bold">{i + 1}</span>
+                                                                                {drop.location}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            <div className="text-[9px] text-slate-500 font-medium mt-1">
                                                                 Service: {formatDate(j.dateOfService)} | Truck: {j.licensePlate} ({j.truckType})
                                                             </div>
                                                         </td>

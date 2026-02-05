@@ -614,6 +614,18 @@ const JobBoard: React.FC<JobBoardProps> = ({
                               <span className="block text-[13px] font-black text-slate-800 leading-tight mt-1">{job.destination}</span>
                             </div>
                           </div>
+                          {/* Drop-off Points Badge */}
+                          {job.drops && job.drops.length > 0 && (
+                            <div className="flex items-center gap-2 mt-1 ml-5">
+                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-lg text-[9px] font-bold flex items-center gap-1">
+                                <MapPin size={10} /> {job.drops.length} จุดส่ง
+                              </span>
+                              <span className="text-[9px] text-slate-400 truncate max-w-[200px]">
+                                {job.drops.slice(0, 2).map(d => d.location).join(', ')}
+                                {job.drops.length > 2 && ` +${job.drops.length - 2} อื่น`}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-4 mt-2">
                             <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
                               <Truck size={12} className="text-slate-300" /> {job.truckType}
@@ -822,6 +834,18 @@ const JobBoard: React.FC<JobBoardProps> = ({
                     <span className="block text-[13px] font-black text-slate-800">{job.destination}</span>
                   </div>
                 </div>
+                {/* Drop-off Points Badge for Mobile */}
+                {job.drops && job.drops.length > 0 && (
+                  <div className="flex items-center gap-2 ml-5">
+                    <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-lg text-[10px] font-bold flex items-center gap-1">
+                      <MapPin size={10} /> {job.drops.length} จุดส่ง
+                    </span>
+                    <span className="text-[10px] text-slate-400 truncate max-w-[150px]">
+                      {job.drops.map(d => d.location).slice(0, 2).join(', ')}
+                      {job.drops.length > 2 && ` +${job.drops.length - 2}`}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 pt-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-t border-slate-50">
                   <Calendar size={12} className="text-blue-500/50" /> {formatDate(job.dateOfService)}
                 </div>

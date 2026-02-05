@@ -431,20 +431,32 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                                 {summary.dropCount > 0 ? (
                                                     <>
                                                         <p className="text-xl font-black text-blue-700">{formatCurrency(summary.totalDropFee)}</p>
-                                                        <div className="mt-2 bg-white p-2 rounded-lg">
-                                                            <div className="flex justify-between text-xs">
+                                                        <div className="mt-2 bg-white p-2 rounded-lg space-y-2">
+                                                            {/* Drop-off Points List */}
+                                                            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                                                                {selectedJob.drops?.map((drop, idx) => (
+                                                                    <div key={idx} className="flex items-center gap-2 text-[10px] bg-slate-50 p-1.5 rounded">
+                                                                        <span className="w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-[9px]">
+                                                                            {idx + 1}
+                                                                        </span>
+                                                                        <span className="flex-1 font-medium text-slate-700 truncate">{drop.location}</span>
+                                                                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${drop.status === 'Completed' || drop.status === 'completed' ? 'bg-emerald-100 text-emerald-600' : drop.status === 'Pending' || drop.status === 'pending' ? 'bg-yellow-100 text-yellow-600' : 'bg-slate-100 text-slate-500'}`}>
+                                                                            {drop.status === 'Completed' || drop.status === 'completed' ? '✅ ส่งแล้ว' : drop.status === 'Pending' || drop.status === 'pending' ? '⏳ รอส่ง' : drop.status || '-'}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <div className="border-t border-slate-200 pt-2 flex justify-between text-xs">
                                                                 <span className="text-slate-500">จำนวนจุด:</span>
                                                                 <span className="font-black text-blue-600">{summary.dropCount} จุด</span>
                                                             </div>
-                                                            <div className="flex justify-between text-xs mt-1">
+                                                            <div className="flex justify-between text-xs">
                                                                 <span className="text-slate-500">ราคา/จุด:</span>
                                                                 <span className="font-bold text-slate-700">{formatCurrency(summary.dropFeePerPoint)}</span>
                                                             </div>
-                                                            <div className="border-t border-slate-200 mt-2 pt-2 flex justify-between text-xs">
-                                                                <span className="text-slate-500">รวม:</span>
-                                                                <span className="font-black text-blue-700">
-                                                                    {summary.dropCount} × {formatCurrency(summary.dropFeePerPoint)} = {formatCurrency(summary.totalDropFee)}
-                                                                </span>
+                                                            <div className="flex justify-between text-xs font-black text-blue-700 bg-blue-50 p-1.5 rounded">
+                                                                <span>รวม:</span>
+                                                                <span>{summary.dropCount} × {formatCurrency(summary.dropFeePerPoint)} = {formatCurrency(summary.totalDropFee)}</span>
                                                             </div>
                                                         </div>
                                                     </>
@@ -504,9 +516,15 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                                                         type="number"
                                                                         value={charge.amount}
                                                                         onChange={(e) => handleEditChargeAmount(charge.id, Number(e.target.value))}
+                                                                        title={`Edit amount for ${charge.type}`}
+                                                                        placeholder="Amount"
                                                                         className="w-20 px-1.5 py-0.5 text-right text-xs font-bold border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
                                                                     />
-                                                                    <button onClick={() => handleDeleteCharge(charge.id)} className="text-red-500 hover:bg-red-50 rounded p-0.5">
+                                                                    <button 
+                                                                        onClick={() => handleDeleteCharge(charge.id)} 
+                                                                        title={`Delete ${charge.type}`}
+                                                                        className="text-red-500 hover:bg-red-50 rounded p-0.5"
+                                                                    >
                                                                         <Trash2 size={12} />
                                                                     </button>
                                                                 </div>
@@ -521,6 +539,7 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                                                     onChange={(e) => setNewCharge(prev => ({ ...prev, amount: Math.max(0, Number(e.target.value)) }))}
                                                                     className="w-16 px-1.5 py-0.5 text-[10px] text-right border border-slate-300 rounded outline-none" />
                                                                 <button onClick={handleAddCharge} disabled={!newCharge.type.trim()}
+                                                                    title="Add new extra charge"
                                                                     className="px-1.5 bg-blue-500 text-white rounded text-[10px] disabled:opacity-50">
                                                                     <Plus size={12} />
                                                                 </button>

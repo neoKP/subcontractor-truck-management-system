@@ -513,6 +513,18 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
                                                     <p className="text-[10px] font-black text-slate-400 uppercase">Route</p>
                                                     <p className="text-xs font-bold text-slate-700 truncate">From: {job.origin}</p>
                                                     <p className="text-xs font-bold text-slate-700 truncate">To: {job.destination}</p>
+                                                    {/* Drop-off Points */}
+                                                    {job.drops && job.drops.length > 0 && (
+                                                        <div className="flex items-center gap-1.5 mt-1">
+                                                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-[9px] font-bold flex items-center gap-1">
+                                                                <MapPin size={10} /> {job.drops.length} จุดส่ง
+                                                            </span>
+                                                            <span className="text-[9px] text-slate-400 truncate max-w-[120px]">
+                                                                {job.drops.slice(0, 2).map(d => d.location).join(', ')}
+                                                                {job.drops.length > 2 && ` +${job.drops.length - 2}`}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="space-y-1">
                                                     <p className="text-[10px] font-black text-slate-400 uppercase">Subcontractor</p>
