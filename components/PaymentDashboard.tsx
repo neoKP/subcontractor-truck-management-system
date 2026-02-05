@@ -5,7 +5,7 @@ import {
   Plus, Eye, CheckCircle, AlertTriangle, Clock, X, Save,
   Receipt, TrendingUp, Banknote, Upload, Trash2, ArrowRight
 } from 'lucide-react';
-import { Job, SubcontractorInvoice, InvoiceDeduction, InvoiceStatus, PriceMatrix, UserRole } from '../types';
+import { Job, SubcontractorInvoice, InvoiceDeduction, InvoiceStatus, PriceMatrix, UserRole, AccountingStatus } from '../types';
 import { formatDate, formatThaiCurrency } from '../utils/format';
 
 interface PaymentDashboardProps {
@@ -32,21 +32,31 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<SubcontractorInvoice | null>(null);
 
-  // Get completed jobs that haven't been invoiced yet
-  const completedJobs = useMemo(() => {
+  // Get VERIFIED jobs that haven't been invoiced yet (must pass Verification first)
+  const verifiedJobs = useMemo(() => {
     const invoicedJobIds = invoices.flatMap(inv => inv.jobIds);
     return jobs.filter(job => 
       job.status === 'Completed' && 
+      job.accountingStatus === AccountingStatus.APPROVED && // ต้องผ่าน Verification ก่อน
       job.subcontractor &&
       !invoicedJobIds.includes(job.id)
     );
   }, [jobs, invoices]);
 
-  // Get unique subcontractors from completed jobs
+  // Jobs that are completed but NOT yet verified (for info display)
+  const pendingVerificationJobs = useMemo(() => {
+    return jobs.filter(job => 
+      job.status === 'Completed' && 
+      job.accountingStatus !== AccountingStatus.APPROVED &&
+      job.subcontractor
+    );
+  }, [jobs]);
+
+  // Get unique subcontractors from verified jobs
   const subcontractors = useMemo(() => {
-    const subs = [...new Set(completedJobs.map(j => j.subcontractor).filter(Boolean))];
+    const subs = [...new Set(verifiedJobs.map(j => j.subcontractor).filter(Boolean))];
     return subs as string[];
-  }, [completedJobs]);
+  }, [verifiedJobs]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -61,10 +71,10 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
       overdueAmount: overdue.reduce((sum, inv) => sum + inv.netAmount, 0),
       paidCount: paid.length,
       paidAmount: paid.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0),
-      uninvoicedJobs: completedJobs.length,
-      uninvoicedAmount: completedJobs.reduce((sum, job) => sum + (job.cost || 0), 0)
+      uninvoicedJobs: verifiedJobs.length,
+      uninvoicedAmount: verifiedJobs.reduce((sum, job) => sum + (job.cost || 0), 0)
     };
-  }, [invoices, completedJobs]);
+  }, [invoices, verifiedJobs]);
 
   // Create Invoice Modal State
   const [createForm, setCreateForm] = useState({
@@ -85,12 +95,12 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
   // Get jobs for selected subcontractor in create modal
   const jobsForSubcontractor = useMemo(() => {
     if (!createForm.subcontractor) return [];
-    return completedJobs.filter(job => 
+    return verifiedJobs.filter(job => 
       job.subcontractor === createForm.subcontractor &&
       (!createForm.periodStart || job.dateOfService >= createForm.periodStart) &&
       (!createForm.periodEnd || job.dateOfService <= createForm.periodEnd)
     );
-  }, [completedJobs, createForm.subcontractor, createForm.periodStart, createForm.periodEnd]);
+  }, [verifiedJobs, createForm.subcontractor, createForm.periodStart, createForm.periodEnd]);
 
   // Calculate invoice totals
   const invoiceTotals = useMemo(() => {
@@ -216,9 +226,17 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
+          {/* Pending Verification Warning */}
+          {pendingVerificationJobs.length > 0 && (
+            <div className="bg-orange-500/30 backdrop-blur-sm rounded-2xl p-4 border border-orange-300/50">
+              <p className="text-orange-100 text-[10px] font-black uppercase tracking-widest">⚠️ รอตรวจสอบ</p>
+              <p className="text-2xl font-black">{pendingVerificationJobs.length} งาน</p>
+              <p className="text-orange-200 text-xs font-bold">ต้องผ่าน Verify ก่อน</p>
+            </div>
+          )}
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4">
-            <p className="text-emerald-100 text-[10px] font-black uppercase tracking-widest">รอวางบิล</p>
+            <p className="text-emerald-100 text-[10px] font-black uppercase tracking-widest">✅ พร้อมวางบิล</p>
             <p className="text-2xl font-black">{totals.uninvoicedJobs} งาน</p>
             <p className="text-emerald-200 text-sm font-bold">฿{formatThaiCurrency(totals.uninvoicedAmount)}</p>
           </div>
@@ -274,7 +292,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
             <h2 className="text-lg font-black text-slate-800">📊 สรุปยอดค้างจ่ายแยกตามบริษัทรถร่วม</h2>
             <div className="grid gap-4">
               {subcontractors.map(sub => {
-                const subJobs = completedJobs.filter(j => j.subcontractor === sub);
+                const subJobs = verifiedJobs.filter(j => j.subcontractor === sub);
                 const subTotal = subJobs.reduce((sum, j) => sum + (j.cost || 0), 0);
                 const terms = getPaymentTerms(sub);
                 return (
@@ -324,7 +342,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {completedJobs.map(job => (
+                  {verifiedJobs.map(job => (
                     <tr key={job.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-mono font-bold text-slate-600">{job.id}</td>
                       <td className="px-4 py-3 text-slate-600">{formatDate(job.dateOfService)}</td>
@@ -339,7 +357,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
                       <td className="px-4 py-3 text-right font-black text-slate-800">฿{formatThaiCurrency(job.cost || 0)}</td>
                     </tr>
                   ))}
-                  {completedJobs.length === 0 && (
+                  {verifiedJobs.length === 0 && (
                     <tr>
                       <td colSpan={5} className="px-4 py-12 text-center text-slate-400">
                         ไม่มีงานที่รอวางบิล
