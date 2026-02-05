@@ -190,6 +190,12 @@ const Header: React.FC<HeaderProps> = ({
                           </p>
                           <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2">
                             {log.oldValue} <span className="text-slate-300">→</span> <span className="font-bold text-slate-700">{log.newValue}</span>
+                            {/* Show Payment Terms hint for billing-related logs */}
+                            {(log.field === 'billingDocNo' || (log.field === 'status' && log.newValue === 'Billed')) && (
+                              <span className="ml-1 px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded text-[9px] font-bold">
+                                💳 ดูเงื่อนไขในใบวางบิล
+                              </span>
+                            )}
                           </p>
                           <div className="flex items-center gap-1 mt-2 text-[9px] font-bold text-slate-400">
                             <Clock size={10} />

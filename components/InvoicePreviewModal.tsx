@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Job, JobStatus } from '../types';
+import { Job, JobStatus, PriceMatrix } from '../types';
 import { X, Printer, CheckCircle, Receipt, Calendar, FileText, MapPin } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
@@ -61,6 +61,7 @@ interface InvoicePreviewModalProps {
     existingDocNo?: string;
     existingDate?: string;
     readOnly?: boolean;
+    priceMatrix?: PriceMatrix[];
 }
 
 const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
@@ -69,9 +70,29 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
     onBatchConfirm,
     existingDocNo,
     existingDate,
-    readOnly = false
+    readOnly = false,
+    priceMatrix = []
 }) => {
     const mainJob = jobs[0];
+    
+    // Get Payment Terms from PriceMatrix
+    const getPaymentTerms = () => {
+        if (!mainJob || priceMatrix.length === 0) return { paymentType: 'CREDIT', creditDays: 30 };
+        
+        const matched = priceMatrix.find(p =>
+            p.origin?.trim() === mainJob.origin?.trim() &&
+            p.destination?.trim() === mainJob.destination?.trim() &&
+            p.truckType?.trim() === mainJob.truckType?.trim() &&
+            p.subcontractor?.trim() === mainJob.subcontractor?.trim()
+        );
+        
+        return {
+            paymentType: matched?.paymentType || 'CREDIT',
+            creditDays: matched?.creditDays || 30
+        };
+    };
+    
+    const paymentTerms = getPaymentTerms();
     const [applyVat, setApplyVat] = useState(false);
     const [vatRate] = useState(7);
     const [whtRate] = useState(1);
@@ -425,6 +446,12 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                                         <div className="flex justify-between">
                                             <span className="text-slate-500 font-bold">กำหนด Due:</span>
                                             <span className="font-black text-blue-700">{dueDateStr}</span>
+                                        </div>
+                                        <div className="flex justify-between mt-1 pt-1 border-t border-slate-200">
+                                            <span className="text-slate-500 font-bold">💳 เงื่อนไข:</span>
+                                            <span className={`font-black ${paymentTerms.paymentType === 'CASH' ? 'text-green-600' : 'text-purple-600'}`}>
+                                                {paymentTerms.paymentType === 'CASH' ? '💵 เงินสด' : `📅 เครดิต ${paymentTerms.creditDays} วัน`}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>

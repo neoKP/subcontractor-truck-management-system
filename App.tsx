@@ -614,7 +614,7 @@ const App: React.FC = () => {
                   <h2 className="text-xl font-bold text-white">การวางบิลและข้อมูลการเงิน (Billing & Financial)</h2>
                 </div>
                 <div className="p-6">
-                  <BillingView jobs={jobs} user={currentUser} onUpdateJob={updateJob} />
+                  <BillingView jobs={jobs} user={currentUser} onUpdateJob={updateJob} priceMatrix={priceMatrix} />
                 </div>
               </div>
             )}

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Job, JobStatus, AccountingStatus, UserRole, AuditLog, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS } from '../types';
+import { Job, JobStatus, AccountingStatus, UserRole, AuditLog, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS, PriceMatrix } from '../types';
 import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
 import { DollarSign, ExternalLink, FileCheck, Info, TrendingUp, CheckCircle, XCircle, Lock, AlertCircle, History, Receipt } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
@@ -12,9 +12,10 @@ interface BillingViewProps {
   jobs: Job[];
   user: { id: string; name: string; role: UserRole };
   onUpdateJob: (job: Job, logs?: AuditLog[]) => void;
+  priceMatrix?: PriceMatrix[];
 }
 
-const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) => {
+const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, priceMatrix = [] }) => {
   const [viewTab, setViewTab] = useState<'VERIFICATION' | 'TO_BILL' | 'TO_PAY' | 'PAID'>('VERIFICATION');
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'REJECTED'>('ALL'); // Only for VERIFICATION tab
 
@@ -924,6 +925,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob }) =>
             readOnly={isInvoiceViewMode}
             existingDocNo={isInvoiceViewMode ? selectedInvoiceJobs[0]?.billingDocNo : undefined}
             existingDate={isInvoiceViewMode ? selectedInvoiceJobs[0]?.billingDate : undefined}
+            priceMatrix={priceMatrix}
             onClose={() => {
               setShowInvoiceModal(false);
               setSelectedInvoiceJobs([]);
