@@ -106,8 +106,56 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
     }
   };
 
+  const handleSyncSellingPrice = async () => {
+    const zeroSellingPriceCount = priceMatrix.filter(p => !p.sellingBasePrice || p.sellingBasePrice === 0).length;
+    
+    if (zeroSellingPriceCount === 0) {
+      Swal.fire({
+        title: 'ไม่พบข้อมูลที่ต้องแก้ไข',
+        text: 'ราคาจ้าง (sellingBasePrice) ทุกรายการมีค่าแล้ว',
+        icon: 'info',
+        timer: 2000,
+        showConfirmButton: false,
+        customClass: { popup: 'rounded-[2rem]' }
+      });
+      return;
+    }
+
+    const result = await Swal.fire({
+      title: 'ยืนยันการซิงค์ราคาจ้าง?',
+      html: `พบ <b class="text-rose-600">${zeroSellingPriceCount} รายการ</b> ที่ราคาจ้างเป็น 0<br/>จะคัดลอกจากราคาต้นทุน (basePrice) ไปยังราคาจ้าง (sellingBasePrice)`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#4f46e5',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'ใช่, ซิงค์เลย!',
+      cancelButtonText: 'ยกเลิก',
+      customClass: {
+        popup: 'rounded-[2rem]',
+        confirmButton: 'rounded-xl font-bold px-8 py-3',
+        cancelButton: 'rounded-xl font-bold px-8 py-3'
+      }
+    });
+
+    if (result.isConfirmed) {
+      const newList = priceMatrix.map(p => ({
+        ...p,
+        sellingBasePrice: p.sellingBasePrice || p.basePrice
+      }));
+      onUpdate(newList);
+
+      Swal.fire({
+        title: 'ซิงค์สำเร็จ!',
+        text: `อัปเดตราคาจ้าง ${zeroSellingPriceCount} รายการแล้ว`,
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false,
+        customClass: { popup: 'rounded-[2rem]' }
+      });
+    }
+  };
+
   const handleEdit = (index: number) => {
-    setEditingIndex(index);
     setFormData(priceMatrix[index]);
     setIsAdding(true);
     setIsReviewing(false);
@@ -702,6 +750,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                       <select
                         className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold"
                         value={formData.paymentType || 'CREDIT'}
+                        title="เลือกประเภทการชำระเงิน"
                         onChange={e => setFormData({ 
                           ...formData, 
                           paymentType: e.target.value as 'CASH' | 'CREDIT',
@@ -717,6 +766,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                       <select
                         className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold disabled:bg-slate-100 disabled:text-slate-400"
                         value={formData.creditDays || 0}
+                        title="เลือกจำนวนวันเครดิต"
                         onChange={e => setFormData({ ...formData, creditDays: Number(e.target.value) })}
                         disabled={formData.paymentType === 'CASH'}
                       >

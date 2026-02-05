@@ -375,6 +375,8 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
                         id={`drop-pod-confirm-${index}`}
                         className="hidden"
                         accept="image/*"
+                        title="อัปโหลดหลักฐานการส่งสินค้า"
+                        aria-label={`อัปโหลด POD สำหรับจุดแวะที่ ${index + 1}`}
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {

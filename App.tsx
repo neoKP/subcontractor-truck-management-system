@@ -115,7 +115,7 @@ const App: React.FC = () => {
     const unsubscribeJobs = onValue(jobsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        setJobs(Object.values(data));
+        setJobs(Object.values(data) as Job[]);
       }
     });
 
@@ -129,13 +129,11 @@ const App: React.FC = () => {
       setLogsLoaded(true);
     });
 
-    // Listen for Pricing
+    // Listen for Pricing (realtime sync ทุกครั้งที่มีการเปลี่ยนแปลง)
     const pricingRef = ref(db, 'priceMatrix');
     const unsubscribePricing = onValue(pricingRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        // Use data from DB directly. 
-        // We stop auto-merging with constants to allow user to delete items.
         setPriceMatrix(Object.values(data) as PriceMatrix[]);
       } else {
         // Seed if empty

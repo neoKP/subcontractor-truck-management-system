@@ -34,7 +34,7 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
         });
     }, [jobs, selectedYear, selectedMonth]);
 
-    // --- 1. Aggregated Metrics ---
+    // --- 1. Aggregated Metrics (คำนวณจากข้อมูลจริง) ---
     const metrics = useMemo(() => {
         let revenue = 0;
         let cost = 0;
@@ -48,7 +48,9 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
                 return;
             }
             revenue += (j.sellingPrice || 0);
-            cost += (j.cost || 0) + (j.extraCharge || 0);
+            // รวม extraCharges array ถ้ามี
+            const extraChargesTotal = j.extraCharges?.reduce((sum, ec) => sum + (ec.amount || 0), 0) || 0;
+            cost += (j.cost || 0) + (j.extraCharge || 0) + extraChargesTotal;
             if (j.status === JobStatus.COMPLETED || j.status === JobStatus.BILLED) completed++;
             else pending++;
         });
@@ -177,28 +179,24 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
             {/* Level 1: Key Scorecards - Power BI Style */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                    { label: 'Total Revenue (รายได้รวม)', value: metrics.revenue, icon: TrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-50', trend: '+12.5%', prefix: '฿' },
-                    { label: 'Net Profit (กำไรสุทธิ)', value: metrics.profit, icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50', trend: '+8.2%', prefix: '฿' },
-                    { label: 'Gross Margin (เปอร์เซ็นต์กำไร)', value: metrics.margin, icon: Target, color: 'text-amber-600', bg: 'bg-amber-50', trend: '+2.1%', suffix: '%' },
-                    { label: 'Success Rate (ความสำเร็จ)', value: metrics.successRate, icon: CheckCircle2, color: 'text-blue-600', bg: 'bg-blue-50', trend: '-0.4%', suffix: '%' }
+                    { label: 'ต้นทุนรวม', value: metrics.cost, icon: CreditCard, color: 'text-rose-600', bg: 'bg-rose-50', prefix: '฿' },
+                    { label: 'อัตราสำเร็จ', value: metrics.successRate, icon: CheckCircle2, color: 'text-blue-600', bg: 'bg-blue-50', suffix: '%' },
+                    { label: 'งานกำลังดำเนินการ', value: metrics.activeJobs, icon: Activity, color: 'text-amber-600', bg: 'bg-amber-50', suffix: ' งาน' },
+                    { label: 'งานทั้งหมด', value: metrics.totalCount, icon: Package, color: 'text-emerald-600', bg: 'bg-emerald-50', suffix: ' งาน' }
                 ].map((card, idx) => (
-                    <div key={idx} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all group overflow-hidden relative">
-                        <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full ${card.bg} opacity-20 group-hover:scale-150 transition-transform duration-700`}></div>
+                    <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-200 cursor-pointer group overflow-hidden relative">
+                        <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full ${card.bg} opacity-10 group-hover:scale-125 transition-transform duration-300`}></div>
                         <div className="relative z-10">
                             <div className="flex items-center justify-between mb-4">
-                                <div className={`p-3 rounded-2xl ${card.bg} ${card.color}`}>
+                                <div className={`p-3 rounded-xl ${card.bg} ${card.color}`}>
                                     <card.icon size={20} />
                                 </div>
-                                <div className={`flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-full ${card.trend.startsWith('+') ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                    {card.trend.startsWith('+') ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                                    {card.trend}
-                                </div>
                             </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">{card.label}</span>
+                            <span className="text-sm font-bold text-slate-600 block mb-1">{card.label}</span>
                             <div className="text-2xl font-black text-slate-900 flex items-baseline gap-1">
-                                {card.prefix && <span className="text-sm text-slate-400">{card.prefix}</span>}
-                                {card.suffix ? card.value.toFixed(1) : formatThaiCurrency(card.value)}
-                                {card.suffix && <span className="text-sm text-slate-400">{card.suffix}</span>}
+                                {card.prefix && <span className="text-sm text-slate-500">{card.prefix}</span>}
+                                {card.suffix === '%' ? card.value.toFixed(1) : card.suffix?.includes('งาน') ? Math.round(card.value) : formatThaiCurrency(card.value)}
+                                {card.suffix && <span className="text-sm text-slate-500">{card.suffix}</span>}
                             </div>
                         </div>
                     </div>
@@ -209,11 +207,11 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                 {/* Main Growth Chart */}
-                <div className="lg:col-span-2 bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
+                <div className="lg:col-span-2 bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
                     <div className="flex items-center justify-between mb-8">
                         <div>
-                            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter">Volume & Revenue Trends (แนวโน้มงานและรายได้)</h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Daily cycle analysis of fleet productivity</p>
+                            <h3 className="text-lg font-bold text-slate-800">แนวโน้มจำนวนงานรายวัน <span className="text-slate-400 font-normal text-sm">(Daily Job Volume)</span></h3>
+                            <p className="text-xs text-slate-500 mt-1">วิเคราะห์ปริมาณงานขนส่งรายวัน</p>
                         </div>
                     </div>
                     <div className="h-[300px] w-full">
@@ -253,7 +251,7 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
                                         return null;
                                     }}
                                 />
-                                <Area type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={4} fillOpacity={1} fill="url(#colorRev)" />
+                                <Area type="monotone" dataKey="volume" stroke="#4f46e5" strokeWidth={4} fillOpacity={1} fill="url(#colorRev)" />
                             </AreaChart>
                         </ResponsiveContainer>
                         )}
@@ -261,8 +259,8 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
                 </div>
 
                 {/* Operational Health (Donut) */}
-                <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center">
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-2">Fleet Status (สถานะฝูงรถ)</h3>
+                <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                    <h3 className="text-sm font-bold text-slate-700 mb-2">สถานะงาน <span className="text-slate-400 font-normal">(Job Status)</span></h3>
                     <div className="h-[250px] w-full relative">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -281,8 +279,8 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
                             </PieChart>
                         </ResponsiveContainer>
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <span className="text-3xl font-black text-slate-900 leading-none">{jobs.length}</span>
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Total Jobs</span>
+                            <span className="text-3xl font-black text-slate-900 leading-none">{periodJobs.length}</span>
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">งานในเดือนนี้</span>
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4 w-full mt-4">
@@ -302,10 +300,10 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
                 {/* Top Routes performance chart */}
-                <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
+                <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
                         <MapPin size={18} className="text-rose-500" />
-                        Top Strategic Routes (เส้นทางหลัก)
+                        เส้นทางหลัก <span className="text-slate-400 font-normal">(Top Routes)</span>
                     </h3>
                     <div className="space-y-6">
                         {routeData.map((route, idx) => {
@@ -331,10 +329,10 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
                 </div>
 
                 {/* Subcontractor Performance Radar */}
-                <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
+                <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
                         <Users size={18} className="text-blue-500" />
-                        Fleet Leaderboard (ผู้นำกลุ่มรถร่วม)
+                        ผู้รับเหมาหลัก <span className="text-slate-400 font-normal">(Top Subcontractors)</span>
                     </h3>
                     <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
@@ -348,27 +346,6 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
                     </div>
                 </div>
 
-            </div>
-
-            {/* Level 4: Bottom Quick Actions / Info */}
-            <div className="bg-indigo-900 p-8 rounded-[3.5rem] border border-indigo-800 shadow-2xl relative overflow-hidden group">
-                <div className="absolute right-0 top-0 w-96 h-96 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform duration-1000"></div>
-                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
-                    <div className="max-w-md">
-                        <h2 className="text-2xl font-black text-white leading-tight mb-2">Advanced Predictive Analytics Enabling...</h2>
-                        <p className="text-indigo-200 text-sm font-bold uppercase tracking-widest">Integrating machine learning for next-gen route optimization and cost forecasting.</p>
-                    </div>
-                    <div className="flex gap-4">
-                        <div className="px-8 py-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 text-center">
-                            <span className="block text-3xl font-black text-white">{metrics.margin.toFixed(1)}%</span>
-                            <span className="text-[9px] font-black text-indigo-300 uppercase">Avg Profit Margin</span>
-                        </div>
-                        <div className="px-8 py-4 bg-indigo-600 rounded-2xl shadow-xl text-center">
-                            <span className="block text-3xl font-black text-white">{metrics.activeJobs}</span>
-                            <span className="text-[9px] font-black text-indigo-200 uppercase">Jobs In-Flight</span>
-                        </div>
-                    </div>
-                </div>
             </div>
 
         </div>
