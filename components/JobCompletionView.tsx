@@ -19,7 +19,11 @@ const JobCompletionView: React.FC<JobCompletionViewProps> = ({ jobs, user, onUpd
 
     // Categorize jobs
     const categorizedJobs = useMemo(() => {
-        const assigned = jobs.filter(job => job.status === JobStatus.ASSIGNED);
+        // งานที่ ASSIGNED และผ่านการตรวจทานแล้ว (มี reviewedAt หรือ isBaseCostLocked จากระบบเก่า)
+        const assigned = jobs.filter(job => 
+            job.status === JobStatus.ASSIGNED && 
+            (job.reviewedAt || job.isBaseCostLocked) // เฉพาะงานที่ตรวจทานแล้ว
+        );
 
         // Rejected jobs (accountingStatus = REJECTED)
         const rejected = assigned.filter(job =>

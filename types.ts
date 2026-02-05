@@ -97,6 +97,10 @@ export interface Job {
   podImageUrls?: string[];
   extraCharge?: number; // Legacy, but keeping for compatibility
 
+  // Review fields (for Job Completion flow)
+  reviewedAt?: string;
+  reviewedBy?: string;
+
   // Accounting fields
   accountingStatus?: AccountingStatus;
   accountingRemark?: string;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Job, JobStatus, UserRole } from '../types';
+import { Job, JobStatus, UserRole, AccountingStatus } from '../types';
 import { Search, Download, CheckCircle, Clock, TrendingUp, AlertCircle, User } from 'lucide-react';
 import { formatDate, formatThaiCurrency } from '../utils/format';
 import ReviewConfirmModal from './ReviewConfirmModal';
@@ -31,10 +31,10 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
     const [filterView, setFilterView] = useState<'all' | 'incomplete' | 'complete'>('all');
 
 
-    // กรองงานที่ ASSIGNED และยังไม่ล็อกราคา (เฉพาะงานที่รอตรวจทาน)
+    // กรองงานที่ ASSIGNED และยังไม่ล็อกราคา (เฉพาะงานที่รอตรวจทาน) หรืองานที่ถูก Reject กลับมาแก้ไข
     const assignedJobs = jobs.filter(job =>
         job.status === JobStatus.ASSIGNED &&
-        !job.isBaseCostLocked  // เฉพาะงานที่ยังไม่ล็อก
+        (!job.isBaseCostLocked || job.accountingStatus === AccountingStatus.REJECTED)
     );
 
     // Check if price matches Master Pricing
@@ -415,7 +415,9 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                             ...selectedJob,
                             isBaseCostLocked: true,
                             status: JobStatus.ASSIGNED,
-                            accountingStatus: 'PENDING_REVIEW' as any
+                            accountingStatus: 'PENDING_REVIEW' as any,
+                            reviewedAt: new Date().toISOString(),
+                            reviewedBy: user.name
                         };
 
                         onSave(updatedJob);
