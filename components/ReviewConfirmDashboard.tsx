@@ -104,7 +104,9 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
     const handleExport = () => {
         const csvData = filteredJobs.map(job => ({
             'Job ID': job.id,
-            'Route': `${job.origin} → ${job.destination}`,
+            'Origin': job.origin,
+            'Drop-off Points': job.drops && job.drops.length > 0 ? job.drops.map(d => d.location).join('; ') : '-',
+            'Destination': job.destination,
             'Subcontractor': job.subcontractor || '-',
             'Truck Type': job.truckType,
             'Driver': job.driverName || '-',

@@ -214,26 +214,35 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
                                 </div>
                             </div>
 
-                            {/* Section 3: Routing */}
+                            {/* Section 3: Routing - Compact Horizontal */}
                             <div className="border border-[#cbd5e1]">
                                 <div className="bg-[#f8fafc] px-3 py-1.5 font-bold text-[#1e293b] text-[10px] border-b border-[#cbd5e1]">
                                     3. เส้นทางการขนส่ง (ROUTING)
                                 </div>
-                                <div className="p-2 text-[11px] space-y-1">
-                                    <div className="flex border-b border-[#f1f5f9] pb-1">
-                                        <span className="text-[#64748b] w-[160px] font-bold">ต้นทาง (ORIGIN):</span>
-                                        <span className="font-bold text-[#1e293b] pl-2">{job.origin}</span>
-                                    </div>
-                                    {job.drops && job.drops.length > 0 && job.drops.map((drop, idx) => (
-                                        <div key={idx} className="flex border-b border-[#f1f5f9] pb-1">
-                                            <span className="text-[#64748b] w-[160px] font-bold">จุดแวะส่งสินค้า ({idx + 1}):</span>
-                                            <span className="font-bold text-[#1e293b] pl-2">{typeof drop === 'string' ? drop : drop.location}</span>
-                                        </div>
-                                    ))}
-                                    <div className="flex">
-                                        <span className="text-[#64748b] w-[160px] font-bold">ปลายทาง (DESTINATION):</span>
-                                        <span className="font-bold text-[#1e293b] pl-2">{job.destination}</span>
-                                    </div>
+                                <div className="p-2 text-[11px] flex flex-wrap items-center gap-1">
+                                    {/* Origin */}
+                                    <span className="text-[#64748b] font-bold">ต้นทาง:</span>
+                                    <span className="font-bold text-[#1e293b]">{job.origin}</span>
+                                    <span className="text-[#94a3b8] mx-1">→</span>
+                                    
+                                    {/* Drop-off Points - Horizontal */}
+                                    {job.drops && job.drops.length > 0 && (
+                                        <>
+                                            <span className="text-[#64748b] font-bold">จุดแวะ({job.drops.length}):</span>
+                                            <span className="font-bold text-[#1e293b]">
+                                                {job.drops.map((drop, idx) => (
+                                                    <span key={idx} className="inline-block mr-2">
+                                                        {idx + 1}.{typeof drop === 'string' ? drop : drop.location}
+                                                    </span>
+                                                ))}
+                                            </span>
+                                            <span className="text-[#94a3b8] mx-1">→</span>
+                                        </>
+                                    )}
+                                    
+                                    {/* Destination */}
+                                    <span className="text-[#64748b] font-bold">ปลายทาง:</span>
+                                    <span className="font-bold text-[#1e293b]">{job.destination}</span>
                                 </div>
                             </div>
 

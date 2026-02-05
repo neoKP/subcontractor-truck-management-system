@@ -91,6 +91,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
             'Job Date / วันที่สร้างใบงาน',
             'Date of Service / วันที่ต้องการรถ',
             'Origin / ต้นทาง',
+            'Drop-off Points / จุดส่งสินค้า',
             'Destination / ปลายทาง',
             'Truck Type / ประเภทรถ',
             'License Plate / ทะเบียนรถ',
@@ -108,6 +109,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                 : (job.dateOfService ? formatDate(job.dateOfService) + ' (ประมาณ)' : 'N/A'),
             formatDate(job.dateOfService),
             `"${job.origin}"`, // Quote strings to handle commas
+            `"${job.drops && job.drops.length > 0 ? job.drops.map(d => d.location).join('; ') : '-'}"`,
             `"${job.destination}"`,
             job.truckType,
             job.licensePlate || '-',

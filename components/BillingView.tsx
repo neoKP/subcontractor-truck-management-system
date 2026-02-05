@@ -358,12 +358,14 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
   };
 
   const downloadPaymentReport = () => {
-    const headers = ['Job ID', 'Date', 'Subcontractor', 'Route', 'Cost', 'Extra', 'Total', 'Payment Date', 'Status'];
+    const headers = ['Job ID', 'Date', 'Subcontractor', 'Origin', 'Drop-off Points', 'Destination', 'Cost', 'Extra', 'Total', 'Payment Date', 'Status'];
     const rows = filteredJobs.map(j => [
       j.id,
       formatDate(j.dateOfService),
       j.subcontractor || '-',
-      `"${j.origin} -> ${j.destination}"`,
+      `"${j.origin}"`,
+      `"${j.drops && j.drops.length > 0 ? j.drops.map(d => d.location).join('; ') : '-'}"`,
+      `"${j.destination}"`,
       j.cost || 0,
       j.extraCharge || 0,
       (j.cost || 0) + (j.extraCharge || 0),

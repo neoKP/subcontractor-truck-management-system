@@ -114,11 +114,12 @@ const pStyles = StyleSheet.create({
     infoRowLast: { flexDirection: 'row', paddingVertical: 4 },
     infoLabel: { fontSize: 9, color: '#64748b', width: 85 },
     infoValue: { fontSize: 8.5, fontWeight: 700, textAlign: 'left', paddingLeft: 5, flex: 1 }, // Changed fixed width to flex: 1
-    routingContainer: { paddingVertical: 5 },
-    routeDetails: { gap: 6 },
-    routeItem: { flexDirection: 'row', paddingVertical: 2 },
-    routeLabel: { fontSize: 9, color: '#64748b', width: 135 },
-    routeData: { fontSize: 8.5, fontWeight: 700, paddingLeft: 10, width: 250 }, // No flex, high fixed width
+    routingContainer: { paddingVertical: 3 },
+    routeCompact: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+    routeItemCompact: { flexDirection: 'row', alignItems: 'center', paddingVertical: 1 },
+    routeLabelCompact: { fontSize: 8, color: '#64748b', marginRight: 4 },
+    routeDataCompact: { fontSize: 9, fontWeight: 700 },
+    routeDivider: { fontSize: 8, color: '#94a3b8', marginHorizontal: 4 },
     fleetGrid: { flexDirection: 'row', borderWidth: 1, borderColor: '#f1f5f9' },
     fleetCol: { flex: 1, alignItems: 'center', padding: 8, borderRightWidth: 1, borderRightColor: '#f1f5f9' },
     fleetColLast: { flex: 1, alignItems: 'center', padding: 8 },
@@ -233,22 +234,36 @@ const JobRequestPDFDocument: React.FC<JobRequestPDFProps> = ({ job }) => {
                     </View>
                 </View>
 
-                {/* Section 3: Routing - Redesigned to be clipping-proof */}
+                {/* Section 3: Routing - Compact Horizontal Layout */}
                 <View style={pStyles.sectionBox}>
                     <View style={pStyles.sectionHeader}>
                         <Text style={pStyles.sectionTitle}>3. เส้นทางการขนส่ง (ROUTING)</Text>
                     </View>
-                    <View style={pStyles.sectionContent}>
-                        <View style={pStyles.routingContainer}>
-                            <View style={pStyles.routeDetails}>
-                                <View style={pStyles.routeItem}>
-                                    <Text style={pStyles.routeLabel}>ต้นทาง (ORIGIN):</Text>
-                                    <Text style={pStyles.routeData}>{thaiSafeText(job.origin)}</Text>
+                    <View style={[pStyles.sectionContent, { paddingVertical: 6 }]}>
+                        <View style={pStyles.routeCompact}>
+                            {/* Origin */}
+                            <View style={pStyles.routeItemCompact}>
+                                <Text style={pStyles.routeLabelCompact}>ต้นทาง:</Text>
+                                <Text style={pStyles.routeDataCompact}>{thaiSafeText(job.origin)}</Text>
+                            </View>
+                            <Text style={pStyles.routeDivider}>→</Text>
+                            
+                            {/* Drop-off Points - Horizontal */}
+                            {job.drops && job.drops.length > 0 && (
+                                <View style={pStyles.routeItemCompact}>
+                                    <Text style={pStyles.routeLabelCompact}>จุดแวะ({job.drops.length}):</Text>
+                                    <Text style={pStyles.routeDataCompact}>
+                                        {job.drops.map((drop, idx) => `${idx + 1}.${thaiSafeText(typeof drop === 'string' ? drop : drop.location)}`).join(' ')}
+                                    </Text>
                                 </View>
-                                <View style={pStyles.routeItem}>
-                                    <Text style={pStyles.routeLabel}>ปลายทาง (DESTINATION):</Text>
-                                    <Text style={pStyles.routeData}>{thaiSafeText(job.destination)}</Text>
-                                </View>
+                            )}
+                            
+                            {job.drops && job.drops.length > 0 && <Text style={pStyles.routeDivider}>→</Text>}
+                            
+                            {/* Destination */}
+                            <View style={pStyles.routeItemCompact}>
+                                <Text style={pStyles.routeLabelCompact}>ปลายทาง:</Text>
+                                <Text style={pStyles.routeDataCompact}>{thaiSafeText(job.destination)}</Text>
                             </View>
                         </View>
                     </View>
