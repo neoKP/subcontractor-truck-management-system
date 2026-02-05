@@ -136,4 +136,52 @@ export interface PriceMatrix {
   basePrice: number; // Cost paid to sub
   sellingBasePrice: number; // Revenue billed to customer
   dropOffFee?: number;
+  paymentType?: 'CASH' | 'CREDIT'; // Payment type for subcontractor
+  creditDays?: number; // Credit days: 0, 7, 15, 30, 45, 60, or custom
+}
+
+// Invoice Status for Subcontractor Payment
+export enum InvoiceStatus {
+  PENDING = 'PENDING',
+  PARTIALLY_PAID = 'PARTIALLY_PAID',
+  PAID = 'PAID',
+  OVERDUE = 'OVERDUE'
+}
+
+export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
+  [InvoiceStatus.PENDING]: 'รอจ่าย (Pending)',
+  [InvoiceStatus.PARTIALLY_PAID]: 'จ่ายบางส่วน (Partial)',
+  [InvoiceStatus.PAID]: 'จ่ายแล้ว (Paid)',
+  [InvoiceStatus.OVERDUE]: 'เกินกำหนด (Overdue)'
+};
+
+// Deduction types for invoice
+export interface InvoiceDeduction {
+  id: string;
+  type: 'DAMAGE' | 'WITHHOLDING_TAX' | 'OTHER'; // ค่าเสียหาย, ภาษี ณ ที่จ่าย, อื่นๆ
+  description: string;
+  amount: number;
+  attachmentUrl?: string;
+}
+
+// Batch Invoice for Subcontractor
+export interface SubcontractorInvoice {
+  id: string;
+  invoiceNo: string; // e.g., INV-2026-0001
+  subcontractor: string;
+  periodStart: string; // Start date of billing period
+  periodEnd: string; // End date of billing period
+  jobIds: string[]; // List of job IDs included
+  totalAmount: number; // Sum of all job costs
+  deductions: InvoiceDeduction[];
+  netAmount: number; // totalAmount - deductions
+  dueDate: string; // Payment due date
+  status: InvoiceStatus;
+  createdAt: string;
+  createdBy: string;
+  paidDate?: string;
+  paidAmount?: number;
+  paymentRef?: string;
+  paymentSlipUrl?: string;
+  remarks?: string;
 }

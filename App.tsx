@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserRole, Job, JobStatus, AuditLog, PriceMatrix, AccountingStatus } from './types';
+import { UserRole, Job, JobStatus, AuditLog, PriceMatrix, AccountingStatus, SubcontractorInvoice, InvoiceStatus } from './types';
 import JobRequestForm from './components/JobRequestForm';
 import JobBoard from './components/JobBoard';
 import Sidebar from './components/Sidebar';
@@ -23,6 +23,7 @@ import ReviewConfirmDashboard from './components/ReviewConfirmDashboard'; // Add
 import DispatcherDashboard from './components/DispatcherDashboard'; // Added DispatcherDashboard import
 import PendingPricingModal from './components/PendingPricingModal'; // Added PendingPricingModal import
 import HomeView from './components/HomeView'; // Added HomeView import
+import PaymentDashboard from './components/PaymentDashboard'; // Added PaymentDashboard import
 import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3, ShieldAlert } from 'lucide-react';
 import { db, ref, onValue, set, remove } from './firebaseConfig';
 
@@ -49,7 +50,8 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [priceMatrix, setPriceMatrix] = useState<PriceMatrix[]>([]); // Firebase only - no initial data from constants
-  const [activeTab, setActiveTab] = useState<'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion'>('home');
+  const [invoices, setInvoices] = useState<SubcontractorInvoice[]>([]); // Subcontractor invoices
+  const [activeTab, setActiveTab] = useState<'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion' | 'payment'>('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logSearch, setLogSearch] = useState('');
   const [logPage, setLogPage] = useState(1);
@@ -141,6 +143,15 @@ const App: React.FC = () => {
       }
     });
 
+    // Listen for Invoices
+    const invoicesRef = ref(db, 'invoices');
+    const unsubscribeInvoices = onValue(invoicesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setInvoices(Object.values(data) as SubcontractorInvoice[]);
+      }
+    });
+
     // Listen for Users
     const usersRef = ref(db, 'users');
     const unsubscribeUsers = onValue(usersRef, (snapshot) => {
@@ -205,6 +216,7 @@ const App: React.FC = () => {
       unsubscribeJobs();
       unsubscribeLogs();
       unsubscribePricing();
+      unsubscribeInvoices();
       unsubscribeUsers();
     };
   }, []);
@@ -257,6 +269,15 @@ const App: React.FC = () => {
 
   const handleUserDelete = (userId: string) => {
     remove(ref(db, `users/${userId}`));
+  };
+
+  // Invoice handlers
+  const handleCreateInvoice = (invoice: SubcontractorInvoice) => {
+    set(ref(db, `invoices/${invoice.id}`), invoice);
+  };
+
+  const handleUpdateInvoice = (invoice: SubcontractorInvoice) => {
+    set(ref(db, `invoices/${invoice.id}`), invoice);
   };
   const cleanJob = (job: Job): Job => {
     const cleaned = { ...job };
@@ -596,6 +617,17 @@ const App: React.FC = () => {
                   <BillingView jobs={jobs} user={currentUser} onUpdateJob={updateJob} />
                 </div>
               </div>
+            )}
+
+            {activeTab === 'payment' && (
+              <PaymentDashboard
+                jobs={jobs}
+                invoices={invoices}
+                priceMatrix={priceMatrix}
+                onCreateInvoice={handleCreateInvoice}
+                onUpdateInvoice={handleUpdateInvoice}
+                user={currentUser}
+              />
             )}
 
             {activeTab === 'users' && currentUser.role === UserRole.ADMIN && (

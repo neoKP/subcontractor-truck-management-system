@@ -25,7 +25,9 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
     truckType: '',
     basePrice: 0,
     sellingBasePrice: 0,
-    dropOffFee: 0
+    dropOffFee: 0,
+    paymentType: 'CREDIT',
+    creditDays: 30
   });
 
   const [isReviewing, setIsReviewing] = useState(false);
@@ -40,7 +42,9 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
         truckType: initialData.truckType || '',
         basePrice: initialData.basePrice || 0,
         sellingBasePrice: initialData.sellingBasePrice || 0,
-        dropOffFee: initialData.dropOffFee || 0
+        dropOffFee: initialData.dropOffFee || 0,
+        paymentType: initialData.paymentType || 'CREDIT',
+        creditDays: initialData.creditDays || 30
       });
       setIsAdding(true);
     }
@@ -118,7 +122,9 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
       truckType: '',
       basePrice: 0,
       sellingBasePrice: 0,
-      dropOffFee: 0
+      dropOffFee: 0,
+      paymentType: 'CREDIT',
+      creditDays: 30
     });
     setIsAdding(true);
     setIsReviewing(false);
@@ -302,6 +308,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                 <th className="px-6 py-5">ต้นทุนรถ (COST)</th>
                 <th className="px-6 py-5">ราคาจ้าง (REVENUE)</th>
                 <th className="px-6 py-5 text-center">ค่าจุด (DROP FEE)</th>
+                <th className="px-6 py-5 text-center">เงื่อนไขชำระ (TERMS)</th>
                 {canEdit && <th className="px-6 py-5 text-right">จัดการ (ACTIONS)</th>}
               </tr>
             </thead>
@@ -365,6 +372,11 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                       ) : (
                         <span className="text-slate-300">-</span>
                       )}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`px-2 py-1 rounded-lg font-bold text-[10px] uppercase ${p.paymentType === 'CASH' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {p.paymentType === 'CASH' ? '💵 เงินสด' : `📅 ${p.creditDays || 30} วัน`}
+                      </span>
                     </td>
                     {canEdit && (
                       <td className="px-6 py-4 text-right">
@@ -549,6 +561,19 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                   </div>
                 </div>
 
+                {/* Payment Terms Review */}
+                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                  <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-2">💳 เงื่อนไขการชำระเงิน</p>
+                  <div className="flex items-center gap-4">
+                    <span className={`px-3 py-1.5 rounded-lg font-black text-sm ${formData.paymentType === 'CASH' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {formData.paymentType === 'CASH' ? '💵 เงินสด' : '📅 เครดิต'}
+                    </span>
+                    <span className="font-black text-emerald-800">
+                      {formData.paymentType === 'CASH' ? 'จ่ายทันทีเมื่องานเสร็จ' : `${formData.creditDays} วัน`}
+                    </span>
+                  </div>
+                </div>
+
                 <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-xl flex items-center gap-3">
                   <CircleDollarSign className="text-yellow-600 shrink-0" size={20} />
                   <p className="text-xs font-bold text-yellow-700 italic">
@@ -663,6 +688,46 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                       title="Drop Fee"
                       placeholder="0.00"
                     />
+                  </div>
+                </div>
+
+                {/* Payment Terms Section */}
+                <div className="mt-4 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200">
+                  <h4 className="text-xs font-black text-emerald-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    💳 เงื่อนไขการชำระเงิน (Payment Terms)
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase">ประเภทการชำระ</label>
+                      <select
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold"
+                        value={formData.paymentType || 'CREDIT'}
+                        onChange={e => setFormData({ 
+                          ...formData, 
+                          paymentType: e.target.value as 'CASH' | 'CREDIT',
+                          creditDays: e.target.value === 'CASH' ? 0 : (formData.creditDays || 30)
+                        })}
+                      >
+                        <option value="CASH">💵 เงินสด (จ่ายทันที)</option>
+                        <option value="CREDIT">📅 เครดิต</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase">จำนวนวันเครดิต</label>
+                      <select
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold disabled:bg-slate-100 disabled:text-slate-400"
+                        value={formData.creditDays || 0}
+                        onChange={e => setFormData({ ...formData, creditDays: Number(e.target.value) })}
+                        disabled={formData.paymentType === 'CASH'}
+                      >
+                        <option value={0}>0 วัน (ทันที)</option>
+                        <option value={7}>7 วัน</option>
+                        <option value={15}>15 วัน</option>
+                        <option value={30}>30 วัน</option>
+                        <option value={45}>45 วัน</option>
+                        <option value={60}>60 วัน</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
