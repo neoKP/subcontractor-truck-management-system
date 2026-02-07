@@ -245,25 +245,25 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-      <div className="glass rounded-[2rem] md:rounded-[2.5rem] shadow-2xl w-full max-w-xl flex flex-col max-h-[95vh] md:max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-300 relative">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] sm:p-4">
+      <div className="glass rounded-t-[2rem] sm:rounded-[2.5rem] shadow-2xl w-full max-w-xl flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-300 relative">
         <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500 shrink-0"></div>
-        <div className="bg-emerald-50/50 px-6 py-5 md:px-8 md:py-6 flex items-center justify-between border-b border-emerald-100/50 shrink-0">
-          <div>
-            <h3 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-              <div className="w-8 h-8 md:w-10 md:h-10 bg-emerald-100 rounded-lg md:rounded-xl flex items-center justify-center text-emerald-600">
+        <div className="bg-emerald-50/50 px-4 py-4 sm:px-8 sm:py-6 flex items-center justify-between border-b border-emerald-100/50 shrink-0">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-100 rounded-lg sm:rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
                 <CheckCircle2 size={20} />
               </div>
-              ยืนยันการจบงาน (Job Confirmation)
+              <span className="truncate">ยืนยันการจบงาน</span>
             </h3>
-            <p className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1.5 ml-11 md:ml-13">ยืนยันการปฏิบัติงานจริง</p>
+            <p className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1.5 ml-10 sm:ml-13">Job Confirmation</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-white border border-slate-100 rounded-lg md:rounded-xl hover:bg-red-50 hover:text-red-500 transition-all text-slate-400" aria-label="Close modal">
             <X size={18} />
           </button>
         </div>
 
-        <div className="flex-1 p-6 md:p-8 space-y-6 md:space-y-8 overflow-y-auto scrollbar-thin">
+        <div className="flex-1 p-4 sm:p-8 space-y-4 sm:space-y-8 overflow-y-auto scrollbar-thin">
           {/* Rejection Alert */}
           {job.accountingStatus === AccountingStatus.REJECTED && (
             <div className="bg-rose-50 border border-rose-100 rounded-[1.5rem] p-5 animate-pulse">
@@ -606,18 +606,18 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
           </div>
         </div>
 
-        <div className="bg-slate-50 px-6 py-4 md:px-8 md:py-6 flex flex-col md:flex-row justify-end gap-3 md:gap-4 border-t border-slate-100 shrink-0">
+        <div className="bg-slate-50 px-4 py-4 sm:px-8 sm:py-6 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 border-t border-slate-100 shrink-0">
           <button
             onClick={onClose}
             disabled={isSubmitting}
-            className="px-6 py-3 rounded-xl font-black text-slate-500 hover:bg-white hover:text-slate-800 transition-all text-xs uppercase tracking-widest disabled:opacity-50"
+            className="px-6 py-3 rounded-xl font-black text-slate-500 hover:bg-white hover:text-slate-800 transition-all text-xs uppercase tracking-widest disabled:opacity-50 text-center"
           >
             ยกเลิก (Cancel)
           </button>
           <button
             onClick={handleConfirm}
             disabled={!actualArrival || selectedFiles.length === 0 || !isVerified || isSubmitting}
-            className="bg-emerald-600 disabled:bg-slate-300 hover:bg-emerald-700 text-white px-12 py-3.5 rounded-xl font-black shadow-xl shadow-emerald-200 disabled:shadow-none transform hover:-translate-y-0.5 transition-all text-sm uppercase tracking-widest flex items-center gap-2"
+            className="bg-emerald-600 disabled:bg-slate-300 hover:bg-emerald-700 text-white px-6 sm:px-12 py-3.5 rounded-xl font-black shadow-xl shadow-emerald-200 disabled:shadow-none transform hover:-translate-y-0.5 transition-all text-xs sm:text-sm uppercase tracking-widest flex items-center justify-center gap-2"
           >
             {isSubmitting ? (
               <div className="flex items-center gap-2">

@@ -122,17 +122,17 @@ const PremiumExecutiveDashboard: React.FC<DashboardProps> = ({ jobs }) => {
     }, [periodJobs]);
 
     return (
-        <div className="p-2 md:p-6 space-y-6 bg-[#f8fafc] min-h-screen">
+        <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6 bg-[#f8fafc] min-h-screen">
 
             {/* Header with Glassmorphism */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                        <Activity className="text-indigo-600 animate-pulse" size={32} />
+                    <h1 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2 sm:gap-3">
+                        <Activity className="text-indigo-600 animate-pulse shrink-0" size={24} />
                         Operations Intelligence (BI)
                     </h1>
-                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] mt-1 ml-1">
-                        Real-time Fleet Performance & Financial Analytics (ข้อมูลสรุปภาพรวม)
+                    <p className="text-slate-400 font-bold uppercase text-[9px] sm:text-[10px] tracking-[0.2em] sm:tracking-[0.3em] mt-1 ml-1">
+                        Real-time Analytics (ข้อมูลสรุปภาพรวม)
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">

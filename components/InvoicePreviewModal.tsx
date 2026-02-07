@@ -102,7 +102,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
     // Guard: If no jobs, show a friendly message (User's suggestion #1)
     if (!jobs || jobs.length === 0 || !mainJob) {
         return (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
+            <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/70 backdrop-blur-sm">
                 <div className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-sm mx-4">
                     <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
                         <X size={32} />
@@ -289,7 +289,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
     }
 
     return (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-0 md:p-4 bg-slate-900/70 backdrop-blur-sm print:bg-white print:p-0 print:block print:static print:h-auto print:backdrop-blur-none">
+        <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/70 backdrop-blur-sm print:bg-white print:p-0 print:block print:static print:h-auto print:backdrop-blur-none">
             <style>{`
                 @media print {
                     @page { 

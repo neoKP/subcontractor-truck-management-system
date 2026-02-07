@@ -206,16 +206,16 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
     return (
         <div className="space-y-8 animate-in fade-in zoom-in duration-700 pb-20">
             {/* Control Bar - Power BI Style */}
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 bg-slate-900 p-8 rounded-[3rem] shadow-2xl text-white relative overflow-hidden group">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 sm:gap-6 bg-slate-900 p-4 sm:p-8 rounded-2xl sm:rounded-[3rem] shadow-2xl text-white relative overflow-hidden group">
                 {/* Background Pattern */}
                 <div className="absolute inset-0 opacity-5 pointer-events-none bg-[radial-gradient(circle_at_50%_-20%,#3b82f6,transparent)]"></div>
 
                 <div className="flex items-center gap-6 z-10">
-                    <div className="w-16 h-16 bg-blue-500/10 backdrop-blur-xl rounded-[2rem] flex items-center justify-center text-blue-400 border border-blue-500/20 group-hover:scale-110 transition-transform duration-500 shadow-inner">
-                        <TrendingUp size={32} />
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-500/10 backdrop-blur-xl rounded-xl sm:rounded-[2rem] flex items-center justify-center text-blue-400 border border-blue-500/20 group-hover:scale-110 transition-transform duration-500 shadow-inner shrink-0">
+                        <TrendingUp size={24} />
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black leading-tight tracking-tighter">Command Center</h2>
+                        <h2 className="text-xl sm:text-3xl font-black leading-tight tracking-tighter">Command Center</h2>
                         <p className="text-[10px] text-blue-400 font-bold uppercase tracking-[0.25em] mt-1 flex items-center gap-2">
                             Real-time Business Intelligence <div className="w-1 h-1 rounded-full bg-blue-500 animate-pulse"></div>
                         </p>

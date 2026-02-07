@@ -40,7 +40,7 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
     const documentNumber = `JR-${yearMonth}-${job.id.split('-').pop() || job.id}`;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-start md:items-center justify-center p-0 md:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
             <style>{`
                 @media print {
                     @page {

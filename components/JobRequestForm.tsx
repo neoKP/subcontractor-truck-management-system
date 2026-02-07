@@ -201,7 +201,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
   return (
     <div className="max-w-4xl mx-auto">
       {/* Wizard Progress Header */}
-      <div className="flex items-center justify-between mb-12 relative px-4">
+      <div className="flex items-center justify-between mb-8 sm:mb-12 relative px-2 sm:px-4">
         <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-100 -translate-y-1/2 z-0"></div>
         <div
           className={`absolute top-1/2 left-0 h-1 bg-blue-500 -translate-y-1/2 z-0 transition-all duration-500 ${step === 1 ? 'w-0' : step === 2 ? 'w-1/2' : 'w-full'
@@ -220,10 +220,10 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
 
           return (
             <div key={num} className="relative z-10 flex flex-col items-center">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 ${isActive ? 'bg-blue-600 text-white shadow-xl shadow-blue-200 scale-110' : isDone ? 'bg-emerald-500 text-white' : 'bg-white border-2 border-slate-100 text-slate-300'}`}>
-                {isDone ? <CheckCircle2 size={24} /> : <Icon size={24} />}
+              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all duration-300 ${isActive ? 'bg-blue-600 text-white shadow-xl shadow-blue-200 scale-110' : isDone ? 'bg-emerald-500 text-white' : 'bg-white border-2 border-slate-100 text-slate-300'}`}>
+                {isDone ? <CheckCircle2 size={20} /> : <Icon size={20} />}
               </div>
-              <span className={`absolute -bottom-8 whitespace-nowrap text-[10px] font-black uppercase tracking-widest ${isActive ? 'text-blue-600' : 'text-slate-400'}`}>
+              <span className={`absolute -bottom-6 sm:-bottom-8 whitespace-nowrap text-[8px] sm:text-[10px] font-black uppercase tracking-widest ${isActive ? 'text-blue-600' : 'text-slate-400'}`}>
                 {s.label}
               </span>
             </div>
@@ -231,7 +231,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
         })}
       </div>
 
-      <div className="bg-white rounded-3xl p-8 md:p-12 shadow-2xl shadow-slate-200/50 border border-slate-100">
+      <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-8 md:p-12 shadow-2xl shadow-slate-200/50 border border-slate-100">
         <form onSubmit={onFormSubmit} className="space-y-8">
 
           {step === 1 && (
@@ -869,22 +869,22 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
             );
           })()}
 
-          <div className="pt-8 flex justify-between items-center border-t border-slate-50">
+          <div className="pt-6 sm:pt-8 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 border-t border-slate-50">
             {step > 1 ? (
               <button
                 type="button"
                 onClick={prevStep}
-                className="flex items-center gap-2 px-6 py-4 rounded-2xl font-black text-slate-400 hover:text-slate-800 hover:bg-slate-50 transition-all uppercase tracking-widest text-xs"
+                className="flex items-center justify-center gap-2 px-4 sm:px-6 py-3 sm:py-4 rounded-2xl font-black text-slate-400 hover:text-slate-800 hover:bg-slate-50 transition-all uppercase tracking-widest text-xs"
               >
-                <ArrowLeft size={18} /> Back / ย้อนกลับ
+                <ArrowLeft size={18} /> ย้อนกลับ (Back)
               </button>
             ) : (
               <button
                 type="button"
                 onClick={onShowSummary}
-                className="flex items-center gap-2 px-6 py-4 rounded-2xl font-black text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all uppercase tracking-widest text-[10px]"
+                className="flex items-center justify-center gap-2 px-4 sm:px-6 py-3 sm:py-4 rounded-2xl font-black text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all uppercase tracking-widest text-[10px]"
               >
-                <LayoutPanelTop size={16} /> สรุปกระดานงาน (Summary Board)
+                <LayoutPanelTop size={16} /> สรุปกระดานงาน (Summary)
               </button>
             )}
 
@@ -893,16 +893,16 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                 type="button"
                 onClick={nextStep}
                 disabled={step === 1 ? !isStep1Valid : !isStep2Valid}
-                className="flex items-center gap-2 bg-slate-900 disabled:bg-slate-100 disabled:text-slate-300 text-white px-10 py-4 rounded-2xl font-black shadow-xl shadow-slate-200 transition-all uppercase tracking-widest text-xs"
+                className="flex items-center justify-center gap-2 bg-slate-900 disabled:bg-slate-100 disabled:text-slate-300 text-white px-6 sm:px-10 py-3 sm:py-4 rounded-2xl font-black shadow-xl shadow-slate-200 transition-all uppercase tracking-widest text-xs"
               >
-                Next / ถัดไป <ArrowRight size={18} />
+                ถัดไป (Next) <ArrowRight size={18} />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={isSubmitting || !canSaveJob}
-                className={`flex items-center gap-2 px-12 py-4 rounded-2xl font-black shadow-xl transform transition-all uppercase tracking-widest text-sm ${isSubmitting || !canSaveJob
+                className={`flex items-center justify-center gap-2 px-6 sm:px-12 py-3 sm:py-4 rounded-2xl font-black shadow-xl transform transition-all uppercase tracking-widest text-xs sm:text-sm ${isSubmitting || !canSaveJob
                   ? 'bg-slate-300 text-slate-500 shadow-none cursor-not-allowed opacity-60'
                   : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 hover:shadow-blue-300 hover:-translate-y-1'
                   }`}

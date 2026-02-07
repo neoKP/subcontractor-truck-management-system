@@ -71,11 +71,11 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
     );
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-gradient-to-br from-slate-50 to-white w-full max-w-3xl max-h-[95vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border-2 border-white/50">
+        <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/70 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-gradient-to-br from-slate-50 to-white w-full max-w-3xl max-h-[95vh] sm:max-h-[95vh] rounded-t-[2rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border-2 border-white/50">
 
                 {/* Header with Gradient */}
-                <div className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-8 text-white overflow-hidden shrink-0">
+                <div className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-5 sm:p-8 text-white overflow-hidden shrink-0">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
 
                     <div className="relative z-10 flex justify-between items-start">
@@ -84,8 +84,8 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                                 <ShieldCheck size={16} />
                                 <span className="text-[11px] uppercase tracking-[0.2em] font-black">Review & Confirm</span>
                             </div>
-                            <h2 className="text-3xl font-black tracking-tight mb-1">ตรวจทานข้อมูลก่อนยืนยัน</h2>
-                            <p className="text-sm font-bold text-blue-100">กรุณาตรวจสอบความถูกต้องก่อนล็อกราคา</p>
+                            <h2 className="text-xl sm:text-3xl font-black tracking-tight mb-1">ตรวจทานข้อมูลก่อนยืนยัน</h2>
+                            <p className="text-xs sm:text-sm font-bold text-blue-100">กรุณาตรวจสอบความถูกต้องก่อนล็อกราคา</p>
                         </div>
                         <button
                             onClick={onClose}
@@ -98,10 +98,10 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                 </div>
 
                 {/* Content - Scrollable */}
-                <div className="flex-1 overflow-y-auto p-8 space-y-6 scrollbar-thin">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-4 sm:space-y-6 scrollbar-thin">
 
                     {/* Job Information Card */}
-                    <div className="bg-white rounded-[2rem] p-6 shadow-lg border border-slate-100">
+                    <div className="bg-white rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 shadow-lg border border-slate-100">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 bg-blue-100 rounded-xl text-blue-600">
                                 <FileText size={20} />
@@ -305,7 +305,7 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                     </div>
 
                     {/* Warning Card */}
-                    <div className="bg-gradient-to-br from-rose-50 to-orange-50 rounded-[2rem] p-6 shadow-lg border-2 border-rose-200">
+                    <div className="bg-gradient-to-br from-rose-50 to-orange-50 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 shadow-lg border-2 border-rose-200">
                         <div className="flex items-start gap-4">
                             <div className="p-3 bg-rose-500 rounded-2xl text-white shadow-lg shadow-rose-200 shrink-0">
                                 <AlertTriangle size={24} />
@@ -324,7 +324,7 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                 </div>
 
                 {/* Footer Actions */}
-                <div className="bg-white border-t-2 border-slate-100 p-6 flex flex-col gap-4 shrink-0">
+                <div className="bg-white border-t-2 border-slate-100 p-4 sm:p-6 flex flex-col gap-3 sm:gap-4 shrink-0">
                     {/* Warning if data incomplete */}
                     {!isDataComplete && (
                         <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-4 flex items-start gap-3">
@@ -350,28 +350,26 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                         </div>
                     )}
 
-                    <div className="flex justify-between items-center gap-4">
+                    <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4">
                         <button
                             id={`modal-btn-edit-${job?.id || 'new'}`}
                             onClick={onEdit}
-                            className="flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all uppercase tracking-widest text-sm border-2 border-slate-200 hover:border-slate-300"
-
-
+                            className="flex items-center justify-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-2xl font-black text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all uppercase tracking-widest text-xs sm:text-sm border-2 border-slate-200 hover:border-slate-300"
                         >
                             <ArrowLeft size={18} />
-                            กลับไปแก้ไข (Edit)
+                            ย้อนกลับ (GO BACK)
                         </button>
 
                         <button
                             onClick={onConfirm}
                             disabled={!isDataComplete}
-                            className={`flex items-center gap-2 px-12 py-4 rounded-2xl font-black shadow-xl transform transition-all uppercase tracking-widest text-sm ${isDataComplete
+                            className={`flex items-center justify-center gap-2 px-6 sm:px-12 py-3 sm:py-4 rounded-2xl font-black shadow-xl transform transition-all uppercase tracking-widest text-xs sm:text-sm ${isDataComplete
                                 ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-200 hover:shadow-blue-300 hover:-translate-y-0.5 cursor-pointer'
                                 : 'bg-slate-300 text-slate-500 shadow-slate-200 cursor-not-allowed opacity-60'
                                 }`}
                         >
                             <CheckCircle size={20} />
-                            ยืนยันและล็อก (Confirm & Lock)
+                            ตรวจทาน (REVIEW & CONFIRM)
                         </button>
                     </div>
                 </div>

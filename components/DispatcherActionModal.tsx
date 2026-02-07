@@ -339,13 +339,13 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
 
   return (
     <>
-      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-        <div className="glass rounded-[2.5rem] shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300 relative">
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] sm:p-4">
+        <div className="glass rounded-t-[2rem] sm:rounded-[2.5rem] shadow-2xl w-full max-w-lg max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300 relative">
           <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-900 shrink-0"></div>
-          <div className="bg-slate-50/50 px-8 py-6 flex items-center justify-between border-b border-white/20 shrink-0">
-            <div>
-              <h3 className="text-xl font-black text-slate-800 tracking-tight leading-none">การจัดการข้อมูลการจัดรถ (Job Assignment & Costing)</h3>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Operational Control Center / ศูนย์ควบคุมการดำเนินงาน</p>
+          <div className="bg-slate-50/50 px-5 sm:px-8 py-4 sm:py-6 flex items-center justify-between border-b border-white/20 shrink-0">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base sm:text-xl font-black text-slate-800 tracking-tight leading-tight">การจัดการข้อมูลการจัดรถ</h3>
+              <p className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Job Assignment & Costing</p>
             </div>
             <button
               onClick={onClose}
@@ -356,7 +356,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-8 pt-6 space-y-6 scrollbar-thin">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8 pt-4 sm:pt-6 space-y-4 sm:space-y-6 scrollbar-thin">
             <div className="bg-blue-50/50 rounded-3xl border border-blue-100/50">
               <div className="flex gap-4 p-5">
                 <div className="bg-white p-3 rounded-2xl shadow-sm border border-blue-100 text-blue-600 self-start">
@@ -991,11 +991,11 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
           )}
         </div >
 
-        <div className="bg-slate-50 px-8 py-6 flex justify-end gap-4 border-t border-slate-100 shrink-0">
+        <div className="bg-slate-50 px-4 sm:px-8 py-4 sm:py-6 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 border-t border-slate-100 shrink-0">
           <button
             onClick={onClose}
             disabled={isSubmitting}
-            className="px-6 py-3 rounded-xl font-black text-slate-500 hover:bg-white hover:text-slate-800 transition-all text-xs uppercase tracking-widest disabled:opacity-50"
+            className="px-6 py-3 rounded-xl font-black text-slate-500 hover:bg-white hover:text-slate-800 transition-all text-xs uppercase tracking-widest disabled:opacity-50 text-center"
           >
             {isViewOnly ? 'ปิดหน้าต่าง (Close)' : 'ย้อนกลับ (Go Back)'}
           </button>
@@ -1003,7 +1003,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
             <button
               onClick={showReason ? finalizeSave : handleSaveAttempt}
               disabled={isSubmitting || !editData.subcontractor || (showReason && !reason)}
-              className="bg-blue-600 disabled:bg-slate-300 hover:bg-blue-700 text-white px-10 py-3 rounded-xl font-black shadow-xl shadow-blue-200 disabled:shadow-none transform hover:-translate-y-0.5 transition-all text-xs uppercase tracking-widest relative overflow-hidden"
+              className="bg-blue-600 disabled:bg-slate-300 hover:bg-blue-700 text-white px-6 sm:px-10 py-3 rounded-xl font-black shadow-xl shadow-blue-200 disabled:shadow-none transform hover:-translate-y-0.5 transition-all text-xs uppercase tracking-widest relative overflow-hidden text-center"
             >
               {isSubmitting ? (
                 <div className="flex items-center gap-2">

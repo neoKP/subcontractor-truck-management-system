@@ -343,17 +343,17 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
-            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[110] sm:p-4">
+            <div className="bg-white rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl w-full max-w-lg flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-300">
                 {/* Fixed Header */}
-                <div className="bg-blue-600 px-8 py-6 flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white">
+                <div className="bg-blue-600 px-5 py-4 sm:px-8 sm:py-6 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white shrink-0">
                             <Edit3 size={20} />
                         </div>
-                        <div>
-                            <h3 className="text-xl font-bold text-white tracking-tight">Edit Job Request</h3>
-                            <p className="text-[10px] text-blue-100 font-bold uppercase tracking-widest">Job ID: #{job.id}</p>
+                        <div className="min-w-0">
+                            <h3 className="text-base sm:text-xl font-bold text-white tracking-tight">Edit Job Request</h3>
+                            <p className="text-[10px] text-blue-100 font-bold uppercase tracking-widest truncate">Job ID: #{job.id}</p>
                         </div>
                     </div>
                     <button onClick={onClose} title="Close Modal" className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all">
@@ -362,7 +362,7 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                 </div>
 
                 {/* Scrollable Content */}
-                <div className="flex-1 overflow-y-auto px-8 pt-8 pb-12 space-y-6 scrollbar-thin scrollbar-thumb-slate-200">
+                <div className="flex-1 overflow-y-auto px-4 pt-4 pb-8 sm:px-8 sm:pt-8 sm:pb-12 space-y-4 sm:space-y-6 scrollbar-thin scrollbar-thumb-slate-200">
                     <div className="grid grid-cols-1 gap-5">
                         {/* Origin Input (Searchable) */}
                         <div className="space-y-2 relative">
@@ -1118,7 +1118,7 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                 </div>
 
                 {/* Fixed Footer */}
-                <div className="bg-slate-50 p-6 flex justify-end gap-3 shrink-0 border-t border-slate-100">
+                <div className="bg-slate-50 p-4 sm:p-6 flex flex-col-reverse sm:flex-row justify-end gap-3 shrink-0 border-t border-slate-100">
                     <button
                         onClick={onClose}
                         className="px-6 py-3 rounded-xl font-black text-slate-400 uppercase tracking-widest text-[10px] hover:bg-white hover:text-slate-600 transition-all"
