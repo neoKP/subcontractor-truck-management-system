@@ -408,20 +408,20 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                     <div className="space-y-4">
                                         {/* Section Header */}
                                         <div className="flex items-center gap-2 mb-2">
-                                            <DollarSign size={18} className="text-emerald-600" />
-                                            <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">
-                                                💰 สรุปค่าใช้จ่ายและรายรับ (Cost & Revenue Summary)
+                                            <DollarSign size={16} className="text-emerald-600 shrink-0" />
+                                            <h3 className="text-xs sm:text-sm font-black text-slate-700 uppercase tracking-wider">
+                                                💰 สรุปค่าใช้จ่าย (Cost & Revenue)
                                             </h3>
                                         </div>
 
                                         {/* Cost Breakdown - 3 Columns */}
-                                        <div className="grid grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                                             {/* Base Cost */}
-                                            <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50">
-                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">
+                                            <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50">
+                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 sm:mb-3">
                                                     🚛 Base Cost (ค่าขนส่งหลัก)
                                                 </h4>
-                                                <p className="text-xl font-black text-slate-800">{formatCurrency(summary.baseCost)}</p>
+                                                <p className="text-lg sm:text-xl font-black text-slate-800">{formatCurrency(summary.baseCost)}</p>
                                                 <div className="mt-2 text-[10px] text-slate-500 bg-white p-2 rounded-lg">
                                                     <p>Route: {selectedJob.origin} → {selectedJob.destination}</p>
                                                     <p className="flex items-center gap-1 mt-1">
@@ -431,13 +431,13 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                             </div>
 
                                             {/* Drop Fee */}
-                                            <div className={`p-4 rounded-2xl border ${summary.dropCount > 0 ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-slate-50'}`}>
-                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">
+                                            <div className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border ${summary.dropCount > 0 ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-slate-50'}`}>
+                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 sm:mb-3">
                                                     📍 Drop Fee (ค่าจุดแวะส่ง)
                                                 </h4>
                                                 {summary.dropCount > 0 ? (
                                                     <>
-                                                        <p className="text-xl font-black text-blue-700">{formatCurrency(summary.totalDropFee)}</p>
+                                                        <p className="text-lg sm:text-xl font-black text-blue-700">{formatCurrency(summary.totalDropFee)}</p>
                                                         <div className="mt-2 bg-white p-2 rounded-lg space-y-2">
                                                             {/* Drop-off Points List */}
                                                             <div className="space-y-1.5 max-h-32 overflow-y-auto">
@@ -469,15 +469,15 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <p className="text-xl font-black text-slate-400">฿0.00</p>
+                                                        <p className="text-lg sm:text-xl font-black text-slate-400">฿0.00</p>
                                                         <p className="mt-2 text-[10px] text-slate-400 italic">ไม่มีจุดแวะส่งเพิ่มเติม</p>
                                                     </>
                                                 )}
                                             </div>
 
                                             {/* Extra Charges */}
-                                            <div className={`p-4 rounded-2xl border ${summary.extraCharge !== 0 ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
-                                                <div className="flex items-center justify-between mb-3">
+                                            <div className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border ${summary.extraCharge !== 0 ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+                                                <div className="flex items-center justify-between mb-2 sm:mb-3">
                                                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
                                                         ⚡ Extra Charges (ค่าใช้จ่ายพิเศษ)
                                                         {summary.extraCharge !== 0 && <AlertTriangle size={12} className="text-amber-500" />}
@@ -494,7 +494,7 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                                 
                                                 {!editingExtraCharges ? (
                                                     <>
-                                                        <p className={`text-xl font-black ${summary.extraCharge < 0 ? 'text-red-600' : summary.extraCharge > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
+                                                        <p className={`text-lg sm:text-xl font-black ${summary.extraCharge < 0 ? 'text-red-600' : summary.extraCharge > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
                                                             {formatCurrency(summary.extraCharge)}
                                                         </p>
                                                         {selectedJob.extraCharges && selectedJob.extraCharges.length > 0 && (
@@ -572,19 +572,19 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                         </div>
 
                                         {/* Totals Row */}
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                             {/* Total Cost */}
-                                            <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-700 to-slate-800 text-white">
+                                            <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-slate-700 to-slate-800 text-white">
                                                 <div className="flex items-center justify-between">
-                                                    <div>
+                                                    <div className="min-w-0">
                                                         <h4 className="text-[10px] font-black text-slate-300 uppercase tracking-wider">
                                                             📤 Total Cost (ต้นทุนรวม)
                                                         </h4>
-                                                        <p className="text-xs text-slate-400 mt-0.5">จ่ายให้รถร่วม</p>
+                                                        <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">จ่ายให้รถร่วม</p>
                                                     </div>
-                                                    <div className="text-right">
-                                                        <p className="text-2xl font-black">{formatCurrency(summary.totalCost)}</p>
-                                                        <p className="text-[10px] text-slate-400">
+                                                    <div className="text-right shrink-0">
+                                                        <p className="text-xl sm:text-2xl font-black">{formatCurrency(summary.totalCost)}</p>
+                                                        <p className="text-[9px] sm:text-[10px] text-slate-400">
                                                             Base {formatCurrency(summary.baseCost)} + Extra {formatCurrency(summary.extraCharge)}
                                                         </p>
                                                     </div>
@@ -592,16 +592,16 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                             </div>
 
                                             {/* Total Revenue */}
-                                            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+                                            <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
                                                 <div className="flex items-center justify-between">
-                                                    <div>
+                                                    <div className="min-w-0">
                                                         <h4 className="text-[10px] font-black text-emerald-200 uppercase tracking-wider">
                                                             📥 Total Revenue (รายรับ)
                                                         </h4>
-                                                        <p className="text-xs text-emerald-200 mt-0.5">รายรับจากลูกค้า</p>
+                                                        <p className="text-[10px] sm:text-xs text-emerald-200 mt-0.5">รายรับจากลูกค้า</p>
                                                     </div>
-                                                    <div className="text-right">
-                                                        <p className="text-2xl font-black">{formatCurrency(summary.sellingPrice)}</p>
+                                                    <div className="text-right shrink-0">
+                                                        <p className="text-xl sm:text-2xl font-black">{formatCurrency(summary.sellingPrice)}</p>
                                                         <p className="text-[10px] text-emerald-200">Selling Price</p>
                                                     </div>
                                                 </div>
@@ -609,14 +609,14 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                         </div>
 
                                         {/* Profit Row */}
-                                        <div className={`p-4 rounded-2xl border-2 ${summary.profit >= 0 ? 'border-emerald-300 bg-emerald-50' : 'border-red-300 bg-red-50'}`}>
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`p-2 rounded-xl ${summary.profit >= 0 ? 'bg-emerald-100' : 'bg-red-100'}`}>
-                                                        <DollarSign size={24} className={summary.profit >= 0 ? 'text-emerald-600' : 'text-red-600'} />
+                                        <div className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 ${summary.profit >= 0 ? 'border-emerald-300 bg-emerald-50' : 'border-red-300 bg-red-50'}`}>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                                    <div className={`p-1.5 sm:p-2 rounded-lg sm:rounded-xl shrink-0 ${summary.profit >= 0 ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                                                        <DollarSign size={20} className={summary.profit >= 0 ? 'text-emerald-600' : 'text-red-600'} />
                                                     </div>
-                                                    <div>
-                                                        <h4 className="text-xs font-black text-slate-600 uppercase">
+                                                    <div className="min-w-0">
+                                                        <h4 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase">
                                                             💵 Profit (กำไร)
                                                         </h4>
                                                         <p className={`text-[10px] ${summary.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -624,15 +624,15 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                                                         </p>
                                                     </div>
                                                 </div>
-                                                <p className={`text-3xl font-black ${summary.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                <p className={`text-xl sm:text-3xl font-black shrink-0 ${summary.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                                                     {formatCurrency(summary.profit)}
                                                 </p>
                                             </div>
                                         </div>
 
                                         {/* Payment Terms Info */}
-                                        <div className="p-3 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
+                                        <div className="p-3 rounded-xl bg-slate-100 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2 flex-wrap">
                                                 <span className="text-[10px] font-bold text-slate-500 uppercase">💳 Payment Terms:</span>
                                                 <span className={`px-2 py-0.5 rounded text-[10px] font-black ${summary.paymentTerms === 'CASH' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                                                     {summary.paymentTerms === 'CASH' ? '💵 เงินสด' : `📅 เครดิต ${summary.creditDays} วัน`}
