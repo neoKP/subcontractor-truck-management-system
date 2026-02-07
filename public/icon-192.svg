@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="truck" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4f46e5;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#22d3ee;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="36" ry="36" fill="url(#bg)"/>
+  <!-- Truck body -->
+  <rect x="28" y="68" width="88" height="52" rx="6" fill="url(#truck)"/>
+  <!-- Truck cabin -->
+  <path d="M116 80 L142 80 L154 100 L154 120 L116 120 Z" fill="url(#truck)" stroke="#818cf8" stroke-width="1"/>
+  <!-- Cabin window -->
+  <path d="M120 84 L139 84 L149 99 L120 99 Z" fill="#c7d2fe" opacity="0.6"/>
+  <!-- Wheels -->
+  <circle cx="60" cy="126" r="12" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+  <circle cx="60" cy="126" r="5" fill="#334155"/>
+  <circle cx="138" cy="126" r="12" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+  <circle cx="138" cy="126" r="5" fill="#334155"/>
+  <!-- Ground -->
+  <line x1="20" y1="138" x2="172" y2="138" stroke="#334155" stroke-width="2" stroke-linecap="round"/>
+  <!-- Route dots -->
+  <circle cx="40" cy="50" r="3" fill="url(#accent)"/>
+  <circle cx="72" cy="42" r="3" fill="url(#accent)" opacity="0.7"/>
+  <circle cx="104" cy="48" r="3" fill="url(#accent)"/>
+  <circle cx="136" cy="40" r="3" fill="url(#accent)" opacity="0.7"/>
+  <circle cx="160" cy="46" r="3" fill="url(#accent)"/>
+  <!-- Route lines -->
+  <line x1="43" y1="50" x2="69" y2="43" stroke="#22d3ee" stroke-width="1" opacity="0.4" stroke-dasharray="3,3"/>
+  <line x1="75" y1="42" x2="101" y2="48" stroke="#22d3ee" stroke-width="1" opacity="0.4" stroke-dasharray="3,3"/>
+  <line x1="107" y1="48" x2="133" y2="41" stroke="#22d3ee" stroke-width="1" opacity="0.4" stroke-dasharray="3,3"/>
+  <line x1="139" y1="40" x2="157" y2="46" stroke="#22d3ee" stroke-width="1" opacity="0.4" stroke-dasharray="3,3"/>
+  <!-- Text -->
+  <text x="96" y="160" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-weight="900" font-size="14" fill="white" letter-spacing="1">Neo Siam</text>
+  <text x="96" y="174" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-weight="600" font-size="8" fill="#94a3b8" letter-spacing="2">LOGISTICS</text>
+</svg>
