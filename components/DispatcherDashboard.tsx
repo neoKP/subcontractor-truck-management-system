@@ -288,13 +288,13 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+            <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200">
                 <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 bg-blue-600 rounded-xl text-white">
-                        <TrendingUp size={24} />
+                    <div className="p-2 bg-blue-600 rounded-xl text-white shrink-0">
+                        <TrendingUp size={20} />
                     </div>
-                    <div>
-                        <h2 className="text-2xl font-black text-slate-800">
+                    <div className="min-w-0">
+                        <h2 className="text-lg sm:text-2xl font-black text-slate-800">
                             DISPATCHER DASHBOARD {user.role === UserRole.ACCOUNTANT && <span className="text-sm font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-full ml-2">VIEW ONLY</span>}
                         </h2>
                         <p className="text-slate-500 font-medium text-sm mt-1">
@@ -578,13 +578,13 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
 
             {/* Pagination */}
             {totalPages > 1 && (
-                <div className="flex items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
                     <p className="text-xs font-bold text-slate-400">หน้า {currentPage} จาก {totalPages}</p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
                         <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 rounded-lg border border-slate-200 disabled:opacity-30" title="หน้าก่อนหน้า (Previous Page)"><ChevronLeft size={18} /></button>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 flex-wrap justify-center">
                             {[...Array(totalPages)].map((_, i) => (
-                                <button key={i + 1} onClick={() => setCurrentPage(i + 1)} className={`w-10 h-10 rounded-lg text-xs font-black ${currentPage === i + 1 ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`} title={`หน้า ${i + 1}`}>{i + 1}</button>
+                                <button key={i + 1} onClick={() => setCurrentPage(i + 1)} className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg text-xs font-black ${currentPage === i + 1 ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`} title={`หน้า ${i + 1}`}>{i + 1}</button>
                             ))}
                         </div>
                         <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="p-2 rounded-lg border border-slate-200 disabled:opacity-30" title="หน้าถัดไป (Next Page)"><ChevronRight size={18} /></button>

@@ -483,15 +483,15 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
     return (
         <div className="space-y-6">
             {/* Personalized Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-6 text-white shadow-xl">
-                <div className="flex items-center justify-between">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-white shadow-xl">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div className="font-display">
-                        <h1 className="text-2xl font-black mb-1">สวัสดี {user.name} 👋</h1>
-                        <p className="text-sm text-blue-100 font-medium">ระบบจัดการใบขอรถของคุณ</p>
+                        <h1 className="text-lg sm:text-2xl font-black mb-1">สวัสดี {user.name} 👋</h1>
+                        <p className="text-xs sm:text-sm text-blue-100 font-medium">ระบบจัดการใบขอรถของคุณ</p>
                     </div>
                     <button
                         onClick={onShowCreateForm}
-                        className="bg-white text-blue-600 px-6 py-3 rounded-2xl font-black text-sm shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95"
+                        className="w-full sm:w-auto bg-white text-blue-600 px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black text-sm shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 text-center"
                     >
                         + สร้างใบขอรถใหม่
                     </button>
@@ -506,14 +506,14 @@ const BookingOfficerDashboard: React.FC<BookingOfficerDashboardProps> = ({ jobs,
                     { label: 'เสร็จสิ้น', count: completedJobs.length, icon: CheckCircle, color: 'emerald' },
                     { label: 'ต้องแก้ไข', count: rejectedJobs.length, icon: AlertCircle, color: 'rose' },
                 ].map((item, idx) => (
-                    <div key={idx} className={`bg-white rounded-[2rem] p-6 border-2 border-${item.color}-200 shadow-sm transition-all hover:scale-[1.02] hover:shadow-md cursor-pointer hover-lift`}>
-                        <div className="flex items-center gap-4 mb-3">
-                            <div className={`p-3 bg-${item.color}-100 rounded-2xl`}>
-                                <item.icon className={`text-${item.color}-600`} size={24} />
+                    <div key={idx} className={`bg-white rounded-xl sm:rounded-[2rem] p-4 sm:p-6 border-2 border-${item.color}-200 shadow-sm transition-all hover:scale-[1.02] hover:shadow-md cursor-pointer hover-lift`}>
+                        <div className="flex items-center gap-3 sm:gap-4 mb-2 sm:mb-3">
+                            <div className={`p-2 sm:p-3 bg-${item.color}-100 rounded-xl sm:rounded-2xl shrink-0`}>
+                                <item.icon className={`text-${item.color}-600`} size={20} />
                             </div>
-                            <div className="text-4xl font-black text-slate-900 font-display">{item.count}</div>
+                            <div className="text-2xl sm:text-4xl font-black text-slate-900 font-display">{item.count}</div>
                         </div>
-                        <div className={`text-[10px] font-black text-${item.color}-600 uppercase tracking-[0.2em] font-display`}>{item.label}</div>
+                        <div className={`text-[9px] sm:text-[10px] font-black text-${item.color}-600 uppercase tracking-[0.15em] sm:tracking-[0.2em] font-display`}>{item.label}</div>
                     </div>
                 ))}
             </div>

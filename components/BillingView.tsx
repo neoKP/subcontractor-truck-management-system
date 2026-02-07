@@ -399,10 +399,10 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
       {/* Power BI Inspired Header Dashboard */}
       <section>
         <div className="mb-8 font-display">
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase">
+          <h2 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight uppercase">
             Billing & Financial <span className="text-gradient">Command Center</span>
           </h2>
-          <p className="text-sm text-slate-400 font-bold uppercase tracking-widest mt-1">
+          <p className="text-xs sm:text-sm text-slate-400 font-bold uppercase tracking-widest mt-1">
             Management console for end-to-end financial workflows
           </p>
         </div>
@@ -419,7 +419,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
       </section>
 
       {/* Action Bar & Sub-Filters */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 bg-white border border-slate-100 rounded-[2rem] shadow-sm">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 p-4 sm:p-6 bg-white border border-slate-100 rounded-2xl sm:rounded-[2rem] shadow-sm">
         <div className="flex items-center gap-2">
           <div className={`w-3 h-3 rounded-full animate-pulse ${viewTab === 'VERIFICATION' ? 'bg-slate-400' :
             viewTab === 'TO_BILL' ? 'bg-indigo-600' :
@@ -483,11 +483,11 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
 
 
       {/* Detailed Table */}
-      <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm">
-        <div className="px-8 py-6 border-b border-slate-100 bg-white sticky top-0 z-20 backdrop-blur-md bg-white/90 flex flex-col gap-4">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">การตรวจสอบและควบคุมการเงิน (Financial Audit Control)</h3>
+      <div className="bg-white rounded-2xl sm:rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm">
+        <div className="px-4 py-4 sm:px-8 sm:py-6 border-b border-slate-100 bg-white sticky top-0 z-20 backdrop-blur-md bg-white/90 flex flex-col gap-3 sm:gap-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <h3 className="font-black text-slate-800 text-sm sm:text-lg uppercase tracking-tight">การตรวจสอบและควบคุมการเงิน</h3>
               <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">SoD Enabled</span>
             </div>
             <div className="flex items-center gap-4 w-full md:w-auto">
@@ -570,11 +570,11 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
                     }}
                   />
                 </th>
-                <th className="px-8 py-5">รายละเอียดงาน (JOB DETAILS)</th>
-                <th className="px-8 py-5">รายละเอียดราคา (PRICE BREAKDOWN)</th>
-                <th className="px-8 py-5 text-center">สถานะบัญชี (ACC. STATUS)</th>
-                <th className="px-8 py-5 text-center">เอกสารประกอบ (DOCUMENTATION)</th>
-                <th className="px-8 py-5 text-right">การจัดการ (AUDIT ACTIONS)</th>
+                <th className="px-3 sm:px-8 py-4 sm:py-5">รายละเอียดงาน (JOB DETAILS)</th>
+                <th className="px-3 sm:px-8 py-4 sm:py-5">ราคา (PRICE)</th>
+                <th className="px-3 sm:px-8 py-4 sm:py-5 text-center">สถานะ (STATUS)</th>
+                <th className="px-3 sm:px-8 py-4 sm:py-5 text-center">เอกสาร (DOCS)</th>
+                <th className="px-3 sm:px-8 py-4 sm:py-5 text-right">จัดการ (ACTIONS)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
@@ -587,7 +587,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
               ) : (
                 paginatedJobs.map(job => (
                   <tr key={job.id} className={`hover:bg-slate-50/50 transition-colors group ${selectedJobIds.includes(job.id) ? 'bg-blue-50/30' : ''}`}>
-                    <td className="px-4 py-6">
+                    <td className="px-3 sm:px-4 py-4 sm:py-6">
                       <input
                         type="checkbox"
                         title="เลือกแถวนี้"
@@ -600,8 +600,8 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
                         }}
                       />
                     </td>
-                    <td className="px-8 py-6">
-                      <div className="font-black text-slate-900 font-mono text-base">#{job.id}</div>
+                    <td className="px-3 sm:px-8 py-4 sm:py-6">
+                      <div className="font-black text-slate-900 font-mono text-sm sm:text-base">#{job.id}</div>
                       <div className="text-[10px] text-slate-500 font-black uppercase tracking-tighter mt-1">{job.subcontractor}</div>
                       {job.requestedByName && (
                         <div className="flex items-center gap-1.5 mt-1.5 bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 w-fit">
@@ -613,9 +613,9 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
                         <span className="text-[9px] font-bold text-slate-400">{formatDate(job.dateOfService)}</span>
                       </div>
                     </td>
-                    <td className="px-8 py-6">
+                    <td className="px-3 sm:px-8 py-4 sm:py-6">
                       <div className="space-y-1">
-                        <div className="flex justify-between items-center gap-8 min-w-[180px]">
+                        <div className="flex justify-between items-center gap-4 sm:gap-8 min-w-[150px] sm:min-w-[180px]">
                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">BASE:</span>
                           <span className="font-black text-slate-700 text-lg">฿{formatThaiCurrency(Number(job.cost) || 0)}</span>
                         </div>
@@ -857,24 +857,24 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
 
         {/* Pagination UI */}
         {totalPages > 1 && (
-          <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              หน้า {currentPage} จาก {totalPages} (Showing {paginatedJobs.length} of {filteredJobs.length} jobs)
+          <div className="px-4 py-4 sm:px-8 sm:py-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center sm:text-left">
+              หน้า {currentPage} จาก {totalPages} ({paginatedJobs.length}/{filteredJobs.length} jobs)
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
               <button
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(prev => prev - 1)}
-                className="p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm"
+                className="px-2 sm:px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm text-xs"
               >
                 Previous
               </button>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap justify-center">
                 {[...Array(totalPages)].map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setCurrentPage(i + 1)}
-                    className={`w-10 h-10 rounded-xl text-xs font-black transition-all ${currentPage === i + 1 ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100'}`}
+                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl text-xs font-black transition-all ${currentPage === i + 1 ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100'}`}
                   >
                     {i + 1}
                   </button>

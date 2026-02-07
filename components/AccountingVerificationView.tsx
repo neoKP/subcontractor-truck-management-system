@@ -229,9 +229,9 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
     };
 
     return (
-        <div className="flex h-[calc(100vh-100px)] gap-6 animate-in fade-in duration-500">
+        <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-100px)] gap-4 lg:gap-6 animate-in fade-in duration-500">
             {/* Left Panel: Job List (Inbox) */}
-            <div className="w-1/3 flex flex-col gap-4">
+            <div className={`w-full lg:w-1/3 flex flex-col gap-4 ${selectedJob ? 'hidden lg:flex' : 'flex'}`}>
                 {/* Search & Filter */}
                 <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-200">
                     <h2 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">
@@ -315,25 +315,32 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
             </div>
 
             {/* Right Panel: Detail View (Verification Panel) */}
-            <div className="w-2/3 bg-white rounded-[2.5rem] border border-slate-200 shadow-xl p-6 flex flex-col h-full overflow-hidden">
+            <div className={`w-full lg:w-2/3 bg-white rounded-2xl lg:rounded-[2.5rem] border border-slate-200 shadow-xl p-4 sm:p-6 flex flex-col lg:h-full overflow-hidden ${selectedJob ? 'flex' : 'hidden lg:flex'}`}>
                 {selectedJob ? (
                     <>
+                        {/* Mobile Back Button */}
+                        <button
+                            onClick={() => setSelectedJob(null)}
+                            className="lg:hidden flex items-center gap-2 text-sm font-bold text-blue-600 mb-4 hover:text-blue-800 transition-colors"
+                        >
+                            <ChevronRight size={16} className="rotate-180" /> ย้อนกลับรายการ
+                        </button>
                         {/* Header */}
-                        <div className="flex justify-between items-start mb-6 pb-6 border-b border-slate-100">
-                            <div>
-                                <h1 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                        <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-4 sm:mb-6 pb-4 sm:pb-6 border-b border-slate-100">
+                            <div className="min-w-0">
+                                <h1 className="text-lg sm:text-2xl font-black text-slate-800 flex items-center gap-2 sm:gap-3">
                                     Job #{selectedJob.id}
-                                    {selectedJob.accountingStatus === 'Approved' && <Lock size={20} className="text-emerald-500" />}
+                                    {selectedJob.accountingStatus === 'Approved' && <Lock size={18} className="text-emerald-500" />}
                                 </h1>
-                                <p className="text-slate-500 font-medium mt-1 flex items-center gap-2">
-                                    <Truck size={16} /> {selectedJob.licensePlate} ({selectedJob.truckType})
+                                <p className="text-slate-500 font-medium mt-1 flex items-center gap-2 flex-wrap text-xs sm:text-sm">
+                                    <Truck size={14} /> {selectedJob.licensePlate} ({selectedJob.truckType})
                                     <span className="text-slate-300">|</span>
-                                    <span className="text-slate-600">{selectedJob.subcontractor}</span>
+                                    <span className="text-slate-600 truncate">{selectedJob.subcontractor}</span>
                                 </p>
                             </div>
-                            <div className="text-right">
-                                <p className="text-3xl font-black text-slate-900 tracking-tight">{formatCurrency((selectedJob.cost || 0) + (selectedJob.extraCharge || 0))}</p>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Verified Cost</p>
+                            <div className="text-left sm:text-right shrink-0">
+                                <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{formatCurrency((selectedJob.cost || 0) + (selectedJob.extraCharge || 0))}</p>
+                                <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">Total Verified Cost</p>
                             </div>
                         </div>
 
@@ -341,9 +348,9 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                         <div className="flex-1 overflow-y-auto pr-2 space-y-6">
 
                             {/* 1. Evidence Check */}
-                            <div className="bg-slate-50 p-6 rounded-[2rem]">
-                                <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                    <Eye size={16} /> หลักฐานการจบงาน (Proof of Delivery)
+                            <div className="bg-slate-50 p-4 sm:p-6 rounded-2xl sm:rounded-[2rem]">
+                                <h3 className="text-xs sm:text-sm font-black text-slate-700 uppercase tracking-wider sm:tracking-widest mb-3 sm:mb-4 flex items-center gap-2">
+                                    <Eye size={14} /> หลักฐาน (Proof of Delivery)
                                 </h3>
                                 {selectedJob.podImageUrls && selectedJob.podImageUrls.length > 0 ? (
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -642,31 +649,31 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                         </div>
 
                         {/* Actions Footer */}
-                        <div className="pt-6 border-t border-slate-100 mt-auto">
+                        <div className="pt-4 sm:pt-6 border-t border-slate-100 mt-auto">
                             {selectedJob.accountingStatus === 'Approved' ? (
-                                <div className="bg-emerald-50 text-emerald-700 p-4 rounded-2xl flex items-center justify-center gap-3 font-bold border border-emerald-100">
-                                    <CheckCircle /> งานนี้ได้รับการอนุมัติแล้ว (Verified & Approved)
+                                <div className="bg-emerald-50 text-emerald-700 p-3 sm:p-4 rounded-2xl flex items-center justify-center gap-2 sm:gap-3 font-bold border border-emerald-100 text-xs sm:text-sm">
+                                    <CheckCircle size={18} /> อนุมัติแล้ว (Verified & Approved)
                                 </div>
                             ) : (
-                                <div className="flex gap-4">
-                                    <div className="flex-1 flex gap-2">
+                                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                                    <div className="flex-1 flex flex-col sm:flex-row gap-2">
                                         <input
                                             type="text"
-                                            placeholder="ระบุเหตุผลกรณีไม่อนุมัติ (Reason for Rejection)..."
+                                            placeholder="เหตุผลไม่อนุมัติ (Rejection Reason)..."
                                             value={rejectReason}
                                             onChange={(e) => setRejectReason(e.target.value)}
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all font-bold"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all font-bold"
                                         />
                                         <button
                                             onClick={handleReject}
-                                            className="px-6 py-3 bg-rose-100 text-rose-600 rounded-2xl font-black hover:bg-rose-200 transition-all flex items-center gap-2"
+                                            className="px-6 py-3 bg-rose-100 text-rose-600 rounded-xl sm:rounded-2xl font-black hover:bg-rose-200 transition-all flex items-center justify-center gap-2 shrink-0 text-sm"
                                         >
                                             <XCircle size={18} /> Reject
                                         </button>
                                     </div>
                                     <button
                                         onClick={handleApprove}
-                                        className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-black shadow-lg hover:bg-emerald-500 hover:shadow-emerald-200 transition-all flex items-center gap-2"
+                                        className="px-6 sm:px-8 py-3 bg-slate-900 text-white rounded-xl sm:rounded-2xl font-black shadow-lg hover:bg-emerald-500 hover:shadow-emerald-200 transition-all flex items-center justify-center gap-2 shrink-0 text-sm"
                                     >
                                         <CheckCircle size={18} /> Approve
                                     </button>

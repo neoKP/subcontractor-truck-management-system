@@ -762,19 +762,19 @@ const JobBoard: React.FC<JobBoardProps> = ({
 
           {/* Table Pagination */}
           {totalPages > 1 && (
-            <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                หน้า {currentPage} จาก {totalPages} ({paginatedJobs.length} จาก {filteredJobs.length} รายการ)
+            <div className="px-4 py-4 sm:px-8 sm:py-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center sm:text-left">
+                หน้า {currentPage} จาก {totalPages} ({paginatedJobs.length}/{filteredJobs.length} รายการ)
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(prev => prev - 1)}
-                  className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-[10px] font-black uppercase hover:bg-slate-50 disabled:opacity-30 transition-all"
+                  className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-[10px] font-black uppercase hover:bg-slate-50 disabled:opacity-30 transition-all"
                 >
                   Previous
                 </button>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-wrap justify-center">
                   {[...Array(totalPages)].map((_, i) => (
                     <button
                       key={i}

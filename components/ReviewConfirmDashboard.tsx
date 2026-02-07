@@ -208,7 +208,7 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
             </div>
 
             {/* Search & Filter Bar */}
-            <div className="bg-white rounded-2xl p-6 shadow-lg border border-slate-100 mb-6">
+            <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg border border-slate-100 mb-4 sm:mb-6">
                 <div className="flex flex-col gap-4">
                     {/* Search */}
                     <div className="relative">
@@ -325,7 +325,7 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                                         )}
 
                                         {/* Job Details */}
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                                             <div>
                                                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Route</p>
                                                 <p className="text-sm font-black text-slate-800">{job.origin} → {job.destination}</p>

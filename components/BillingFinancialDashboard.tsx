@@ -86,10 +86,10 @@ const BillingFinancialDashboard: React.FC<BillingFinancialDashboardProps> = ({
     ];
 
     return (
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 animate-in fade-in slide-in-from-top-4 duration-700">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 sm:gap-6 animate-in fade-in slide-in-from-top-4 duration-700">
 
             {/* Left Column: Stage Funnel Metrics */}
-            <div className="xl:col-span-3 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="xl:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                 {(Object.entries(stats) as [keyof typeof stats, any][]).map(([key, data]) => {
                     const Icon = data.icon;
                     const isActive = activeStage === key;
@@ -98,7 +98,7 @@ const BillingFinancialDashboard: React.FC<BillingFinancialDashboardProps> = ({
                         <button
                             key={key}
                             onClick={() => onStageSelect(key)}
-                            className={`relative overflow-hidden group p-6 rounded-[2.5rem] border transition-all duration-300 text-left ${isActive
+                            className={`relative overflow-hidden group p-4 sm:p-6 rounded-2xl sm:rounded-[2.5rem] border transition-all duration-300 text-left ${isActive
                                 ? 'bg-slate-900 border-slate-900 ring-4 ring-slate-100 shadow-2xl scale-[1.02] z-10'
                                 : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-xl'
                                 }`}
@@ -109,12 +109,12 @@ const BillingFinancialDashboard: React.FC<BillingFinancialDashboardProps> = ({
                             </div>
 
                             <div className="relative z-10">
-                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-colors ${isActive ? 'bg-white/20 text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-slate-100 group-hover:text-slate-900'
+                                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center mb-3 sm:mb-4 transition-colors ${isActive ? 'bg-white/20 text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-slate-100 group-hover:text-slate-900'
                                     }`}>
-                                    <Icon size={24} />
+                                    <Icon size={20} />
                                 </div>
 
-                                <h4 className={`text-[10px] font-black uppercase tracking-[0.2em] mb-1 ${isActive ? 'text-slate-400' : 'text-slate-400'}`}>
+                                <h4 className={`text-[9px] sm:text-[10px] font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] mb-1 ${isActive ? 'text-slate-400' : 'text-slate-400'}`}>
                                     {data.label}
                                 </h4>
 
@@ -141,20 +141,20 @@ const BillingFinancialDashboard: React.FC<BillingFinancialDashboardProps> = ({
                 })}
 
                 {/* Financial Health Summary Chart */}
-                <div className="md:col-span-4 bg-white rounded-[3rem] border border-slate-100 p-8 shadow-sm group hover:shadow-xl transition-all h-[300px]">
-                    <div className="flex items-center justify-between mb-6">
+                <div className="col-span-2 md:col-span-4 bg-white rounded-2xl sm:rounded-[3rem] border border-slate-100 p-4 sm:p-8 shadow-sm group hover:shadow-xl transition-all h-auto sm:h-[300px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-2">
                         <div>
-                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                                <TrendingUp size={18} className="text-emerald-500" />
-                                Financial Workflow Insights (ภาพรวมสถานะการเงิน)
+                            <h3 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider sm:tracking-widest flex items-center gap-2">
+                                <TrendingUp size={16} className="text-emerald-500 shrink-0" />
+                                <span>Financial Workflow</span>
                             </h3>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-tighter">Real-time status of cash flow and pending transactions (สถานะกระแสเงินสดแบบเรียลไทม์)</p>
+                            <p className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-tighter">สถานะกระแสเงินสดแบบเรียลไทม์</p>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
                             {legendData.map(d => (
-                                <div key={d.name} className="flex items-center gap-2">
+                                <div key={d.name} className="flex items-center gap-1 sm:gap-2">
                                     <div className={`w-2 h-2 rounded-full ${d.color}`}></div>
-                                    <span className="text-[9px] font-black text-slate-400 uppercase">{d.name}</span>
+                                    <span className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase">{d.name}</span>
                                 </div>
                             ))}
                         </div>
@@ -211,15 +211,15 @@ const BillingFinancialDashboard: React.FC<BillingFinancialDashboardProps> = ({
             </div>
 
             {/* Right Column: Key Constraints */}
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4 sm:gap-6">
                 {/* Top Exposure Card */}
-                <div className="bg-white rounded-[3rem] border border-slate-100 p-8 shadow-sm flex flex-col h-full group hover:shadow-xl transition-all">
-                    <div className="mb-4">
-                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                            <Wallet size={18} className="text-amber-500" />
+                <div className="bg-white rounded-2xl sm:rounded-[3rem] border border-slate-100 p-4 sm:p-8 shadow-sm flex flex-col h-full group hover:shadow-xl transition-all">
+                    <div className="mb-3 sm:mb-4">
+                        <h3 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider sm:tracking-widest flex items-center gap-2">
+                            <Wallet size={16} className="text-amber-500 shrink-0" />
                             Outstanding Exposure (หนี้ค้างจ่าย)
                         </h3>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-tighter">Accounts Payable by Subcontractor (ยอดค้างจ่ายรวมตามผู้รับเหมา)</p>
+                        <p className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-tighter">ยอดค้างจ่ายรวมตามผู้รับเหมา</p>
                     </div>
 
                     <div className="flex-1 space-y-4 py-4">

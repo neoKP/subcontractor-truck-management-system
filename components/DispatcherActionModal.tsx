@@ -365,7 +365,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                 <div className="flex-1 space-y-4">
                   <p className="text-[11px] font-black text-blue-900 uppercase tracking-wider">รายละเอียดใบงาน & เส้นทาง (Ticket & Route)</p>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-1.5 relative">
                       <label htmlFor="origin-edit-input" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ต้นทาง (Origin)</label>
                       <input
@@ -616,7 +616,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
             </div>
 
             {/* Dashboard Status Bar */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               <div className={`flex items-center justify-between p-3 rounded-2xl border-2 transition-all ${isMasterPriceMatched ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100 opacity-60'}`}>
                 <div className="flex items-center gap-2">
                   <div className={`p-1.5 rounded-lg ${isMasterPriceMatched ? 'bg-emerald-600' : 'bg-slate-400'} text-white`}>
@@ -735,8 +735,8 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-5">
-              <div className="col-span-2 space-y-1.5 relative">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+              <div className="sm:col-span-2 space-y-1.5 relative">
                 <label htmlFor="sub-search" className="text-[11px] font-black text-slate-400 uppercase tracking-wider">
                   บริษัทรถร่วม (Subcontractor) {isActuallyLocked && <span className="text-rose-500 font-black tracking-widest ml-2 px-1.5 py-0.5 bg-rose-50 rounded border border-rose-100">ล็อกโดยฝ่ายบัญชี (LOCKED)</span>}
                   {isAdminOverride && <span className="text-blue-500 font-black tracking-widest ml-2 px-1.5 py-0.5 bg-blue-50 rounded border border-blue-100">แอดมินกำลังแก้ไข (ADMIN OVERRIDE)</span>}
@@ -905,8 +905,8 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2 space-y-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="sm:col-span-2 space-y-1.5">
                   <label htmlFor="driver-input" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
                     <User size={10} /> ชื่อคนขับ (Driver Name)
                   </label>

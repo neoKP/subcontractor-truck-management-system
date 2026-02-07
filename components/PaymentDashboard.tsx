@@ -214,46 +214,46 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-[2rem] p-8 text-white shadow-xl">
+      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-2xl sm:rounded-[2rem] p-4 sm:p-8 text-white shadow-xl">
         <div className="flex items-center gap-3 mb-4">
-          <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
-            <Banknote size={28} />
+          <div className="p-2 sm:p-3 bg-white/20 rounded-xl sm:rounded-2xl backdrop-blur-sm shrink-0">
+            <Banknote size={24} />
           </div>
-          <div>
-            <h1 className="text-2xl font-black tracking-tight">ระบบวางบิลและจ่ายเงินรถร่วม</h1>
-            <p className="text-emerald-100 text-sm font-bold">Subcontractor Payment Management</p>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-black tracking-tight">ระบบวางบิลและจ่ายเงินรถร่วม</h1>
+            <p className="text-emerald-100 text-xs sm:text-sm font-bold">Subcontractor Payment Management</p>
           </div>
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-4 mt-4 sm:mt-6">
           {/* Pending Verification Warning */}
           {pendingVerificationJobs.length > 0 && (
             <div className="bg-orange-500/30 backdrop-blur-sm rounded-2xl p-4 border border-orange-300/50">
-              <p className="text-orange-100 text-[10px] font-black uppercase tracking-widest">⚠️ รอตรวจสอบ</p>
-              <p className="text-2xl font-black">{pendingVerificationJobs.length} งาน</p>
+              <p className="text-orange-100 text-[9px] sm:text-[10px] font-black uppercase tracking-widest">⚠️ รอตรวจสอบ</p>
+              <p className="text-xl sm:text-2xl font-black">{pendingVerificationJobs.length} งาน</p>
               <p className="text-orange-200 text-xs font-bold">ต้องผ่าน Verify ก่อน</p>
             </div>
           )}
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4">
-            <p className="text-emerald-100 text-[10px] font-black uppercase tracking-widest">✅ พร้อมวางบิล</p>
-            <p className="text-2xl font-black">{totals.uninvoicedJobs} งาน</p>
-            <p className="text-emerald-200 text-sm font-bold">฿{formatThaiCurrency(totals.uninvoicedAmount)}</p>
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl sm:rounded-2xl p-3 sm:p-4">
+            <p className="text-emerald-100 text-[9px] sm:text-[10px] font-black uppercase tracking-widest">✅ พร้อมวางบิล</p>
+            <p className="text-xl sm:text-2xl font-black">{totals.uninvoicedJobs} งาน</p>
+            <p className="text-emerald-200 text-xs sm:text-sm font-bold">฿{formatThaiCurrency(totals.uninvoicedAmount)}</p>
           </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4">
-            <p className="text-yellow-200 text-[10px] font-black uppercase tracking-widest">รอจ่าย</p>
-            <p className="text-2xl font-black">{totals.pendingCount} ใบ</p>
-            <p className="text-yellow-200 text-sm font-bold">฿{formatThaiCurrency(totals.pendingAmount)}</p>
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl sm:rounded-2xl p-3 sm:p-4">
+            <p className="text-yellow-200 text-[9px] sm:text-[10px] font-black uppercase tracking-widest">รอจ่าย</p>
+            <p className="text-xl sm:text-2xl font-black">{totals.pendingCount} ใบ</p>
+            <p className="text-yellow-200 text-xs sm:text-sm font-bold">฿{formatThaiCurrency(totals.pendingAmount)}</p>
           </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4">
-            <p className="text-red-200 text-[10px] font-black uppercase tracking-widest">เกินกำหนด</p>
-            <p className="text-2xl font-black">{totals.overdueCount} ใบ</p>
-            <p className="text-red-200 text-sm font-bold">฿{formatThaiCurrency(totals.overdueAmount)}</p>
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl sm:rounded-2xl p-3 sm:p-4">
+            <p className="text-red-200 text-[9px] sm:text-[10px] font-black uppercase tracking-widest">เกินกำหนด</p>
+            <p className="text-xl sm:text-2xl font-black">{totals.overdueCount} ใบ</p>
+            <p className="text-red-200 text-xs sm:text-sm font-bold">฿{formatThaiCurrency(totals.overdueAmount)}</p>
           </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4">
-            <p className="text-emerald-200 text-[10px] font-black uppercase tracking-widest">จ่ายแล้ว</p>
-            <p className="text-2xl font-black">{totals.paidCount} ใบ</p>
-            <p className="text-emerald-200 text-sm font-bold">฿{formatThaiCurrency(totals.paidAmount)}</p>
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl sm:rounded-2xl p-3 sm:p-4">
+            <p className="text-emerald-200 text-[9px] sm:text-[10px] font-black uppercase tracking-widest">จ่ายแล้ว</p>
+            <p className="text-xl sm:text-2xl font-black">{totals.paidCount} ใบ</p>
+            <p className="text-emerald-200 text-xs sm:text-sm font-bold">฿{formatThaiCurrency(totals.paidAmount)}</p>
           </div>
         </div>
       </div>
@@ -384,6 +384,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
                 />
               </div>
               <select
+                title="กรองตามบริษัทรถร่วม"
                 className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold"
                 value={filterSubCon}
                 onChange={e => setFilterSubCon(e.target.value)}
@@ -453,25 +454,26 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
 
       {/* Create Invoice Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-3xl max-h-[90vh] rounded-[2rem] shadow-2xl overflow-hidden flex flex-col">
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/70 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl overflow-hidden flex flex-col">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 sm:p-6 text-white">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-black">สร้างใบวางบิล</h2>
                   <p className="text-blue-100 text-sm">Create Batch Invoice</p>
                 </div>
-                <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-white/20 rounded-xl">
+                <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-white/20 rounded-xl" title="ปิด (Close)">
                   <X size={20} />
                 </button>
               </div>
             </div>
 
-            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4 sm:space-y-6">
               {/* Subcontractor Selection */}
               <div className="space-y-2">
                 <label className="text-xs font-black text-slate-500 uppercase">เลือกบริษัทรถร่วม</label>
                 <select
+                  title="เลือกบริษัทรถร่วม"
                   className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 font-bold text-lg focus:border-blue-500 outline-none"
                   value={createForm.subcontractor}
                   onChange={e => setCreateForm({ ...createForm, subcontractor: e.target.value, selectedJobs: [] })}
@@ -489,6 +491,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
                   <label className="text-xs font-black text-slate-500 uppercase">วันที่เริ่มต้น</label>
                   <input
                     type="date"
+                    title="วันที่เริ่มต้น"
                     className="w-full px-4 py-2 rounded-xl border border-slate-200"
                     value={createForm.periodStart}
                     onChange={e => setCreateForm({ ...createForm, periodStart: e.target.value })}
@@ -498,6 +501,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
                   <label className="text-xs font-black text-slate-500 uppercase">วันที่สิ้นสุด</label>
                   <input
                     type="date"
+                    title="วันที่สิ้นสุด"
                     className="w-full px-4 py-2 rounded-xl border border-slate-200"
                     value={createForm.periodEnd}
                     onChange={e => setCreateForm({ ...createForm, periodEnd: e.target.value })}
@@ -609,6 +613,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
                           setCreateForm({ ...createForm, deductions: createForm.deductions.filter((_, i) => i !== idx) });
                         }}
                         className="p-1 text-slate-400 hover:text-rose-600"
+                        title="ลบรายการหัก (Remove Deduction)"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -670,7 +675,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
                   <h2 className="text-xl font-black">บันทึกการจ่ายเงิน</h2>
                   <p className="text-emerald-100 text-sm">{selectedInvoice.invoiceNo}</p>
                 </div>
-                <button onClick={() => setShowPaymentModal(false)} className="p-2 hover:bg-white/20 rounded-xl">
+                <button onClick={() => setShowPaymentModal(false)} className="p-2 hover:bg-white/20 rounded-xl" title="ปิด (Close)">
                   <X size={20} />
                 </button>
               </div>
@@ -686,6 +691,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
                 <label className="text-xs font-black text-slate-500 uppercase">จำนวนเงินที่จ่าย</label>
                 <input
                   type="number"
+                  title="จำนวนเงินที่จ่าย"
                   className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 font-bold text-lg focus:border-emerald-500 outline-none"
                   value={paymentForm.paidAmount}
                   onChange={e => setPaymentForm({ ...paymentForm, paidAmount: Number(e.target.value) || 0 })}
