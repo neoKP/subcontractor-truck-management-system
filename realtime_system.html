@@ -105,7 +105,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
-        import { getDatabase, ref, onValue, set, push, update, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getDatabase, ref, onValue, set, push, update, remove, get, query, limitToLast } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
         // Firebase Configuration provided by user
         const firebaseConfig = {
@@ -126,7 +126,7 @@
 
         // Expose to window for React to use
         window.FirebaseDB = {
-            db, ref, onValue, set, push, update, remove
+            db, ref, onValue, set, push, update, remove, get, query, limitToLast
         };
 
         console.log("Firebase initialized successfully via CDN");
@@ -288,25 +288,26 @@
             // Sync with Firebase
             useEffect(() => {
                 if (!window.FirebaseDB) return;
-                const { db, ref, onValue, set } = window.FirebaseDB;
+                const { db, ref, onValue, set, get, query, limitToLast } = window.FirebaseDB;
 
-                // Listen for Jobs
-                const jobsRef = ref(db, 'jobs');
-                const unsubscribeJobs = onValue(jobsRef, (snapshot) => {
+                // Listen for Jobs (limited to last 200 to reduce bandwidth)
+                const jobsQuery = query(ref(db, 'jobs'), limitToLast(200));
+                const unsubscribeJobs = onValue(jobsQuery, (snapshot) => {
                     const data = snapshot.val();
                     if (data) {
                         setJobs(Object.values(data));
                     }
                 });
 
-                // Listen for Logs
-                const logsRef = ref(db, 'logs');
-                const unsubscribeLogs = onValue(logsRef, (snapshot) => {
-                    const data = snapshot.val();
-                    if (data) {
-                        setLogs(Object.values(data));
-                    }
-                });
+                // Fetch Logs once (no realtime needed)
+                const fetchLogs = async () => {
+                    const logsQuery = query(ref(db, 'logs'), limitToLast(500));
+                    const snap = await get(logsQuery);
+                    const data = snap.val();
+                    if (data) setLogs(Object.values(data));
+                };
+                fetchLogs();
+                const unsubscribeLogs = () => {};
 
                 // Listen for Price Matrix & Initialize if empty
                 const pricingRef = ref(db, 'priceMatrix');
