@@ -17,17 +17,34 @@ const MigrationTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const handleMigrate = async () => {
         if (progress.status === 'running') return;
 
-        const confirmed = window.confirm(
-            '⚠️ คุณต้องการย้ายรูปภาพ Base64 ทั้งหมดจาก Realtime DB ไป Firebase Storage หรือไม่?\n\n' +
-            'การดำเนินการนี้จะ:\n' +
-            '1. อ่าน jobs และ invoices ทั้งหมด\n' +
-            '2. Upload รูป Base64 ไป Firebase Storage\n' +
-            '3. เปลี่ยน Base64 ใน DB เป็น URL\n\n' +
-            'DB size จะลดลงอย่างมาก (~57MB → ~5MB)\n' +
-            'กดตกลงเพื่อเริ่มต้น'
-        );
-
-        if (!confirmed) return;
+        const Swal = (window as any).Swal;
+        if (Swal) {
+            const result = await Swal.fire({
+                icon: 'warning',
+                title: '<span style="font-size:18px;font-weight:900">⚠️ ยืนยันการย้ายข้อมูล</span>',
+                html: `
+                    <div style="text-align:left;font-size:13px;color:#475569;line-height:1.8">
+                        <p style="font-weight:700;color:#1e293b;margin-bottom:8px">การดำเนินการนี้จะ:</p>
+                        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px 16px;margin-bottom:12px">
+                            <p>1. อ่าน jobs และ invoices ทั้งหมด</p>
+                            <p>2. Upload รูป Base64 ไป Firebase Storage</p>
+                            <p>3. เปลี่ยน Base64 ใน DB เป็น URL</p>
+                        </div>
+                        <p style="font-weight:800;color:#059669">✅ DB size จะลดจาก ~57MB เหลือ ~5MB</p>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: '🚀 เริ่มย้ายข้อมูล',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#7c3aed',
+                cancelButtonColor: '#94a3b8',
+                customClass: { popup: 'rounded-[1.5rem]' },
+                reverseButtons: true
+            });
+            if (!result.isConfirmed) return;
+        } else {
+            if (!window.confirm('ยืนยันการย้ายรูป Base64 ไป Firebase Storage?')) return;
+        }
 
         setProgress(prev => ({ ...prev, status: 'running' }));
         await migrateBase64ToStorage((p) => setProgress(p));

@@ -653,7 +653,35 @@ const App: React.FC = () => {
                     <h2 className="text-xl font-bold text-white">จัดการผู้ใช้งานระบบ (User Management)</h2>
                   </div>
                   <button
-                    onClick={() => setShowMigrationTool(true)}
+                    onClick={async () => {
+                      const Swal = (window as any).Swal;
+                      if (!Swal) { setShowMigrationTool(true); return; }
+                      const { value: password } = await Swal.fire({
+                        title: '<span style="font-size:18px;font-weight:900">🔐 Migration Tool</span>',
+                        html: '<p style="font-size:13px;color:#64748b;margin-top:4px">กรุณาใส่รหัสผ่านเพื่อเข้าใช้งาน</p>',
+                        input: 'password',
+                        inputPlaceholder: 'Enter password...',
+                        inputAttributes: { autocapitalize: 'off', autocorrect: 'off' },
+                        showCancelButton: true,
+                        confirmButtonText: 'เข้าสู่ระบบ',
+                        cancelButtonText: 'ยกเลิก',
+                        confirmButtonColor: '#7c3aed',
+                        cancelButtonColor: '#94a3b8',
+                        customClass: { popup: 'rounded-[1.5rem]', input: 'rounded-xl' },
+                        inputValidator: (value: string) => { if (!value) return 'กรุณาใส่รหัสผ่าน'; return null; }
+                      });
+                      if (password === 'sansan856') {
+                        setShowMigrationTool(true);
+                      } else if (password) {
+                        Swal.fire({
+                          icon: 'error',
+                          title: '<span style="font-size:16px;font-weight:900">รหัสผ่านไม่ถูกต้อง</span>',
+                          text: 'กรุณาลองใหม่อีกครั้ง',
+                          confirmButtonColor: '#7c3aed',
+                          customClass: { popup: 'rounded-[1.5rem]' }
+                        });
+                      }
+                    }}
                     className="px-4 py-2 bg-violet-600 text-white text-xs font-bold rounded-lg hover:bg-violet-700 transition-all flex items-center gap-2 shadow-lg"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
