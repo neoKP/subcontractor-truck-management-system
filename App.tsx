@@ -25,7 +25,7 @@ import PendingPricingModal from './components/PendingPricingModal'; // Added Pen
 import HomeView from './components/HomeView'; // Added HomeView import
 import PaymentDashboard from './components/PaymentDashboard'; // Added PaymentDashboard import
 import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3, ShieldAlert } from 'lucide-react';
-import { db, ref, onValue, set, remove } from './firebaseConfig';
+import { db, ref, onValue, set, remove, get, query, limitToLast } from './firebaseConfig';
 
 // Initial Users Data for Seeding
 const INITIAL_USERS = [
@@ -108,40 +108,52 @@ const App: React.FC = () => {
     }
   };
 
-  // Sync with Firebase on mount
+  // ============================================================
+  // 🔥 Firebase Sync — Optimized to reduce bandwidth usage
+  // Previously: 5 onValue listeners loading entire paths = ~50MB per page load
+  // Now: Jobs uses limitToLast, Logs uses get() one-time, Users seed separated
+  // ============================================================
   React.useEffect(() => {
-    // Listen for Jobs
-    const jobsRef = ref(db, 'jobs');
-    const unsubscribeJobs = onValue(jobsRef, (snapshot) => {
+    // --- 1. JOBS: Realtime listener with limitToLast ---
+    // Previously loaded ALL jobs (including Base64 images) = ~50MB
+    // Now limited to last 200 jobs, images stored in Firebase Storage as URLs
+    const jobsQuery = query(ref(db, 'jobs'), limitToLast(200));
+    const unsubscribeJobs = onValue(jobsQuery, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         setJobs(Object.values(data) as Job[]);
       }
     });
 
-    // Listen for Logs
-    const logsRef = ref(db, 'logs');
-    const unsubscribeLogs = onValue(logsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setLogs(Object.values(data));
+    // --- 2. LOGS: One-time fetch (no realtime needed) ---
+    // Logs don't need to be realtime — fetch once on mount
+    const fetchLogs = async () => {
+      try {
+        const logsQuery = query(ref(db, 'logs'), limitToLast(500));
+        const snapshot = await get(logsQuery);
+        const data = snapshot.val();
+        if (data) {
+          setLogs(Object.values(data));
+        }
+      } catch (err) {
+        console.error('Error fetching logs:', err);
       }
       setLogsLoaded(true);
-    });
+    };
+    fetchLogs();
 
-    // Listen for Pricing (realtime sync ทุกครั้งที่มีการเปลี่ยนแปลง)
+    // --- 3. PRICING: Realtime (small data, OK to keep) ---
     const pricingRef = ref(db, 'priceMatrix');
     const unsubscribePricing = onValue(pricingRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         setPriceMatrix(Object.values(data) as PriceMatrix[]);
       } else {
-        // Seed if empty
         set(pricingRef, PRICE_MATRIX);
       }
     });
 
-    // Listen for Invoices
+    // --- 4. INVOICES: Realtime (relatively small data) ---
     const invoicesRef = ref(db, 'invoices');
     const unsubscribeInvoices = onValue(invoicesRef, (snapshot) => {
       const data = snapshot.val();
@@ -150,69 +162,72 @@ const App: React.FC = () => {
       }
     });
 
-    // Listen for Users
+    // --- 5. USERS: Seed ONCE with get(), then listen read-only ---
+    // ⚠️ Previously had set() INSIDE onValue → caused write loops!
+    // Now: seed logic runs once via get(), listener is read-only
     const usersRef = ref(db, 'users');
+    const seedAndListenUsers = async () => {
+      try {
+        const snapshot = await get(usersRef);
+        const data = snapshot.val();
+        if (!data) {
+          // Seed users if DB is empty (one-time)
+          for (const user of INITIAL_USERS) {
+            await set(ref(db, `users/${user.id}`), user);
+          }
+        } else {
+          // One-time fixes (run once, not inside listener)
+          const user006 = Object.values(data).find((u: any) => u.id === 'BOOKING_006');
+          if (user006 && (user006 as any).role !== UserRole.DISPATCHER) {
+            await set(ref(db, `users/BOOKING_006`), { ...(user006 as object), role: UserRole.DISPATCHER });
+          }
+
+          const userThanakorn = Object.values(data).find((u: any) => u.name && u.name.includes('ธนากร'));
+          if (userThanakorn) {
+            let needsUpdate = false;
+            let updatedUser = { ...(userThanakorn as object) };
+            if ((userThanakorn as any).name !== 'ธนากร อินอ้น') {
+              updatedUser = { ...updatedUser, name: 'ธนากร อินอ้น' };
+              needsUpdate = true;
+            }
+            if ((userThanakorn as any).role !== UserRole.DISPATCHER) {
+              updatedUser = { ...updatedUser, role: UserRole.DISPATCHER };
+              needsUpdate = true;
+            }
+            if (needsUpdate) {
+              await set(ref(db, `users/${(userThanakorn as any).id}`), updatedUser);
+            }
+          }
+
+          const fieldUser = Object.values(data).find((u: any) => u.id === 'FIELD_001');
+          if (!fieldUser) {
+            const newUser = INITIAL_USERS.find(u => u.id === 'FIELD_001');
+            if (newUser) {
+              await set(ref(db, `users/FIELD_001`), newUser);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error seeding users:', err);
+      }
+    };
+    seedAndListenUsers();
+
+    // Read-only listener for users (NO set() inside!)
     const unsubscribeUsers = onValue(usersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         let allUsers = Object.values(data);
-
-        // Ensure FIELD_001 is always in the local list for the testing purpose
         const field001Exists = allUsers.some((u: any) => u.username === 'FIELD001');
         if (!field001Exists) {
           allUsers.unshift(INITIAL_USERS[0]);
         }
-
         setUsers(allUsers);
-
-        // Force sync Role for specific user if needed (one-time fix for existing DB)
-        const user006 = Object.values(data).find((u: any) => u.id === 'BOOKING_006');
-        if (user006 && (user006 as any).role !== UserRole.DISPATCHER) {
-          set(ref(db, `users/BOOKING_006`), { ...(user006 as object), role: UserRole.DISPATCHER });
-        }
-
-        // Fix Thanakorn's data (Clean Name & Ensure Dispatcher Role)
-        const userThanakorn = Object.values(data).find((u: any) => u.name && u.name.includes('ธนากร'));
-        if (userThanakorn) {
-          let needsUpdate = false;
-          let updatedUser = { ...(userThanakorn as object) };
-
-          // 1. Clean Name (Remove any (DISPATCHER) or extra text)
-          if ((userThanakorn as any).name !== 'ธนากร อินอ้น') {
-            updatedUser = { ...updatedUser, name: 'ธนากร อินอ้น' };
-            needsUpdate = true;
-          }
-
-          // 2. Ensure Role is DISPATCHER (Super Dispatcher)
-          if ((userThanakorn as any).role !== UserRole.DISPATCHER) {
-            updatedUser = { ...updatedUser, role: UserRole.DISPATCHER };
-            needsUpdate = true;
-          }
-
-          if (needsUpdate) {
-            set(ref(db, `users/${(userThanakorn as any).id}`), updatedUser);
-          }
-        }
-
-        // 3. Ensure FIELD_001 for testing exists
-        const fieldUser = Object.values(data).find((u: any) => u.id === 'FIELD_001');
-        if (!fieldUser) {
-          const newUser = INITIAL_USERS.find(u => u.id === 'FIELD_001');
-          if (newUser) {
-            set(ref(db, `users/FIELD_001`), newUser);
-          }
-        }
-      } else {
-        // Seed users if empty
-        INITIAL_USERS.forEach(user => {
-          set(ref(db, `users/${user.id}`), user);
-        });
       }
     });
 
     return () => {
       unsubscribeJobs();
-      unsubscribeLogs();
       unsubscribePricing();
       unsubscribeInvoices();
       unsubscribeUsers();

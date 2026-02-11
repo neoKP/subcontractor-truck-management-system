@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Job, JobStatus, AccountingStatus, AuditLog } from '../types';
 import { Camera, CheckCircle2, DollarSign, Image as ImageIcon, X, FileText, Upload, MapPin, Calendar, User, Phone, ShieldAlert } from 'lucide-react';
 import { formatDate } from '../utils/format';
+import { uploadFilesToStorage } from '../utils/firebaseStorage';
 
 interface ConfirmationModalProps {
   job: Job;
@@ -85,66 +86,6 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
   const triggerUpload = () => fileInputRef.current?.click();
   const triggerCamera = () => cameraInputRef.current?.click();
 
-  /* 
-   * Enhanced fileToBase64 with Compression Logic
-   * Default target: Max 1280px width/height, JPEG Quality 0.7
-   * This should result in files ~300-800KB range depending on content
-   */
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      // If it's not an image (e.g. PDF), read as normal base64 without compression
-      if (!file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = error => reject(error);
-        return;
-      }
-
-      // If it IS an image, compress it using Canvas
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          const MAX_WIDTH = 1280;
-          const MAX_HEIGHT = 1280;
-
-          // Resize Logic
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            // Compress to JPEG with 0.7 quality
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-            resolve(dataUrl);
-          } else {
-            // Fallback if canvas fails
-            resolve(reader.result as string);
-          }
-        };
-        img.onerror = (err) => reject(err);
-      };
-      reader.onerror = error => reject(error);
-    });
-  };
 
   const handleConfirm = async () => {
     if (isSubmitting) return;
@@ -169,10 +110,10 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
     setIsSubmitting(true);
 
     try {
-      // Convert images to Base64 for persistence
-      let base64Images: string[] = [];
+      // Upload images to Firebase Storage (instead of Base64 in DB)
+      let imageUrls: string[] = [];
       if (selectedFiles.length > 0) {
-        base64Images = await Promise.all(selectedFiles.map(file => fileToBase64(file)));
+        imageUrls = await uploadFilesToStorage(selectedFiles, `pod-images/${job.id}`);
       }
 
       // Simulate API Delay
@@ -184,7 +125,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
         mileage,
         extraCharge,
         accountingStatus: AccountingStatus.PENDING_REVIEW, // Trigger Accounting Workflow
-        podImageUrls: base64Images,
+        podImageUrls: imageUrls,
         status: JobStatus.COMPLETED,
         drops: dropPods.map(d => ({ ...d, status: 'COMPLETED' as const }))
       };
@@ -201,7 +142,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
           field: 'status',
           oldValue: JobStatus.ASSIGNED,
           newValue: JobStatus.COMPLETED,
-          reason: `ยืนยันการจบงาน | Actual Arrival: ${actualArrival || 'N/A'} | Mileage: ${mileage || 'N/A'} | Extra Charge: ${extraCharge || 0} บาท${extraChargeComment ? ` | หมายเหตุ: ${extraChargeComment}` : ''} | POD Images: ${base64Images.length} ไฟล์`
+          reason: `ยืนยันการจบงาน | Actual Arrival: ${actualArrival || 'N/A'} | Mileage: ${mileage || 'N/A'} | Extra Charge: ${extraCharge || 0} บาท${extraChargeComment ? ` | หมายเหตุ: ${extraChargeComment}` : ''} | POD Images: ${imageUrls.length} ไฟล์`
         }
       ];
 

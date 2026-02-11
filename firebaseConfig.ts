@@ -2,7 +2,9 @@
 // @ts-ignore
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 // @ts-ignore
-import { getDatabase, ref, onValue, set, push, update, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref, onValue, set, push, update, remove, get, query, limitToLast, orderByChild } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+// @ts-ignore
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyB26x49UrzPAyb14FtpBdrnRkQs_P2omTM",
@@ -17,4 +19,5 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);
-export { ref, onValue, set, push, update, remove };
+export const storage = getStorage(app);
+export { ref, onValue, set, push, update, remove, get, query, limitToLast, orderByChild, storageRef, uploadBytes, getDownloadURL };

@@ -3,6 +3,7 @@ import React, { useState, useRef } from 'react';
 import { Job, UserRole, AuditLog, PriceMatrix, AccountingStatus } from '../types';
 import { MASTER_DATA } from '../constants';
 import { X, Edit3, MapPin, Truck, ShieldAlert, BadgeCheck, Zap, ShieldCheck, Camera, Upload, Image as ImageIcon, FileText, Trash2, ChevronDown } from 'lucide-react';
+import { uploadFilesToStorage } from '../utils/firebaseStorage';
 
 interface BookingEditModalProps {
     job: Job;
@@ -170,51 +171,6 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
         setNewPodFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    // Convert file to base64 with compression
-    const fileToBase64 = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            if (!file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = error => reject(error);
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = (event) => {
-                const img = new Image();
-                img.src = event.target?.result as string;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width;
-                    let height = img.height;
-                    const MAX_SIZE = 1280;
-
-                    if (width > height && width > MAX_SIZE) {
-                        height *= MAX_SIZE / width;
-                        width = MAX_SIZE;
-                    } else if (height > MAX_SIZE) {
-                        width *= MAX_SIZE / height;
-                        height = MAX_SIZE;
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) {
-                        ctx.drawImage(img, 0, 0, width, height);
-                        resolve(canvas.toDataURL('image/jpeg', 0.7));
-                    } else {
-                        resolve(reader.result as string);
-                    }
-                };
-                img.onerror = (err) => reject(err);
-            };
-            reader.onerror = error => reject(error);
-        });
-    };
 
     const handleSave = async () => {
         if (isSubmitting) return;
@@ -254,13 +210,13 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
 
         setIsSubmitting(true);
 
-        // Convert new files to base64
-        let newPodBase64: string[] = [];
+        // Upload new files to Firebase Storage (instead of Base64 in DB)
+        let newPodUrls: string[] = [];
         if (newPodFiles.length > 0) {
             try {
-                newPodBase64 = await Promise.all(newPodFiles.map(f => fileToBase64(f)));
+                newPodUrls = await uploadFilesToStorage(newPodFiles, `pod-images/${job.id}`);
             } catch (err) {
-                console.error('Error converting POD files:', err);
+                console.error('Error uploading POD files:', err);
             }
         }
 
@@ -308,8 +264,8 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
             logs.push(createLog('POD Images', `${originalPodCount} รูป`, `${newPodCount} รูป (แก้ไขใหม่)`));
         }
 
-        // Merge existing (retained) POD images with new ones
-        const finalPodImageUrls = [...podImages, ...newPodBase64];
+        // Merge existing (retained) POD images with new uploaded URLs
+        const finalPodImageUrls = [...podImages, ...newPodUrls];
 
         const updatedJob: Job = {
             ...job,

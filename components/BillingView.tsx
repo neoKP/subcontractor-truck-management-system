@@ -7,6 +7,7 @@ import InvoicePreviewModal from './InvoicePreviewModal';
 import PaymentModal from './PaymentModal';
 import BillingFinancialDashboard from './BillingFinancialDashboard';
 import { Download, CreditCard, FileText } from 'lucide-react';
+import { uploadFileToStorage } from '../utils/firebaseStorage';
 
 interface BillingViewProps {
   jobs: Job[];
@@ -230,66 +231,6 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
     }
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
-  };
-
-  const compressImage = async (file: File): Promise<string> => {
-    // If not an image (e.g. PDF), fallback to normal Base64
-    if (!file.type.startsWith('image/')) {
-      return fileToBase64(file);
-    }
-
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const objectUrl = URL.createObjectURL(file);
-      img.src = objectUrl;
-
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-
-          // Resize logic: Max Width 1280px (Keep aspect ratio)
-          const MAX_WIDTH = 1200;
-          if (width > MAX_WIDTH) {
-            height = Math.round((height * MAX_WIDTH) / width);
-            width = MAX_WIDTH;
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-
-          const ctx = canvas.getContext('2d');
-          if (!ctx) throw new Error('Canvas context unavailable');
-
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // Convert to WebP with 0.8 quality (High quality, low size)
-          // This typically reduces 5MB -> ~300-500KB
-          const compressedDataUrl = canvas.toDataURL('image/webp', 0.8);
-
-          URL.revokeObjectURL(objectUrl);
-          resolve(compressedDataUrl);
-        } catch (err) {
-          URL.revokeObjectURL(objectUrl);
-          // Fallback to original if canvas fails
-          resolve(fileToBase64(file));
-        }
-      };
-
-      img.onerror = (err) => {
-        URL.revokeObjectURL(objectUrl);
-        reject(err);
-      };
-    });
-  };
 
   const handleOpenPaymentModal = (jobsToPay: Job[]) => {
     setPaymentTargetJobs(jobsToPay);
@@ -300,12 +241,13 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
     console.log('🔵 PAYMENT STARTED:', { jobCount: paymentTargetJobs.length, jobIds: paymentTargetJobs.map(j => j.id), date });
     let slipUrl = '';
     if (file) {
-      // Use the new compression function
+      // Upload to Firebase Storage (instead of Base64 in DB)
       try {
-        slipUrl = await compressImage(file);
+        const timestamp = Date.now();
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        slipUrl = await uploadFileToStorage(file, `payment-slips/${timestamp}_${safeName}`);
       } catch (error) {
-        console.error("Compression failed, using original", error);
-        slipUrl = await fileToBase64(file);
+        console.error("Upload failed:", error);
       }
     }
 
@@ -652,13 +594,15 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
                         {job.podImageUrls && job.podImageUrls.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {job.podImageUrls.map((url, idx) => {
-                              const isPdf = url.startsWith('data:application/pdf');
+                              const isBase64Pdf = url.startsWith('data:application/pdf');
+                              const isUrlPdf = url.endsWith('.pdf');
+                              const isPdf = isBase64Pdf || isUrlPdf;
                               return (
                                 <button
                                   key={idx}
                                   onClick={() => {
                                     if ((window as any).Swal) {
-                                      if (isPdf) {
+                                      if (isBase64Pdf) {
                                         const base64Content = url.split(',')[1];
                                         const byteCharacters = atob(base64Content);
                                         const byteNumbers = new Array(byteCharacters.length);
@@ -675,6 +619,13 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
                                           width: '800px',
                                           showCloseButton: true,
                                           willClose: () => URL.revokeObjectURL(blobUrl)
+                                        });
+                                      } else if (isUrlPdf) {
+                                        (window as any).Swal.fire({
+                                          html: `<iframe src="${url}" width="100%" height="600px" style="border:none; border-radius: 8px;"></iframe>`,
+                                          showConfirmButton: false,
+                                          width: '800px',
+                                          showCloseButton: true
                                         });
                                       } else {
                                         (window as any).Swal.fire({
