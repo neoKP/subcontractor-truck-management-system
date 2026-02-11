@@ -24,6 +24,7 @@ import DispatcherDashboard from './components/DispatcherDashboard'; // Added Dis
 import PendingPricingModal from './components/PendingPricingModal'; // Added PendingPricingModal import
 import HomeView from './components/HomeView'; // Added HomeView import
 import PaymentDashboard from './components/PaymentDashboard'; // Added PaymentDashboard import
+import MigrationTool from './components/MigrationTool';
 import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3, ShieldAlert } from 'lucide-react';
 import { db, ref, onValue, set, remove, get, query, limitToLast } from './firebaseConfig';
 
@@ -70,6 +71,7 @@ const App: React.FC = () => {
   const [pricingModalData, setPricingModalData] = useState<Partial<PriceMatrix> | undefined>(undefined);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showMigrationTool, setShowMigrationTool] = useState(false);
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
   const closeSidebar = () => setSidebarOpen(false);
@@ -645,9 +647,18 @@ const App: React.FC = () => {
 
             {activeTab === 'users' && currentUser.role === UserRole.ADMIN && (
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="bg-slate-900 px-6 py-4 flex items-center gap-3">
-                  <Users className="text-white" size={24} />
-                  <h2 className="text-xl font-bold text-white">จัดการผู้ใช้งานระบบ (User Management)</h2>
+                <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Users className="text-white" size={24} />
+                    <h2 className="text-xl font-bold text-white">จัดการผู้ใช้งานระบบ (User Management)</h2>
+                  </div>
+                  <button
+                    onClick={() => setShowMigrationTool(true)}
+                    className="px-4 py-2 bg-violet-600 text-white text-xs font-bold rounded-lg hover:bg-violet-700 transition-all flex items-center gap-2 shadow-lg"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+                    Migration Tool
+                  </button>
                 </div>
                 <div className="p-6">
                   <UserManagementView
@@ -832,6 +843,11 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Migration Tool Modal (Admin only) */}
+      {showMigrationTool && (
+        <MigrationTool onClose={() => setShowMigrationTool(false)} />
+      )}
     </div>
   );
 };
