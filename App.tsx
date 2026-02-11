@@ -25,6 +25,7 @@ import PendingPricingModal from './components/PendingPricingModal'; // Added Pen
 import HomeView from './components/HomeView'; // Added HomeView import
 import PaymentDashboard from './components/PaymentDashboard'; // Added PaymentDashboard import
 import MigrationTool from './components/MigrationTool';
+import { migrateBase64ToStorage } from './utils/migrateBase64ToStorage';
 import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3, ShieldAlert } from 'lucide-react';
 import { db, ref, onValue, set, remove, get, query, limitToLast } from './firebaseConfig';
 
@@ -234,6 +235,49 @@ const App: React.FC = () => {
       unsubscribeInvoices();
       unsubscribeUsers();
     };
+  }, []);
+
+  // ============================================================
+  // 🔄 Auto-Migration: ย้ายรูป Base64 เก่าจาก DB → Firebase Storage
+  // รันอัตโนมัติครั้งเดียวตอนเปิดเว็บ (ใช้ localStorage จำว่ารันแล้ว)
+  // ============================================================
+  React.useEffect(() => {
+    const AUTO_MIGRATE_KEY = 'base64_migration_done_v1';
+    if (localStorage.getItem(AUTO_MIGRATE_KEY)) return;
+
+    const runAutoMigration = async () => {
+      try {
+        console.log('🔄 Auto-migration: Starting Base64 → Storage...');
+        const result = await migrateBase64ToStorage((p) => {
+          if (p.status === 'running' && p.processedJobs % 10 === 0) {
+            console.log(`  📊 Progress: ${p.processedJobs}/${p.totalJobs} jobs, ${p.migratedImages} images, ${p.migratedSlips} slips`);
+          }
+        });
+        if (result.status === 'done') {
+          localStorage.setItem(AUTO_MIGRATE_KEY, new Date().toISOString());
+          console.log(`🎉 Auto-migration complete! Migrated ${result.migratedImages} images + ${result.migratedSlips} slips`);
+          if (result.migratedImages > 0 || result.migratedSlips > 0) {
+            const Swal = (window as any).Swal;
+            if (Swal) {
+              Swal.fire({
+                icon: 'success',
+                title: '<span style="font-size:16px;font-weight:900">✅ ย้ายรูปสำเร็จ</span>',
+                html: `<p style="font-size:13px;color:#475569">ย้ายรูป <b>${result.migratedImages}</b> รูป + สลิป <b>${result.migratedSlips}</b> ไฟล์<br>ไป Firebase Storage เรียบร้อยแล้ว<br><span style="color:#059669;font-weight:700">DB size ลดลงอย่างมาก!</span></p>`,
+                confirmButtonColor: '#7c3aed',
+                customClass: { popup: 'rounded-[1.5rem]' },
+                timer: 5000,
+                timerProgressBar: true
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Auto-migration error:', err);
+      }
+    };
+
+    const timer = setTimeout(runAutoMigration, 5000);
+    return () => clearTimeout(timer);
   }, []);
 
   // AUTOMATIC ACTION: Move jobs out of Pending Pricing Queue if a price is now available
