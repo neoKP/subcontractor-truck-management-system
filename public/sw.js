@@ -1,11 +1,9 @@
 const CACHE_NAME = 'tms-logistics-v1';
 const STATIC_ASSETS = [
   '/',
-  '/index.html',
-  '/index.css',
+  '/manifest.json',
   '/icon.svg',
-  '/icon-192.svg',
-  '/manifest.json'
+  '/icon-192.svg'
 ];
 
 // Install: Cache static assets
@@ -13,7 +11,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching static assets');
-      return cache.addAll(STATIC_ASSETS);
+      return Promise.allSettled(STATIC_ASSETS.map(asset => cache.add(asset)));
     })
   );
   self.skipWaiting();
