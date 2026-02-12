@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { migrateBase64ToStorage, MigrationProgress } from '../utils/migrateBase64ToStorage';
-import { Database, Upload, CheckCircle2, AlertTriangle, Loader2, HardDrive, Image as ImageIcon, FileText } from 'lucide-react';
+import { migrateFirebaseToNAS, FirebaseMigrationProgress } from '../utils/migrateFirebaseToNAS';
+import { Database, Upload, CheckCircle2, AlertTriangle, Loader2, HardDrive, Image as ImageIcon, FileText, ArrowRightLeft } from 'lucide-react';
+
+type MigrationMode = 'select' | 'base64' | 'firebase';
 
 const MigrationTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+    const [mode, setMode] = useState<MigrationMode>('select');
     const [progress, setProgress] = useState<MigrationProgress>({
         totalJobs: 0,
         processedJobs: 0,
@@ -14,27 +18,34 @@ const MigrationTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         status: 'idle'
     });
 
-    const handleMigrate = async () => {
+    const handleMigrateBase64 = async () => {
         if (progress.status === 'running') return;
+        if (!window.confirm('ยืนยันย้ายรูป Base64 → NAS?')) return;
+        setProgress(prev => ({ ...prev, status: 'running' }));
+        await migrateBase64ToStorage((p) => setProgress(p));
+    };
 
+    const handleMigrateFirebase = async () => {
+        if (progress.status === 'running') return;
         const Swal = (window as any).Swal;
         if (Swal) {
             const result = await Swal.fire({
                 icon: 'warning',
-                title: '<span style="font-size:18px;font-weight:900">⚠️ ยืนยันการย้ายข้อมูล</span>',
+                title: '<span style="font-size:18px;font-weight:900">⚠️ ย้ายรูปจาก Firebase → NAS</span>',
                 html: `
                     <div style="text-align:left;font-size:13px;color:#475569;line-height:1.8">
                         <p style="font-weight:700;color:#1e293b;margin-bottom:8px">การดำเนินการนี้จะ:</p>
                         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px 16px;margin-bottom:12px">
                             <p>1. อ่าน jobs และ invoices ทั้งหมด</p>
-                            <p>2. Upload รูป Base64 ไป NAS Storage</p>
-                            <p>3. เปลี่ยน Base64 ใน DB เป็น URL</p>
+                            <p>2. Download รูปจาก Firebase Storage</p>
+                            <p>3. Upload ไป NAS</p>
+                            <p>4. เปลี่ยน URL ใน DB เป็น NAS URL</p>
                         </div>
-                        <p style="font-weight:800;color:#059669">✅ DB size จะลดจาก ~57MB เหลือ ~5MB</p>
+                        <p style="font-weight:800;color:#059669">✅ รูปทั้งหมดจะอยู่บน NAS ของคุณ</p>
                     </div>
                 `,
                 showCancelButton: true,
-                confirmButtonText: '🚀 เริ่มย้ายข้อมูล',
+                confirmButtonText: '🚀 เริ่มย้ายไป NAS',
                 cancelButtonText: 'ยกเลิก',
                 confirmButtonColor: '#7c3aed',
                 cancelButtonColor: '#94a3b8',
@@ -43,11 +54,11 @@ const MigrationTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             });
             if (!result.isConfirmed) return;
         } else {
-            if (!window.confirm('ยืนยันการย้ายรูป Base64 ไป Firebase Storage?')) return;
+            if (!window.confirm('ยืนยันย้ายรูปจาก Firebase Storage → NAS?')) return;
         }
 
         setProgress(prev => ({ ...prev, status: 'running' }));
-        await migrateBase64ToStorage((p) => setProgress(p));
+        await migrateFirebaseToNAS((p) => setProgress(p as any));
     };
 
     const pct = progress.totalJobs > 0
@@ -65,25 +76,66 @@ const MigrationTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                         </div>
                         <div>
                             <h3 className="text-xl font-bold text-white">Migration Tool</h3>
-                            <p className="text-violet-200 text-xs font-bold">ย้ายรูป Base64 → NAS Storage</p>
+                            <p className="text-violet-200 text-xs font-bold">{mode === 'firebase' ? 'ย้ายรูป Firebase → NAS' : mode === 'base64' ? 'ย้ายรูป Base64 → NAS' : 'เลือกประเภทการย้าย'}</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Content */}
                 <div className="p-8 space-y-6">
-                    {progress.status === 'idle' && (
+                    {progress.status === 'idle' && mode === 'select' && (
+                        <div className="space-y-3">
+                            <button
+                                onClick={() => setMode('firebase')}
+                                className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-2xl p-5 text-left hover:shadow-lg transition-all"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <ArrowRightLeft size={24} />
+                                    <div>
+                                        <p className="font-black text-sm">Firebase Storage → NAS</p>
+                                        <p className="text-orange-100 text-xs font-medium">ย้ายรูปเก่าจาก Firebase ไป NAS ของคุณ</p>
+                                    </div>
+                                </div>
+                            </button>
+                            <button
+                                onClick={() => setMode('base64')}
+                                className="w-full bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-2xl p-5 text-left hover:shadow-lg transition-all"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Database size={24} />
+                                    <div>
+                                        <p className="font-black text-sm">Base64 → NAS</p>
+                                        <p className="text-violet-100 text-xs font-medium">ย้ายรูป Base64 ที่ฝังใน DB ไป NAS</p>
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                    )}
+
+                    {progress.status === 'idle' && mode !== 'select' && (
                         <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 space-y-3">
                             <div className="flex items-start gap-3">
                                 <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={20} />
                                 <div className="space-y-2">
-                                    <p className="font-bold text-amber-800 text-sm">สิ่งที่จะเกิดขึ้น:</p>
+                                    <p className="font-bold text-amber-800 text-sm">
+                                        {mode === 'firebase' ? 'ย้ายรูปจาก Firebase Storage → NAS:' : 'ย้ายรูป Base64 → NAS:'}
+                                    </p>
                                     <ul className="text-xs text-amber-700 space-y-1.5 font-medium">
-                                        <li className="flex items-center gap-2"><ImageIcon size={12} /> รูป POD (podImageUrls) ที่เป็น Base64 → Upload ไป NAS</li>
-                                        <li className="flex items-center gap-2"><FileText size={12} /> สลิปการจ่ายเงิน (paymentSlipUrl) ที่เป็น Base64 → Upload ไป NAS</li>
-                                        <li className="flex items-center gap-2"><HardDrive size={12} /> DB size จะลดจาก ~57MB เหลือ ~5MB</li>
+                                        {mode === 'firebase' ? (
+                                            <>
+                                                <li className="flex items-center gap-2"><ImageIcon size={12} /> Download รูปจาก Firebase Storage</li>
+                                                <li className="flex items-center gap-2"><HardDrive size={12} /> Upload ไป NAS ของคุณ</li>
+                                                <li className="flex items-center gap-2"><FileText size={12} /> เปลี่ยน URL ใน DB เป็น NAS URL</li>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <li className="flex items-center gap-2"><ImageIcon size={12} /> รูป POD ที่เป็น Base64 → Upload ไป NAS</li>
+                                                <li className="flex items-center gap-2"><FileText size={12} /> สลิปที่เป็น Base64 → Upload ไป NAS</li>
+                                                <li className="flex items-center gap-2"><HardDrive size={12} /> DB size จะลดลงมาก</li>
+                                            </>
+                                        )}
                                     </ul>
-                                    <p className="text-[10px] text-amber-600 font-bold mt-2">* รูปที่เป็น URL อยู่แล้วจะไม่ถูกแตะต้อง</p>
+                                    <p className="text-[10px] text-amber-600 font-bold mt-2">* รูปที่อยู่บน NAS แล้วจะไม่ถูกแตะต้อง</p>
                                 </div>
                             </div>
                         </div>
@@ -171,6 +223,14 @@ const MigrationTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
                 {/* Footer */}
                 <div className="bg-slate-50 px-8 py-5 flex justify-end gap-3 border-t border-slate-100">
+                    {mode !== 'select' && progress.status === 'idle' && (
+                        <button
+                            onClick={() => setMode('select')}
+                            className="px-6 py-3 rounded-xl font-black text-slate-400 uppercase tracking-widest text-[10px] hover:bg-white hover:text-slate-600 transition-all"
+                        >
+                            ← กลับ
+                        </button>
+                    )}
                     <button
                         onClick={onClose}
                         disabled={progress.status === 'running'}
@@ -178,13 +238,26 @@ const MigrationTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                     >
                         {progress.status === 'done' || progress.status === 'error' ? 'ปิด' : 'ยกเลิก'}
                     </button>
-                    {(progress.status === 'idle' || progress.status === 'error') && (
+                    {(progress.status === 'idle' && mode !== 'select') && (
                         <button
-                            onClick={handleMigrate}
-                            className="bg-gradient-to-r from-violet-600 to-purple-600 px-8 py-3 rounded-xl font-black text-white uppercase tracking-widest text-[10px] shadow-lg shadow-violet-200 hover:shadow-xl hover:shadow-violet-300 transition-all flex items-center gap-2"
+                            onClick={mode === 'firebase' ? handleMigrateFirebase : handleMigrateBase64}
+                            className={`px-8 py-3 rounded-xl font-black text-white uppercase tracking-widest text-[10px] shadow-lg hover:shadow-xl transition-all flex items-center gap-2 ${
+                                mode === 'firebase'
+                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 shadow-orange-200 hover:shadow-orange-300'
+                                    : 'bg-gradient-to-r from-violet-600 to-purple-600 shadow-violet-200 hover:shadow-violet-300'
+                            }`}
                         >
                             <Upload size={14} />
-                            เริ่มย้ายข้อมูล
+                            {mode === 'firebase' ? 'เริ่มย้ายไป NAS' : 'เริ่มย้ายข้อมูล'}
+                        </button>
+                    )}
+                    {progress.status === 'error' && (
+                        <button
+                            onClick={mode === 'firebase' ? handleMigrateFirebase : handleMigrateBase64}
+                            className="bg-gradient-to-r from-orange-500 to-red-500 px-8 py-3 rounded-xl font-black text-white uppercase tracking-widest text-[10px] shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                        >
+                            <Upload size={14} />
+                            ลองใหม่
                         </button>
                     )}
                 </div>
