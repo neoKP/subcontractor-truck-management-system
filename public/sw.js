@@ -36,6 +36,9 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (event.request.method !== 'GET') return;
 
+  // Skip non-http requests (chrome-extension, etc.)
+  if (!(event.request.url.indexOf('http') === 0)) return;
+
   // Skip Firebase and external API requests
   const url = new URL(event.request.url);
   if (
