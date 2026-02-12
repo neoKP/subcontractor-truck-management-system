@@ -34,11 +34,10 @@ self.addEventListener('activate', (event) => {
 // Fetch: Network first, fallback to cache
 self.addEventListener('fetch', (event) => {
   try {
-    // Skip non-GET requests
-    if (event.request.method !== 'GET') return;
-
-    // Skip non-http/https requests (chrome-extension, blob, data, etc.)
-    if (!event.request.url.startsWith('http')) return;
+    // Skip non-GET and non-http/https requests (chrome-extension, blob, data, etc.)
+    if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) {
+      return;
+    }
 
     // Skip Firebase and external API requests
     const url = new URL(event.request.url);
@@ -61,7 +60,7 @@ self.addEventListener('fetch', (event) => {
           if (response && response.status === 200 && response.type === 'basic') {
             const responseClone = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseClone);
+              cache.put(event.request, responseClone).catch(() => {});
             });
           }
           return response;
