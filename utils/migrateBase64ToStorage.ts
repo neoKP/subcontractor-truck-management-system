@@ -1,4 +1,5 @@
 import { db, ref, get, update, storage, storageRef, uploadBytes, getDownloadURL } from '../firebaseConfig';
+import { compressBlobToWebP } from './imageCompression';
 
 /**
  * Migration Script: ย้ายรูป Base64 จาก Realtime DB → Firebase Storage
@@ -54,6 +55,8 @@ const getFileExtension = (base64: string): string => {
     return 'bin';
 };
 
+const isImageExt = (ext: string) => ['jpg', 'jpeg', 'png', 'webp'].includes(ext.toLowerCase());
+
 export const migrateBase64ToStorage = async (
     onProgress?: (progress: MigrationProgress) => void
 ): Promise<MigrationProgress> => {
@@ -101,13 +104,16 @@ export const migrateBase64ToStorage = async (
                                 }
 
                                 const ext = getFileExtension(url);
-                                const path = `pod-images/${jobKey}/${Date.now()}_${i}.${ext}`;
+                                const finalBlob = isImageExt(ext)
+                                    ? await compressBlobToWebP(blob, { maxWidth: 800, quality: 0.6, outputType: 'image/webp' })
+                                    : blob;
+                                const path = `pod-images/${jobKey}/${Date.now()}_${i}.${isImageExt(ext) ? 'webp' : ext}`;
                                 const fileRef = storageRef(storage, path);
-                                await uploadBytes(fileRef, blob);
+                                await uploadBytes(fileRef, finalBlob);
                                 const downloadUrl = await getDownloadURL(fileRef);
                                 newUrls.push(downloadUrl);
                                 progress.migratedImages++;
-                                console.log(`  ✅ Job ${jobKey} image ${i} → Storage (${(blob.size / 1024).toFixed(0)}KB)`);
+                                console.log(`  ✅ Job ${jobKey} image ${i} → Storage (${(finalBlob.size / 1024).toFixed(0)}KB)`);
                             } catch (err: any) {
                                 progress.errors.push(`Job ${jobKey} image ${i}: ${err.message}`);
                                 newUrls.push(url);
@@ -133,13 +139,16 @@ export const migrateBase64ToStorage = async (
                             progress.errors.push(`Job ${jobKey} slip: Failed to convert`);
                         } else {
                             const ext = getFileExtension(job.paymentSlipUrl);
-                            const path = `payment-slips/${jobKey}/${Date.now()}_slip.${ext}`;
+                            const finalBlob = isImageExt(ext)
+                                ? await compressBlobToWebP(blob, { maxWidth: 800, quality: 0.6, outputType: 'image/webp' })
+                                : blob;
+                            const path = `payment-slips/${jobKey}/${Date.now()}_slip.${isImageExt(ext) ? 'webp' : ext}`;
                             const fileRef = storageRef(storage, path);
-                            await uploadBytes(fileRef, blob);
+                            await uploadBytes(fileRef, finalBlob);
                             const downloadUrl = await getDownloadURL(fileRef);
                             await update(ref(db, `jobs/${jobKey}`), { paymentSlipUrl: downloadUrl });
                             progress.migratedSlips++;
-                            console.log(`  ✅ Job ${jobKey} slip → Storage (${(blob.size / 1024).toFixed(0)}KB)`);
+                            console.log(`  ✅ Job ${jobKey} slip → Storage (${(finalBlob.size / 1024).toFixed(0)}KB)`);
                         }
                     } catch (err: any) {
                         progress.errors.push(`Job ${jobKey} slip: ${err.message}`);
@@ -171,13 +180,16 @@ export const migrateBase64ToStorage = async (
                         }
 
                         const ext = getFileExtension(invoice.paymentSlipUrl);
-                        const path = `payment-slips/invoices/${invKey}/${Date.now()}_slip.${ext}`;
+                        const finalBlob = isImageExt(ext)
+                            ? await compressBlobToWebP(blob, { maxWidth: 800, quality: 0.6, outputType: 'image/webp' })
+                            : blob;
+                        const path = `payment-slips/invoices/${invKey}/${Date.now()}_slip.${isImageExt(ext) ? 'webp' : ext}`;
                         const fileRef = storageRef(storage, path);
-                        await uploadBytes(fileRef, blob);
+                        await uploadBytes(fileRef, finalBlob);
                         const downloadUrl = await getDownloadURL(fileRef);
                         await update(ref(db, `invoices/${invKey}`), { paymentSlipUrl: downloadUrl });
                         progress.migratedSlips++;
-                        console.log(`  ✅ Invoice ${invKey} slip → Storage (${(blob.size / 1024).toFixed(0)}KB)`);
+                        console.log(`  ✅ Invoice ${invKey} slip → Storage (${(finalBlob.size / 1024).toFixed(0)}KB)`);
                     } catch (err: any) {
                         progress.errors.push(`Invoice ${invKey}: ${err.message}`);
                     }

@@ -1,4 +1,5 @@
 import { storage, storageRef, uploadBytes, getDownloadURL } from '../firebaseConfig';
+import { compressImageFile } from './imageCompression';
 
 /**
  * Upload a File object to Firebase Storage and return the download URL.
@@ -10,7 +11,8 @@ import { storage, storageRef, uploadBytes, getDownloadURL } from '../firebaseCon
  */
 export const uploadFileToStorage = async (file: File, path: string): Promise<string> => {
     const fileRef = storageRef(storage, path);
-    await uploadBytes(fileRef, file);
+    const compressed = await compressImageFile(file, { maxWidth: 800, quality: 0.6, outputType: 'image/webp' });
+    await uploadBytes(fileRef, compressed);
     const url = await getDownloadURL(fileRef);
     return url;
 };
@@ -27,7 +29,7 @@ export const uploadFilesToStorage = async (files: File[], basePath: string): Pro
     const uploadPromises = files.map((file, index) => {
         const timestamp = Date.now();
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const path = `${basePath}/${timestamp}_${index}_${safeName}`;
+        const path = `${basePath}/${timestamp}_${index}_${safeName.replace(/\.[^.]+$/, '')}.webp`;
         return uploadFileToStorage(file, path);
     });
     return Promise.all(uploadPromises);
