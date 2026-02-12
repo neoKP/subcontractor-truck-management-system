@@ -592,7 +592,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
                       <div className="flex flex-col gap-2 relative z-10">
                         {/* POD / Evidence Display */}
                         {job.podImageUrls && job.podImageUrls.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-64 overflow-auto pr-1">
                             {job.podImageUrls.map((url, idx) => {
                               const isBase64Pdf = url.startsWith('data:application/pdf');
                               const isUrlPdf = url.endsWith('.pdf');
@@ -640,7 +640,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
                                       }
                                     }
                                   }}
-                                  className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 hover:scale-110 transition-transform overflow-hidden shadow-sm relative flex items-center justify-center group"
+                                  className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-200 hover:shadow-md transition-shadow overflow-hidden shadow-sm relative flex items-center justify-center group"
                                   title={`View POD ${idx + 1}`}
                                 >
                                   {isPdf ? (
