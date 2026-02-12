@@ -31,17 +31,21 @@ const isNASUrl = (url: string): boolean => {
     return typeof url === 'string' && url.includes('neosiam.dscloud.biz');
 };
 
-const NAS_PROXY_URL = 'https://neosiam.dscloud.biz/api/upload.php';
+const NAS_UPLOAD_URL = 'https://neosiam.dscloud.biz/api/upload.php';
 const NAS_API_KEY = 'NAS_UPLOAD_KEY_sansan856';
 
 const proxyDownloadToNAS = async (sourceUrl: string, destPath: string): Promise<string> => {
-    const response = await fetch(NAS_PROXY_URL, {
+    const formData = new FormData();
+    formData.append('action', 'proxy_download');
+    formData.append('sourceUrl', sourceUrl);
+    formData.append('path', destPath);
+
+    const response = await fetch(NAS_UPLOAD_URL, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
             'X-API-Key': NAS_API_KEY,
         },
-        body: JSON.stringify({ sourceUrl, path: destPath }),
+        body: formData,
     });
 
     if (!response.ok) {
