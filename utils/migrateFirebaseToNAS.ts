@@ -1,5 +1,4 @@
 import { db, ref, get, update } from '../firebaseConfig';
-import { uploadToNAS } from './nasUpload';
 
 /**
  * Migration Script: ย้ายรูปจาก Firebase Storage → NAS
@@ -32,10 +31,30 @@ const isNASUrl = (url: string): boolean => {
     return typeof url === 'string' && url.includes('neosiam.dscloud.biz');
 };
 
-const downloadAsBlob = async (url: string): Promise<Blob> => {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Download failed: ${response.status}`);
-    return response.blob();
+const NAS_PROXY_URL = 'https://neosiam.dscloud.biz/api/proxy-download.php';
+const NAS_API_KEY = 'NAS_UPLOAD_KEY_sansan856';
+
+const proxyDownloadToNAS = async (sourceUrl: string, destPath: string): Promise<string> => {
+    const response = await fetch(NAS_PROXY_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': NAS_API_KEY,
+        },
+        body: JSON.stringify({ sourceUrl, path: destPath }),
+    });
+
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: response.statusText }));
+        throw new Error(err.error || `Proxy failed: ${response.status}`);
+    }
+
+    const result = await response.json();
+    if (!result.success || !result.url) {
+        throw new Error(`Proxy failed: ${JSON.stringify(result)}`);
+    }
+
+    return result.url;
 };
 
 export const migrateFirebaseToNAS = async (
@@ -82,15 +101,11 @@ export const migrateFirebaseToNAS = async (
                         } else if (isFirebaseStorageUrl(url)) {
                             hasFirebaseUrl = true;
                             try {
-                                const blob = await downloadAsBlob(url);
-                                const ext = blob.type.includes('webp') ? 'webp' :
-                                           blob.type.includes('jpeg') ? 'jpg' :
-                                           blob.type.includes('png') ? 'png' : 'webp';
-                                const path = `pod-images/${jobKey}/${Date.now()}_${i}.${ext}`;
-                                const nasUrl = await uploadToNAS(blob, path);
+                                const path = `pod-images/${jobKey}/${Date.now()}_${i}.webp`;
+                                const nasUrl = await proxyDownloadToNAS(url, path);
                                 newUrls.push(nasUrl);
                                 progress.migratedImages++;
-                                console.log(`  ✅ Job ${jobKey} image ${i} → NAS (${(blob.size / 1024).toFixed(0)}KB)`);
+                                console.log(`  ✅ Job ${jobKey} image ${i} → NAS`);
                             } catch (err: any) {
                                 progress.errors.push(`Job ${jobKey} img ${i}: ${err.message}`);
                                 newUrls.push(url); // keep old URL on error
@@ -111,15 +126,11 @@ export const migrateFirebaseToNAS = async (
                 if (job.paymentSlipUrl && isFirebaseStorageUrl(job.paymentSlipUrl)) {
                     progress.totalSlips++;
                     try {
-                        const blob = await downloadAsBlob(job.paymentSlipUrl);
-                        const ext = blob.type.includes('webp') ? 'webp' :
-                                   blob.type.includes('jpeg') ? 'jpg' :
-                                   blob.type.includes('png') ? 'png' : 'webp';
-                        const path = `payment-slips/${jobKey}/${Date.now()}_slip.${ext}`;
-                        const nasUrl = await uploadToNAS(blob, path);
+                        const path = `payment-slips/${jobKey}/${Date.now()}_slip.webp`;
+                        const nasUrl = await proxyDownloadToNAS(job.paymentSlipUrl, path);
                         await update(ref(db, `jobs/${jobKey}`), { paymentSlipUrl: nasUrl });
                         progress.migratedSlips++;
-                        console.log(`  ✅ Job ${jobKey} slip → NAS (${(blob.size / 1024).toFixed(0)}KB)`);
+                        console.log(`  ✅ Job ${jobKey} slip → NAS`);
                     } catch (err: any) {
                         progress.errors.push(`Job ${jobKey} slip: ${err.message}`);
                     }
@@ -145,15 +156,11 @@ export const migrateFirebaseToNAS = async (
                 if (invoice.paymentSlipUrl && isFirebaseStorageUrl(invoice.paymentSlipUrl)) {
                     progress.totalSlips++;
                     try {
-                        const blob = await downloadAsBlob(invoice.paymentSlipUrl);
-                        const ext = blob.type.includes('webp') ? 'webp' :
-                                   blob.type.includes('jpeg') ? 'jpg' :
-                                   blob.type.includes('png') ? 'png' : 'webp';
-                        const path = `payment-slips/invoices/${invKey}/${Date.now()}_slip.${ext}`;
-                        const nasUrl = await uploadToNAS(blob, path);
+                        const path = `payment-slips/invoices/${invKey}/${Date.now()}_slip.webp`;
+                        const nasUrl = await proxyDownloadToNAS(invoice.paymentSlipUrl, path);
                         await update(ref(db, `invoices/${invKey}`), { paymentSlipUrl: nasUrl });
                         progress.migratedSlips++;
-                        console.log(`  ✅ Invoice ${invKey} slip → NAS (${(blob.size / 1024).toFixed(0)}KB)`);
+                        console.log(`  ✅ Invoice ${invKey} slip → NAS`);
                     } catch (err: any) {
                         progress.errors.push(`Invoice ${invKey}: ${err.message}`);
                     }
