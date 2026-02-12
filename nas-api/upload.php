@@ -38,6 +38,53 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+// ===== PROXY DOWNLOAD MODE =====
+// ถ้าส่ง JSON body มี sourceUrl → download จาก URL แล้วบันทึกลง NAS
+$contentType = isset($_SERVER['CONTENT_TYPE']) ? $_SERVER['CONTENT_TYPE'] : '';
+if (strpos($contentType, 'application/json') !== false) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if ($input && isset($input['sourceUrl']) && isset($input['path'])) {
+        $sourceUrl = $input['sourceUrl'];
+        $destPath = preg_replace('/[^a-zA-Z0-9_\-\/\.]/', '_', $input['path']);
+
+        $ch = curl_init($sourceUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        $fileData = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $dlType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        $curlErr = curl_error($ch);
+        curl_close($ch);
+
+        if ($httpCode !== 200 || $fileData === false) {
+            http_response_code(502);
+            echo json_encode(array('error' => 'Download failed', 'httpCode' => $httpCode, 'curl' => $curlErr));
+            exit;
+        }
+
+        $fullPath = $UPLOAD_DIR . '/' . $destPath;
+        $dir = dirname($fullPath);
+        if (!is_dir($dir)) mkdir($dir, 0755, true);
+
+        if (file_put_contents($fullPath, $fileData) === false) {
+            http_response_code(500);
+            echo json_encode(array('error' => 'Failed to save file'));
+            exit;
+        }
+
+        echo json_encode(array(
+            'success' => true,
+            'url' => $BASE_URL . '/' . $destPath,
+            'path' => $destPath,
+            'size' => strlen($fileData),
+            'type' => $dlType
+        ));
+        exit;
+    }
+}
+
 if (!isset($_FILES['file'])) {
     http_response_code(400);
     echo json_encode(array('error' => 'No file uploaded'));

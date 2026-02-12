@@ -31,7 +31,7 @@ const isNASUrl = (url: string): boolean => {
     return typeof url === 'string' && url.includes('neosiam.dscloud.biz');
 };
 
-const NAS_PROXY_URL = 'https://neosiam.dscloud.biz/api/proxy-download.php';
+const NAS_PROXY_URL = 'https://neosiam.dscloud.biz/api/upload.php';
 const NAS_API_KEY = 'NAS_UPLOAD_KEY_sansan856';
 
 const proxyDownloadToNAS = async (sourceUrl: string, destPath: string): Promise<string> => {
