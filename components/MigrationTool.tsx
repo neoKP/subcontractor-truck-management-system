@@ -27,7 +27,7 @@ const MigrationTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                         <p style="font-weight:700;color:#1e293b;margin-bottom:8px">การดำเนินการนี้จะ:</p>
                         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px 16px;margin-bottom:12px">
                             <p>1. อ่าน jobs และ invoices ทั้งหมด</p>
-                            <p>2. Upload รูป Base64 ไป Firebase Storage</p>
+                            <p>2. Upload รูป Base64 ไป NAS Storage</p>
                             <p>3. เปลี่ยน Base64 ใน DB เป็น URL</p>
                         </div>
                         <p style="font-weight:800;color:#059669">✅ DB size จะลดจาก ~57MB เหลือ ~5MB</p>
@@ -65,7 +65,7 @@ const MigrationTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                         </div>
                         <div>
                             <h3 className="text-xl font-bold text-white">Migration Tool</h3>
-                            <p className="text-violet-200 text-xs font-bold">ย้ายรูป Base64 → Firebase Storage</p>
+                            <p className="text-violet-200 text-xs font-bold">ย้ายรูป Base64 → NAS Storage</p>
                         </div>
                     </div>
                 </div>
@@ -79,8 +79,8 @@ const MigrationTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                                 <div className="space-y-2">
                                     <p className="font-bold text-amber-800 text-sm">สิ่งที่จะเกิดขึ้น:</p>
                                     <ul className="text-xs text-amber-700 space-y-1.5 font-medium">
-                                        <li className="flex items-center gap-2"><ImageIcon size={12} /> รูป POD (podImageUrls) ที่เป็น Base64 → Upload ไป Storage</li>
-                                        <li className="flex items-center gap-2"><FileText size={12} /> สลิปการจ่ายเงิน (paymentSlipUrl) ที่เป็น Base64 → Upload ไป Storage</li>
+                                        <li className="flex items-center gap-2"><ImageIcon size={12} /> รูป POD (podImageUrls) ที่เป็น Base64 → Upload ไป NAS</li>
+                                        <li className="flex items-center gap-2"><FileText size={12} /> สลิปการจ่ายเงิน (paymentSlipUrl) ที่เป็น Base64 → Upload ไป NAS</li>
                                         <li className="flex items-center gap-2"><HardDrive size={12} /> DB size จะลดจาก ~57MB เหลือ ~5MB</li>
                                     </ul>
                                     <p className="text-[10px] text-amber-600 font-bold mt-2">* รูปที่เป็น URL อยู่แล้วจะไม่ถูกแตะต้อง</p>
