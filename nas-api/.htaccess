@@ -1,0 +1,6 @@
+# ป้องกันการ browse โฟลเดอร์
+Options -Indexes
+
+# จำกัดขนาดไฟล์อัปโหลด
+php_value upload_max_filesize 10M
+php_value post_max_size 12M

@@ -1,13 +1,14 @@
-import { db, ref, get, update, storage, storageRef, uploadBytes, getDownloadURL } from '../firebaseConfig';
+import { db, ref, get, update } from '../firebaseConfig';
 import { compressBlobToWebP } from './imageCompression';
+import { uploadToNAS } from './nasUpload';
 
 /**
- * Migration Script: ย้ายรูป Base64 จาก Realtime DB → Firebase Storage
+ * Migration Script: ย้ายรูป Base64 จาก Realtime DB → NAS Storage
  * 
  * ทำงาน:
  * 1. อ่าน jobs ทั้งหมดจาก DB
  * 2. หา jobs ที่มี podImageUrls เป็น Base64 (เริ่มด้วย "data:")
- * 3. Upload แต่ละรูปไป Firebase Storage
+ * 3. Upload แต่ละรูปไป NAS
  * 4. เปลี่ยน Base64 ใน DB เป็น download URL
  * 5. ทำเหมือนกันกับ paymentSlipUrl ใน jobs และ invoices
  * 
@@ -108,9 +109,7 @@ export const migrateBase64ToStorage = async (
                                     ? await compressBlobToWebP(blob, { maxWidth: 800, quality: 0.6, outputType: 'image/webp' })
                                     : blob;
                                 const path = `pod-images/${jobKey}/${Date.now()}_${i}.${isImageExt(ext) ? 'webp' : ext}`;
-                                const fileRef = storageRef(storage, path);
-                                await uploadBytes(fileRef, finalBlob);
-                                const downloadUrl = await getDownloadURL(fileRef);
+                                const downloadUrl = await uploadToNAS(finalBlob, path);
                                 newUrls.push(downloadUrl);
                                 progress.migratedImages++;
                                 console.log(`  ✅ Job ${jobKey} image ${i} → Storage (${(finalBlob.size / 1024).toFixed(0)}KB)`);
@@ -143,9 +142,7 @@ export const migrateBase64ToStorage = async (
                                 ? await compressBlobToWebP(blob, { maxWidth: 800, quality: 0.6, outputType: 'image/webp' })
                                 : blob;
                             const path = `payment-slips/${jobKey}/${Date.now()}_slip.${isImageExt(ext) ? 'webp' : ext}`;
-                            const fileRef = storageRef(storage, path);
-                            await uploadBytes(fileRef, finalBlob);
-                            const downloadUrl = await getDownloadURL(fileRef);
+                            const downloadUrl = await uploadToNAS(finalBlob, path);
                             await update(ref(db, `jobs/${jobKey}`), { paymentSlipUrl: downloadUrl });
                             progress.migratedSlips++;
                             console.log(`  ✅ Job ${jobKey} slip → Storage (${(finalBlob.size / 1024).toFixed(0)}KB)`);
@@ -184,9 +181,7 @@ export const migrateBase64ToStorage = async (
                             ? await compressBlobToWebP(blob, { maxWidth: 800, quality: 0.6, outputType: 'image/webp' })
                             : blob;
                         const path = `payment-slips/invoices/${invKey}/${Date.now()}_slip.${isImageExt(ext) ? 'webp' : ext}`;
-                        const fileRef = storageRef(storage, path);
-                        await uploadBytes(fileRef, finalBlob);
-                        const downloadUrl = await getDownloadURL(fileRef);
+                        const downloadUrl = await uploadToNAS(finalBlob, path);
                         await update(ref(db, `invoices/${invKey}`), { paymentSlipUrl: downloadUrl });
                         progress.migratedSlips++;
                         console.log(`  ✅ Invoice ${invKey} slip → Storage (${(finalBlob.size / 1024).toFixed(0)}KB)`);

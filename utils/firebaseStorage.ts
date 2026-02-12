@@ -1,24 +1,22 @@
-import { storage, storageRef, uploadBytes, getDownloadURL } from '../firebaseConfig';
 import { compressImageFile } from './imageCompression';
+import { uploadToNAS } from './nasUpload';
 
 /**
- * Upload a File object to Firebase Storage and return the download URL.
- * This replaces the old Base64-in-DB pattern that was causing massive bandwidth usage.
+ * Upload a File object to NAS and return the download URL.
+ * บีบอัดรูปเป็น WebP (800px, q0.6) ก่อนอัปโหลด
  * 
  * @param file - The File object to upload
- * @param path - Storage path e.g. 'pod-images/JRS-2026-0001/photo1.jpg'
+ * @param path - Storage path e.g. 'pod-images/JRS-2026-0001/photo1.webp'
  * @returns Download URL string
  */
 export const uploadFileToStorage = async (file: File, path: string): Promise<string> => {
-    const fileRef = storageRef(storage, path);
     const compressed = await compressImageFile(file, { maxWidth: 800, quality: 0.6, outputType: 'image/webp' });
-    await uploadBytes(fileRef, compressed);
-    const url = await getDownloadURL(fileRef);
+    const url = await uploadToNAS(compressed, path);
     return url;
 };
 
 /**
- * Upload multiple files to Firebase Storage.
+ * Upload multiple files to NAS.
  * Returns array of download URLs.
  * 
  * @param files - Array of File objects
