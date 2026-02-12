@@ -1,13 +1,14 @@
-import { db, ref, get, update } from '../firebaseConfig';
+import { db, ref, get, update, storage, storageRef, getBlob } from '../firebaseConfig';
+import { uploadToNAS } from './nasUpload';
 
 /**
  * Migration Script: ย้ายรูปจาก Firebase Storage → NAS
  * 
- * ทำงาน:
+ * วิธีการ:
  * 1. อ่าน jobs + invoices ทั้งหมดจาก DB
- * 2. หา URL ที่ชี้ไป Firebase Storage (firebasestorage.googleapis.com)
- * 3. Download รูปจาก Firebase Storage
- * 4. Upload ไป NAS
+ * 2. หา URL ที่ชี้ไป Firebase Storage
+ * 3. ใช้ Firebase SDK getBlob() download รูป (ไม่มีปัญหา CORS)
+ * 4. Upload blob ไป NAS ผ่าน uploadToNAS() (FormData ที่ทำงานอยู่แล้ว)
  * 5. เปลี่ยน URL ใน DB เป็น NAS URL
  */
 
@@ -31,34 +32,30 @@ const isNASUrl = (url: string): boolean => {
     return typeof url === 'string' && url.includes('neosiam.dscloud.biz');
 };
 
-const NAS_UPLOAD_URL = 'https://neosiam.dscloud.biz/api/upload.php';
-const NAS_API_KEY = 'NAS_UPLOAD_KEY_sansan856';
+/**
+ * แปลง Firebase Storage download URL → storage path
+ * เช่น: https://firebasestorage.googleapis.com/v0/b/BUCKET/o/pod-images%2FJOB%2Ffile.webp?alt=media&token=...
+ * → pod-images/JOB/file.webp
+ */
+const extractStoragePath = (url: string): string | null => {
+    try {
+        const match = url.match(/\/o\/([^?]+)/);
+        if (match) return decodeURIComponent(match[1]);
+    } catch {}
+    return null;
+};
 
-const proxyDownloadToNAS = async (sourceUrl: string, destPath: string): Promise<string> => {
-    const formData = new FormData();
-    formData.append('action', 'proxy_download');
-    formData.append('sourceUrl', sourceUrl);
-    formData.append('path', destPath);
+/**
+ * Download จาก Firebase Storage ด้วย SDK แล้ว upload ไป NAS
+ */
+const downloadAndUploadToNAS = async (firebaseUrl: string, nasPath: string): Promise<string> => {
+    const storagePath = extractStoragePath(firebaseUrl);
+    if (!storagePath) throw new Error('Cannot parse Firebase URL');
 
-    const response = await fetch(NAS_UPLOAD_URL, {
-        method: 'POST',
-        headers: {
-            'X-API-Key': NAS_API_KEY,
-        },
-        body: formData,
-    });
-
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: response.statusText }));
-        throw new Error(err.error || `Proxy failed: ${response.status}`);
-    }
-
-    const result = await response.json();
-    if (!result.success || !result.url) {
-        throw new Error(`Proxy failed: ${JSON.stringify(result)}`);
-    }
-
-    return result.url;
+    const fileRef = storageRef(storage, storagePath);
+    const blob = await getBlob(fileRef);
+    const nasUrl = await uploadToNAS(blob, nasPath);
+    return nasUrl;
 };
 
 export const migrateFirebaseToNAS = async (
@@ -106,7 +103,7 @@ export const migrateFirebaseToNAS = async (
                             hasFirebaseUrl = true;
                             try {
                                 const path = `pod-images/${jobKey}/${Date.now()}_${i}.webp`;
-                                const nasUrl = await proxyDownloadToNAS(url, path);
+                                const nasUrl = await downloadAndUploadToNAS(url, path);
                                 newUrls.push(nasUrl);
                                 progress.migratedImages++;
                                 console.log(`  ✅ Job ${jobKey} image ${i} → NAS`);
@@ -131,7 +128,7 @@ export const migrateFirebaseToNAS = async (
                     progress.totalSlips++;
                     try {
                         const path = `payment-slips/${jobKey}/${Date.now()}_slip.webp`;
-                        const nasUrl = await proxyDownloadToNAS(job.paymentSlipUrl, path);
+                        const nasUrl = await downloadAndUploadToNAS(job.paymentSlipUrl, path);
                         await update(ref(db, `jobs/${jobKey}`), { paymentSlipUrl: nasUrl });
                         progress.migratedSlips++;
                         console.log(`  ✅ Job ${jobKey} slip → NAS`);
@@ -161,7 +158,7 @@ export const migrateFirebaseToNAS = async (
                     progress.totalSlips++;
                     try {
                         const path = `payment-slips/invoices/${invKey}/${Date.now()}_slip.webp`;
-                        const nasUrl = await proxyDownloadToNAS(invoice.paymentSlipUrl, path);
+                        const nasUrl = await downloadAndUploadToNAS(invoice.paymentSlipUrl, path);
                         await update(ref(db, `invoices/${invKey}`), { paymentSlipUrl: nasUrl });
                         progress.migratedSlips++;
                         console.log(`  ✅ Invoice ${invKey} slip → NAS`);
