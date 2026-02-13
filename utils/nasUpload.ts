@@ -15,6 +15,7 @@ export const uploadToNAS = async (
     formData.append('file', fileOrBlob, path.split('/').pop() || 'file');
     formData.append('path', path);
 
+    console.log('[NAS Upload] Sending:', path, 'size:', fileOrBlob.size);
     const response = await fetch(NAS_API_URL, {
         method: 'POST',
         headers: {
@@ -23,7 +24,16 @@ export const uploadToNAS = async (
         body: formData,
     });
 
-    const result = await response.json();
+    const text = await response.text();
+    console.log('[NAS Upload] Response status:', response.status, 'body:', text);
+    
+    let result;
+    try {
+        result = JSON.parse(text);
+    } catch (e) {
+        throw new Error(`NAS upload: invalid JSON response: ${text.substring(0, 200)}`);
+    }
+    
     if (!result.success || !result.url) {
         throw new Error(`NAS upload failed: ${result.error || JSON.stringify(result)}`);
     }
