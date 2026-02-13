@@ -110,6 +110,10 @@ export interface Job {
   billingDocNo?: string;
   paymentDate?: string;
   paymentSlipUrl?: string;
+
+  // Payment info (for CASH jobs)
+  paymentType?: 'CASH' | 'CREDIT';
+  paymentAccount?: string; // Bank account info for cash payment
 }
 
 export interface AuditLog {
@@ -142,6 +146,7 @@ export interface PriceMatrix {
   dropOffFee?: number;
   paymentType?: 'CASH' | 'CREDIT'; // Payment type for subcontractor
   creditDays?: number; // Credit days: 0, 7, 15, 30, 45, 60, or custom
+  paymentAccount?: string; // Bank account info (required for CASH)
 }
 
 // Invoice Status for Subcontractor Payment

@@ -33,7 +33,9 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     driverPhone: '',
     licensePlate: '',
     cost: 0,
-    drops: [] as { location: string; status: 'PENDING' | 'COMPLETED'; podUrl?: string; completedAt?: string }[]
+    drops: [] as { location: string; status: 'PENDING' | 'COMPLETED'; podUrl?: string; completedAt?: string }[],
+    paymentType: '' as '' | 'CASH' | 'CREDIT',
+    paymentAccount: '',
   });
 
   const [showOriginList, setShowOriginList] = useState(false);
@@ -104,6 +106,20 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     // No need to check step < 3 here as this is bound to the save button
 
     if (isSubmitting) return;
+
+    // CASH jobs require payment account
+    if (formData.paymentType === 'CASH' && !(formData.paymentAccount || '').trim()) {
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          title: 'ข้อมูลไม่ครบ / Missing Info',
+          text: 'งานนี้เป็นเงินสด กรุณาระบุเลขที่บัญชีที่ต้องชำระเงินก่อนบันทึก',
+          icon: 'warning',
+          confirmButtonColor: '#e11d48',
+          customClass: { popup: 'rounded-[2rem]' }
+        });
+      }
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -621,13 +637,15 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                                   type="button"
                                   onClick={() => {
                                     if (isSelected) {
-                                      setFormData(prev => ({ ...prev, subcontractor: '', cost: 0, sellingPrice: 0 }));
+                                      setFormData(prev => ({ ...prev, subcontractor: '', cost: 0, sellingPrice: 0, paymentType: '', paymentAccount: '' }));
                                     } else {
                                       setFormData(prev => ({
                                         ...prev,
                                         subcontractor: p.subcontractor,
                                         cost: totalWithDrops,
-                                        sellingPrice: p.sellingBasePrice + dropFeeTotal
+                                        sellingPrice: p.sellingBasePrice + dropFeeTotal,
+                                        paymentType: p.paymentType || 'CREDIT',
+                                        paymentAccount: p.paymentAccount || ''
                                       }));
                                     }
                                   }}
@@ -783,6 +801,26 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                           </div>
                         </div>
                       </div>
+
+                      {/* Payment Account - CASH only */}
+                      {formData.paymentType === 'CASH' && (
+                        <div className="p-4 bg-red-50 rounded-2xl border-2 border-red-200 shadow-sm">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="p-1 px-2 bg-red-600 text-white rounded text-[9px] font-black uppercase tracking-widest">💰 เงินสด</div>
+                            <p className="text-[10px] font-black text-red-600 uppercase tracking-widest">บัญชีที่ต้องชำระเงิน (Payment Account) *</p>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="เช่น กสิกรไทย 123-4-56789-0 ชื่อ บจก.xxxxx"
+                            className="w-full px-4 py-2.5 rounded-xl border border-red-300 bg-white focus:ring-4 focus:ring-red-100 focus:border-red-500 outline-none transition-all font-bold text-slate-700 text-xs"
+                            value={formData.paymentAccount}
+                            onChange={e => setFormData({ ...formData, paymentAccount: e.target.value })}
+                          />
+                          {!(formData.paymentAccount || '').trim() && (
+                            <p className="text-[10px] font-bold text-red-500 mt-1">⚠️ กรุณาระบุเลขบัญชีก่อนบันทึก</p>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-4">

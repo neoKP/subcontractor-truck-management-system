@@ -18,7 +18,7 @@ const thaiSafeText = (text: string | number | undefined | null) => {
 /**
  * STRICT Resource loader for PDF
  */
-const initPDFResources = async () => {
+export const initPDFResources = async () => {
     if (fontLoadingPromise) return fontLoadingPromise;
 
     fontLoadingPromise = (async () => {
@@ -300,6 +300,18 @@ const JobRequestPDFDocument: React.FC<JobRequestPDFProps> = ({ job }) => {
                         <Text style={pStyles.remarksText}>{thaiSafeText(job.remark || '- ไม่มีข้อมูลเพิ่มเติม -')}</Text>
                     </View>
                 </View>
+
+                {/* Section 6: Payment Account (CASH only) */}
+                {job.paymentType === 'CASH' && job.paymentAccount && (
+                    <View style={[pStyles.sectionBox, { borderColor: '#dc2626', borderWidth: 1.5 }]}>
+                        <View style={[pStyles.sectionHeader, { backgroundColor: '#fef2f2' }]}>
+                            <Text style={[pStyles.sectionTitle, { color: '#dc2626' }]}>{thaiSafeText('6. บัญชีที่ต้องชำระเงิน (PAYMENT ACCOUNT) - เงินสด')}</Text>
+                        </View>
+                        <View style={[pStyles.sectionContent, { paddingVertical: 6 }]}>
+                            <Text style={{ fontSize: 10, fontWeight: 700, color: '#dc2626' }}>{thaiSafeText(job.paymentAccount)}</Text>
+                        </View>
+                    </View>
+                )}
 
                 {/* Signatures - Fixed Centering */}
                 <View style={pStyles.signatureSection}>

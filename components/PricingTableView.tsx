@@ -620,6 +620,12 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                       {formData.paymentType === 'CASH' ? 'จ่ายทันทีเมื่องานเสร็จ' : `${formData.creditDays} วัน`}
                     </span>
                   </div>
+                  {formData.paymentType === 'CASH' && formData.paymentAccount && (
+                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-[10px] font-black text-red-600 uppercase mb-0.5">💰 บัญชีที่ต้องชำระ</p>
+                      <p className="text-sm font-bold text-red-800">{formData.paymentAccount}</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-xl flex items-center gap-3">
@@ -754,7 +760,8 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                         onChange={e => setFormData({ 
                           ...formData, 
                           paymentType: e.target.value as 'CASH' | 'CREDIT',
-                          creditDays: e.target.value === 'CASH' ? 0 : (formData.creditDays || 30)
+                          creditDays: e.target.value === 'CASH' ? 0 : (formData.creditDays || 30),
+                          paymentAccount: e.target.value === 'CREDIT' ? '' : formData.paymentAccount
                         })}
                       >
                         <option value="CASH">💵 เงินสด (จ่ายทันที)</option>
@@ -779,6 +786,20 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                       </select>
                     </div>
                   </div>
+
+                  {/* Payment Account - CASH only */}
+                  {formData.paymentType === 'CASH' && (
+                    <div className="mt-3 space-y-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase">💰 เลขที่บัญชีที่ต้องชำระ (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="เช่น กสิกรไทย 123-4-56789-0 ชื่อ บจก.xxxxx"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold"
+                        value={formData.paymentAccount || ''}
+                        onChange={e => setFormData({ ...formData, paymentAccount: e.target.value })}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             )}

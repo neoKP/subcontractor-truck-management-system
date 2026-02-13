@@ -3,7 +3,7 @@ import React, { useRef, useState } from 'react';
 import { Job } from '../types';
 import { X, Printer, FileText, Download, Loader2 } from 'lucide-react';
 import { formatDate } from '../utils/format';
-import { generateJobRequestPDF } from './JobRequestPDF';
+import { generateJobRequestPDF, initPDFResources } from './JobRequestPDF';
 
 interface JobPreviewModalProps {
     job: Job;
@@ -20,16 +20,33 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
     const handlePrint = async () => {
         setIsGeneratingPDF(true);
         try {
+            await initPDFResources();
             const { pdf } = await import('@react-pdf/renderer');
             const { default: JobRequestPDFDocument } = await import('./JobRequestPDF');
             const blob = await pdf(<JobRequestPDFDocument job={job} />).toBlob();
             const url = URL.createObjectURL(blob);
-            const printWindow = window.open(url, '_blank');
-            if (printWindow) {
-                printWindow.onload = () => {
-                    printWindow.print();
-                };
-            }
+
+            // Use hidden iframe instead of window.open to avoid popup blocker
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = 'none';
+            iframe.src = url;
+            document.body.appendChild(iframe);
+
+            iframe.onload = () => {
+                setTimeout(() => {
+                    iframe.contentWindow?.print();
+                }, 300);
+                // Clean up after print dialog closes
+                setTimeout(() => {
+                    document.body.removeChild(iframe);
+                    URL.revokeObjectURL(url);
+                }, 60000);
+            };
         } catch (error) {
             console.error('Error printing PDF:', error);
             window.print();

@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { Job, JobStatus, PriceMatrix } from '../types';
-import { X, Printer, CheckCircle, Receipt, Calendar, FileText, MapPin } from 'lucide-react';
+import { X, Printer, CheckCircle, Receipt, Calendar, FileText, MapPin, Download, Loader2 } from 'lucide-react';
+import { generateInvoicePDFBlob, downloadInvoicePDF } from './InvoicePDF';
 import Swal from 'sweetalert2';
 import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
 
@@ -98,6 +99,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
     const [whtRate] = useState(1);
     const [applyWht, setApplyWht] = useState(false);
     const isPrintingRef = React.useRef(false);
+    const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
     // Guard: If no jobs, show a friendly message (User's suggestion #1)
     if (!jobs || jobs.length === 0 || !mainJob) {
@@ -117,104 +119,77 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
         );
     }
 
-    // Direct Print Command - Using New Window for Isolation
-    const doPrint = (e: React.MouseEvent) => {
+    // Build props for PDF generation
+    const getPDFProps = () => ({
+        jobs,
+        documentNumber,
+        referenceNo,
+        currentDate,
+        dueDateStr,
+        paymentTerms,
+        subtotal,
+        vatAmount,
+        whtAmount,
+        netTotal,
+        applyVat,
+        applyWht,
+        vatRate,
+        whtRate,
+    });
+
+    // Print using PDF (same quality as download)
+    const doPrint = async (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-
-        if (isPrintingRef.current) return;
+        if (isPrintingRef.current || isGeneratingPDF) return;
         isPrintingRef.current = true;
+        setIsGeneratingPDF(true);
 
-        // Get the print content
-        const printContent = document.querySelector('.print-section');
-        if (!printContent) {
-            alert('ไม่พบเนื้อหาที่จะพิมพ์');
+        try {
+            const blob = await generateInvoicePDFBlob(getPDFProps());
+            const url = URL.createObjectURL(blob);
+
+            // Use hidden iframe to avoid popup blocker
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = 'none';
+            iframe.src = url;
+            document.body.appendChild(iframe);
+
+            iframe.onload = () => {
+                setTimeout(() => {
+                    iframe.contentWindow?.print();
+                }, 300);
+                setTimeout(() => {
+                    document.body.removeChild(iframe);
+                    URL.revokeObjectURL(url);
+                }, 60000);
+            };
+        } catch (error) {
+            console.error('Error printing Invoice PDF:', error);
+            alert('เกิดข้อผิดพลาดในการสร้าง PDF');
+        } finally {
             isPrintingRef.current = false;
-            return;
+            setIsGeneratingPDF(false);
         }
+    };
 
-        // Create new window for printing
-        const printWindow = window.open('', '_blank', 'width=800,height=600');
-        if (!printWindow) {
-            alert('กรุณาอนุญาตให้เบราว์เซอร์เปิดหน้าต่างใหม่');
-            isPrintingRef.current = false;
-            return;
+    // Download PDF
+    const doDownloadPDF = async () => {
+        if (isGeneratingPDF) return;
+        setIsGeneratingPDF(true);
+        try {
+            await downloadInvoicePDF(getPDFProps());
+        } catch (error) {
+            console.error('Error downloading Invoice PDF:', error);
+            alert('เกิดข้อผิดพลาดในการสร้าง PDF');
+        } finally {
+            setIsGeneratingPDF(false);
         }
-
-        // Write content to new window
-        printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>ใบรับวางบิล - ${documentNumber}</title>
-                <script src="https://cdn.tailwindcss.com"></script>
-                <link rel="preconnect" href="https://fonts.googleapis.com">
-                <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-                <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-                <style>
-                    @page {
-                        size: A4 portrait;
-                        margin: 0mm;
-                    }
-                    * {
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                        color-adjust: exact !important;
-                    }
-                    body {
-                        font-family: 'Sarabun', 'Noto Sans Thai', sans-serif;
-                        background: white;
-                        margin: 0;
-                        padding: 0;
-                    }
-                    table {
-                        border-collapse: collapse;
-                        width: 100%;
-                    }
-                    .page-break {
-                        page-break-after: always;
-                        break-after: page;
-                    }
-                    .no-print {
-                        display: none !important;
-                    }
-                    @media print {
-                        body {
-                            width: 210mm;
-                            margin: 0;
-                        }
-                        .no-print {
-                            display: none !important;
-                        }
-                    }
-                </style>
-            </head>
-            <body>
-                ${printContent.innerHTML}
-                <script>
-                    window.onload = function() {
-                        setTimeout(function() {
-                            window.print();
-                        }, 800);
-                    };
-                </script>
-            </body>
-            </html>
-        `);
-
-        printWindow.document.close();
-
-        // Wait for content to load, then print
-        setTimeout(() => {
-            printWindow.focus();
-            printWindow.print();
-            setTimeout(() => {
-                printWindow.close();
-                isPrintingRef.current = false;
-            }, 500);
-        }, 250);
     };
 
     const [referenceNo, setReferenceNo] = useState('');
@@ -380,10 +355,19 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                         </div>
                         <button
                             type="button"
-                            onClick={doPrint}
-                            className="bg-white text-slate-900 px-6 py-2 rounded-lg font-black flex items-center gap-2 hover:bg-slate-100 transition-all active:scale-95 shadow-xl scale-105"
+                            onClick={doDownloadPDF}
+                            disabled={isGeneratingPDF}
+                            className="bg-emerald-500 text-white px-5 py-2 rounded-lg font-black flex items-center gap-2 hover:bg-emerald-600 transition-all active:scale-95 shadow-xl disabled:opacity-50"
                         >
-                            <Printer size={20} /> PRINT / SAVE PDF
+                            {isGeneratingPDF ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />} PDF (คมชัด)
+                        </button>
+                        <button
+                            type="button"
+                            onClick={doPrint}
+                            disabled={isGeneratingPDF}
+                            className="bg-white text-slate-900 px-5 py-2 rounded-lg font-black flex items-center gap-2 hover:bg-slate-100 transition-all active:scale-95 shadow-xl disabled:opacity-50"
+                        >
+                            {isGeneratingPDF ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />} PRINT
                         </button>
                         <button
                             type="button"
@@ -631,11 +615,21 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                         <div className="flex gap-4">
                             <button
                                 type="button"
-                                onClick={doPrint}
-                                className="px-8 py-3 bg-slate-800 text-white rounded-xl font-black flex items-center gap-3 hover:bg-slate-900 transition-all shadow-xl active:scale-95 border-b-4 border-slate-950"
+                                onClick={doDownloadPDF}
+                                disabled={isGeneratingPDF}
+                                className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black flex items-center gap-3 hover:bg-emerald-700 transition-all shadow-xl active:scale-95 border-b-4 border-emerald-900 disabled:opacity-50"
                             >
-                                <Printer size={22} />
-                                PRINT DOCUMENT
+                                {isGeneratingPDF ? <Loader2 size={22} className="animate-spin" /> : <Download size={22} />}
+                                PDF (คมชัด)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={doPrint}
+                                disabled={isGeneratingPDF}
+                                className="px-6 py-3 bg-slate-800 text-white rounded-xl font-black flex items-center gap-3 hover:bg-slate-900 transition-all shadow-xl active:scale-95 border-b-4 border-slate-950 disabled:opacity-50"
+                            >
+                                {isGeneratingPDF ? <Loader2 size={22} className="animate-spin" /> : <Printer size={22} />}
+                                PRINT
                             </button>
 
                             <button
