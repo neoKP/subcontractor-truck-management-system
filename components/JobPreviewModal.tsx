@@ -17,9 +17,25 @@ const JobPreviewModal: React.FC<JobPreviewModalProps> = ({ job, isOpen, onClose 
 
     if (!isOpen) return null;
 
-    const handlePrint = () => {
-        if (!printRef.current) return;
-        window.print();
+    const handlePrint = async () => {
+        setIsGeneratingPDF(true);
+        try {
+            const { pdf } = await import('@react-pdf/renderer');
+            const { default: JobRequestPDFDocument } = await import('./JobRequestPDF');
+            const blob = await pdf(<JobRequestPDFDocument job={job} />).toBlob();
+            const url = URL.createObjectURL(blob);
+            const printWindow = window.open(url, '_blank');
+            if (printWindow) {
+                printWindow.onload = () => {
+                    printWindow.print();
+                };
+            }
+        } catch (error) {
+            console.error('Error printing PDF:', error);
+            window.print();
+        } finally {
+            setIsGeneratingPDF(false);
+        }
     };
 
     const handleDownloadPDF = async () => {
