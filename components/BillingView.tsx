@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Job, JobStatus, AccountingStatus, UserRole, AuditLog, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS, PriceMatrix } from '../types';
 import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
-import { DollarSign, ExternalLink, FileCheck, Info, TrendingUp, CheckCircle, XCircle, Lock, AlertCircle, History, Receipt } from 'lucide-react';
+import { DollarSign, ExternalLink, FileCheck, Info, TrendingUp, CheckCircle, XCircle, Lock, AlertCircle, History, Receipt, Undo2 } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
 import PaymentModal from './PaymentModal';
 import BillingFinancialDashboard from './BillingFinancialDashboard';
@@ -154,6 +154,53 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
       icon: 'success',
       title: 'Updated!',
       text: `Job status moved to ${action}`,
+      timer: 1500,
+      showConfirmButton: false,
+      customClass: { popup: 'rounded-[2rem]' }
+    });
+  };
+
+  const handleUndoApproval = async (job: Job) => {
+    const Swal = (window as any).Swal;
+    if (!Swal) return;
+
+    const result = await Swal.fire({
+      title: 'ยืนยัน Undo / Confirm Undo',
+      text: `ต้องการย้อนงาน #${job.id} กลับไปหน้า ตรวจสอบและอนุมัติ (Verification Center) ใช่หรือไม่?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#f59e0b',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'ยืนยัน Undo',
+      cancelButtonText: 'ยกเลิก',
+      customClass: { popup: 'rounded-[2rem]' }
+    });
+
+    if (!result.isConfirmed) return;
+
+    const log: AuditLog = {
+      id: `LOG-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      jobId: job.id,
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      timestamp: new Date().toISOString(),
+      field: 'Accounting Status',
+      oldValue: AccountingStatus.APPROVED,
+      newValue: AccountingStatus.PENDING_REVIEW,
+      reason: 'Undo: ย้อนกลับไป Verification Center'
+    };
+
+    onUpdateJob({
+      ...job,
+      accountingStatus: AccountingStatus.PENDING_REVIEW,
+      isBaseCostLocked: false
+    }, [log]);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Undo สำเร็จ!',
+      text: 'งานถูกย้อนกลับไปหน้า Verification Center แล้ว',
       timer: 1500,
       showConfirmButton: false,
       customClass: { popup: 'rounded-[2rem]' }
@@ -757,13 +804,23 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
                               )}
 
                             {job.accountingStatus === AccountingStatus.APPROVED && job.status === JobStatus.COMPLETED && (
-                              <button
-                                onClick={() => handleBillJob(job)}
-                                className="px-6 py-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 flex flex-col items-center gap-1 min-w-[120px]"
-                              >
-                                <span>ออกใบรับวางบิล</span>
-                                <span className="opacity-80">(ACKNOWLEDGE BILL)</span>
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleUndoApproval(job)}
+                                  className="px-4 py-3 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-lg shadow-amber-100 flex flex-col items-center gap-1"
+                                  title="Undo กลับไป Verification"
+                                >
+                                  <Undo2 size={16} />
+                                  <span>UNDO</span>
+                                </button>
+                                <button
+                                  onClick={() => handleBillJob(job)}
+                                  className="px-6 py-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 flex flex-col items-center gap-1 min-w-[120px]"
+                                >
+                                  <span>ออกใบรับวางบิล</span>
+                                  <span className="opacity-80">(ACKNOWLEDGE BILL)</span>
+                                </button>
+                              </div>
                             )}
 
                             {/* Manual Lock button removed to enforce Payment Slip requirement */}
