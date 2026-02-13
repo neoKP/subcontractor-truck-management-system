@@ -1,10 +1,14 @@
 <?php
 /**
- * Serve files from /tmp/nas-uploads/ — ทำหน้าที่เป็น static file server
+ * Serve files from NAS — ทำหน้าที่เป็น static file server
  * URL: /api/serve.php?file=pod-images/JOB-001/123_0.webp
+ * ค้นหาจาก Synology Drive ก่อน แล้ว fallback ไป /tmp/nas-uploads (รูปเก่า)
  */
 
-$UPLOAD_DIR = '/tmp/nas-uploads';
+$UPLOAD_DIRS = array(
+    '/volume1/Operation/paweewat/subcontractor-truck-management',
+    '/tmp/nas-uploads'
+);
 
 // CORS
 header('Access-Control-Allow-Origin: *');
@@ -18,19 +22,19 @@ if (empty($filePath)) {
     exit;
 }
 
-$fullPath = $UPLOAD_DIR . '/' . $filePath;
-
-// ป้องกัน path traversal
-$realBase = realpath($UPLOAD_DIR);
-$realFile = realpath($fullPath);
-
-if ($realFile === false || strpos($realFile, $realBase) !== 0) {
-    http_response_code(404);
-    echo 'File not found';
-    exit;
+// ค้นหาไฟล์จากหลาย directory (ใหม่ก่อน → เก่า fallback)
+$realFile = false;
+foreach ($UPLOAD_DIRS as $dir) {
+    $candidate = $dir . '/' . $filePath;
+    $realBase = realpath($dir);
+    $realCandidate = realpath($candidate);
+    if ($realBase !== false && $realCandidate !== false && strpos($realCandidate, $realBase) === 0 && is_file($realCandidate)) {
+        $realFile = $realCandidate;
+        break;
+    }
 }
 
-if (!is_file($realFile)) {
+if ($realFile === false) {
     http_response_code(404);
     echo 'File not found';
     exit;

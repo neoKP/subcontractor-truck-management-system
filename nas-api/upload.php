@@ -6,7 +6,7 @@
 
 // ===== CONFIG =====
 $API_KEY = 'NAS_UPLOAD_KEY_sansan856';
-$UPLOAD_DIR = '/tmp/nas-uploads';
+$UPLOAD_DIR = '/volume1/Operation/paweewat/subcontractor-truck-management';
 $BASE_URL = 'https://neosiam.dscloud.biz/api/serve.php?file=';
 $MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 $ALLOWED_TYPES = array('image/webp', 'image/jpeg', 'image/png', 'image/gif', 'application/pdf');
