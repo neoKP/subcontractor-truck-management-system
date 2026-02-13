@@ -6,7 +6,7 @@
 
 // ===== CONFIG =====
 $API_KEY = 'NAS_UPLOAD_KEY_sansan856';
-$UPLOAD_DIR = '/volume1/Operation/paweewat/subcontractor-truck-management';
+$UPLOAD_DIR = '/tmp/nas-uploads';
 $BASE_URL = 'https://neosiam.dscloud.biz/api/serve.php?file=';
 $MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 $ALLOWED_TYPES = array('image/webp', 'image/jpeg', 'image/png', 'image/gif', 'application/pdf');
@@ -19,22 +19,19 @@ header('Content-Type: application/json; charset=utf-8');
 
 // Preflight
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
     exit;
 }
 
 // ===== AUTH =====
 $apiKey = isset($_SERVER['HTTP_X_API_KEY']) ? $_SERVER['HTTP_X_API_KEY'] : '';
 if ($apiKey !== $API_KEY) {
-    http_response_code(401);
-    echo json_encode(array('error' => 'Unauthorized'));
+    echo json_encode(array('success' => false, 'error' => 'Unauthorized'));
     exit;
 }
 
 // ===== VALIDATE =====
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(array('error' => 'Method not allowed'));
+    echo json_encode(array('success' => false, 'error' => 'Method not allowed'));
     exit;
 }
 
@@ -51,8 +48,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'proxy_download' && isset($_
     $fileData = @file_get_contents($sourceUrl, false, $ctx);
 
     if ($fileData === false) {
-        http_response_code(502);
-        echo json_encode(array('error' => 'Download failed from source URL'));
+        echo json_encode(array('success' => false, 'error' => 'Download failed from source URL'));
         exit;
     }
 
@@ -71,8 +67,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'proxy_download' && isset($_
     if (!is_dir($dir)) mkdir($dir, 0755, true);
 
     if (file_put_contents($fullPath, $fileData) === false) {
-        http_response_code(500);
-        echo json_encode(array('error' => 'Failed to save file'));
+        echo json_encode(array('success' => false, 'error' => 'Failed to save file'));
         exit;
     }
 
@@ -87,22 +82,19 @@ if (isset($_POST['action']) && $_POST['action'] === 'proxy_download' && isset($_
 }
 
 if (!isset($_FILES['file'])) {
-    http_response_code(400);
-    echo json_encode(array('error' => 'No file uploaded'));
+    echo json_encode(array('success' => false, 'error' => 'No file uploaded'));
     exit;
 }
 
 $file = $_FILES['file'];
 
 if ($file['error'] !== UPLOAD_ERR_OK) {
-    http_response_code(400);
-    echo json_encode(array('error' => 'Upload error', 'code' => $file['error']));
+    echo json_encode(array('success' => false, 'error' => 'Upload error', 'code' => $file['error']));
     exit;
 }
 
 if ($file['size'] > $MAX_FILE_SIZE) {
-    http_response_code(413);
-    echo json_encode(array('error' => 'File too large', 'maxSize' => '10MB'));
+    echo json_encode(array('success' => false, 'error' => 'File too large', 'maxSize' => '10MB'));
     exit;
 }
 
@@ -116,8 +108,7 @@ if (function_exists('finfo_open')) {
 }
 
 if (!in_array($mimeType, $ALLOWED_TYPES)) {
-    http_response_code(415);
-    echo json_encode(array('error' => 'File type not allowed', 'type' => $mimeType));
+    echo json_encode(array('success' => false, 'error' => 'File type not allowed', 'type' => $mimeType));
     exit;
 }
 
@@ -145,8 +136,7 @@ if (!is_dir($dir)) {
 }
 
 if (!move_uploaded_file($file['tmp_name'], $fullPath)) {
-    http_response_code(500);
-    echo json_encode(array('error' => 'Failed to save file'));
+    echo json_encode(array('success' => false, 'error' => 'Failed to save file'));
     exit;
 }
 

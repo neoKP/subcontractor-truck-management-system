@@ -23,14 +23,9 @@ export const uploadToNAS = async (
         body: formData,
     });
 
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: response.statusText }));
-        throw new Error(`NAS upload failed: ${err.error || response.statusText}`);
-    }
-
     const result = await response.json();
     if (!result.success || !result.url) {
-        throw new Error(`NAS upload failed: ${JSON.stringify(result)}`);
+        throw new Error(`NAS upload failed: ${result.error || JSON.stringify(result)}`);
     }
 
     return result.url;
