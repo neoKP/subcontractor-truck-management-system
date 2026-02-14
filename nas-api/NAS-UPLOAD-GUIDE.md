@@ -410,10 +410,14 @@ DSM → Control Panel → Task Scheduler
 | **Task** | `sync-to-drive` |
 | **User** | `root` |
 | **Schedule** | Daily, Repeat every **5 minutes** |
-| **Script** | `rsync -av /tmp/nas-uploads/ /volume1/Operation/paweewat/subcontractor-truck-management/` |
+| **Script** | `bash /web/api/sync-to-drive.sh` |
 
 > ⚠️ ต้องเลือก **Scheduled Task** ไม่ใช่ **Triggered Task**
 > Triggered Task (Boot-up) จะรันแค่ตอนเปิดเครื่องเท่านั้น
+
+> ⚠️ **ห้ามใช้** `rsync -av /tmp/nas-uploads/ /volume1/.../subcontractor-truck-management/` โดยตรง
+> เพราะจะลาก folder จากระบบอื่น (migrated-ncr, migrated-returns) มาปนด้วย
+> ให้ใช้ `sync-to-drive.sh` ที่ sync เฉพาะ folder ของโปรเจคนี้ (pod-images, payment-slips)
 
 ---
 
