@@ -153,7 +153,7 @@ const JobTrackingModal: React.FC<JobTrackingModalProps> = ({ job, onClose, curre
                                     <User size={16} className="text-slate-400" />
                                     <div>
                                         <p className="text-xs font-bold text-slate-700">{job.driverName || 'ยังไม่ได้มอบหมายพนักงานขับรถ'}</p>
-                                        <p className="text-[10px] text-slate-500">{job.licensePlate} {job.phone ? `• ${job.phone}` : ''}</p>
+                                        <p className="text-[10px] text-slate-500">{job.licensePlate} {job.driverPhone ? `• ${job.driverPhone}` : ''}</p>
                                     </div>
                                 </div>
                             )}
