@@ -114,11 +114,11 @@ const JobTrackingModal: React.FC<JobTrackingModalProps> = ({ job, onClose, curre
                     >
                         <div className="flex items-center gap-3 mb-2">
                             <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs uppercase">
-                                {job.bookingOfficer ? job.bookingOfficer.charAt(0) : 'U'}
+                                {job.requestedByName ? job.requestedByName.charAt(0) : 'U'}
                             </div>
                             <div>
                                 <p className="text-xs font-bold text-slate-700">เจ้าหน้าที่ Booking</p>
-                                <p className="text-[10px] text-slate-500">{job.bookingOfficer || 'ไม่ระบุ'}</p>
+                                <p className="text-[10px] text-slate-500">{job.requestedByName || 'ไม่ระบุ'}</p>
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-[10px] bg-slate-100 p-2 rounded-lg">
