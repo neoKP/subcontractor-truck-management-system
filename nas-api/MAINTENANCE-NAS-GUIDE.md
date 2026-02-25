@@ -1,6 +1,7 @@
 # NAS File Upload Integration Guide — Truck Maintenance Management System
 
 ## สำหรับ AI Agent
+
 ไฟล์นี้อธิบายสถาปัตยกรรมการอัปโหลดรูปภาพไปยัง Synology NAS
 **อ่านก่อนแก้ไขโค้ดใดๆ ที่เกี่ยวกับการอัปโหลดไฟล์**
 
@@ -9,7 +10,7 @@
 ## ข้อมูล NAS Server
 
 | รายการ | ค่า |
-|--------|-----|
+| -------- | ----- |
 | NAS Model | Synology DiskStation (DSM 7) |
 | Domain | `neosiam.dscloud.biz` |
 | Upload Endpoint | `https://neosiam.dscloud.biz/api/upload.php` |
@@ -79,10 +80,193 @@ NAS ส่ง URL กลับ (Dynamic ตาม host/scheme ที่เรี
 
 ---
 
+## AI Agent Contract (Upload / Serve / Metadata)
+
+### Endpoints และ Auth
+
+- Upload: `POST {BASE}/upload.php`
+- Headers: `X-API-Key: NAS_UPLOAD_KEY_sansan856`
+- Body (FormData): `file`, `path`
+- Response ตัวอย่างจริง:
+
+```json
+{
+  "success": true,
+  "url": "https://<host>/api/serve.php?file=/pod-images/JOB-TEST/20260225/00.jpg",
+  "path": "pod-images/JOB-TEST/20260225/00.jpg",
+  "size": 162725,
+  "type": "image/jpeg",
+  "sha256": "<sha256>"
+}
+```
+
+### Sidecar Metadata (.json)
+
+- ไฟล์ `.json` ถูกสร้างคู่กับไฟล์หลักในโฟลเดอร์เดียวกัน
+- วิธีอ้างอิง: เปลี่ยนส่วนท้ายของ `file=` เป็น `.json`
+  - เช่น `...?file=pod-images/JOB-TEST/20260225/00.jpg` → `...?file=pod-images/JOB-TEST/20260225/00.json`
+- MIME: `application/json` (serve.php รองรับแล้ว)
+- Schema ที่บันทึก (ตัวอย่าง):
+
+```json
+{
+  "project": "subcontractor-truck-management",
+  "kind": "pod-images",
+  "jobId": "JOB-TEST",
+  "originalName": "151123.jpg",
+  "mime": "image/jpeg",
+  "size": 162725,
+  "sha256": "<sha256>",
+  "createdAt": "2026-02-25T06:03:53Z",
+  "serveUrl": "https://<host>/api/serve.php?file=pod-images/JOB-TEST/20260225/00.jpg",
+  "source": "upload"
+}
+```
+
+### แนวทางตั้งชื่อไฟล์/โฟลเดอร์ (Naming)
+
+- ใช้อักขระปลอดภัย [A-Za-z0-9._-]
+- แยกโปรเจกต์ด้วย project-key (เช่น `subcontractor-truck-management`)
+- ตัวอย่างที่แนะนำ:
+  - POD: `pod-images/<JOB_ID>/<YYYYMMDD>/<SEQ>.<ext>`
+  - Slip: `payment-slips/<YYYYMMDD>/<TIMESTAMP>_<SAFE_NAME>.<ext>`
+
+### สิ่งที่ควรเก็บในฐานข้อมูล
+
+- ควรเก็บ: `url`, `path`, `sha256`, `mime`, `size`, `createdAt`, และถ้ามี `project`, `kind`, `jobId`, `source`
+- ตัวอย่าง TypeScript:
+
+```ts
+type NasFileRecord = {
+  url: string;
+  path: string;
+  sha256: string;
+  mime: string;
+  size: number;
+  createdAt: string;
+  project?: string;
+  kind?: string;
+  jobId?: string;
+  source?: 'upload' | 'proxy_download';
+};
+```
+
+- วิธี derive metadata URL จาก `url`:
+
+```ts
+const metaUrl = url.replace(/\.[^.]+$/, '.json');
+// หรือแบบปลอดภัยกับ query
+const u = new URL(url);
+u.searchParams.set('file', u.searchParams.get('file')!.replace(/\.[^.]+$/, '.json'));
+const metaUrlSafe = u.toString();
+```
+
+### Fallback / Health
+
+- Client: `utils/nasUpload.ts` probe หลาย endpoint + cache 10 นาที
+- Server: `healthcheck-nas.sh` (ทุก 5 นาที) + Boot‑up Cloudflared
+
+### ตัวอย่างการใช้งาน Metadata (.json)
+
+#### TypeScript/React
+
+```ts
+// สร้าง metadata URL อย่างปลอดภัยจาก URL หลักที่ได้จาก upload
+export const toMetaUrl = (url: string): string => {
+  const u = new URL(url);
+  const f = u.searchParams.get('file');
+  if (f) u.searchParams.set('file', f.replace(/\.[^.]+$/, '.json'));
+  return u.toString();
+};
+```
+
+```tsx
+import { useEffect, useState } from 'react';
+
+type NasMeta = {
+  project: string; kind: string; jobId?: string;
+  originalName?: string; mime: string; size: number;
+  sha256: string; createdAt: string; serveUrl: string; source: string;
+};
+
+export function PodImage({ url }: { url: string }) {
+  const [meta, setMeta] = useState<NasMeta | null>(null);
+  useEffect(() => {
+    const metaUrl = toMetaUrl(url);
+    fetch(metaUrl).then(r => r.json()).then(setMeta).catch(() => setMeta(null));
+  }, [url]);
+  return (
+    <figure>
+      <img src={url} alt={meta?.originalName || 'POD'} />
+      <figcaption>{meta?.jobId} · {meta?.mime} · {meta?.size} bytes</figcaption>
+    </figure>
+  );
+}
+```
+
+#### Node.js (>=18)
+
+```js
+import crypto from 'node:crypto';
+
+// สร้าง URL ของ metadata จาก URL หลัก
+const toMetaUrl = (url) => {
+  const u = new URL(url);
+  const f = u.searchParams.get('file');
+  if (f) u.searchParams.set('file', f.replace(/\.[^.]+$/, '.json'));
+  return u.toString();
+};
+
+const metaUrl = toMetaUrl(url);
+const meta = await fetch(metaUrl).then(r => r.json());
+
+// ตรวจสอบ SHA256 ของไฟล์จริง
+const buf = Buffer.from(await fetch(url).then(r => r.arrayBuffer()));
+const hex = crypto.createHash('sha256').update(buf).digest('hex');
+if (hex !== meta.sha256) throw new Error('SHA256 mismatch');
+```
+
+#### cURL
+
+```sh
+curl -s "https://<host>/api/serve.php?file=pod-images/JOB-TEST/20260225/00.json"
+```
+
+### แนวทางโครงสร้างฐานข้อมูลและ Indexing
+
+- ควรเก็บฟิลด์: `url`, `path`, `sha256`, `mime`, `size`, `createdAt`, `project`, `kind`, `jobId`, `source`
+- แนะนำ Index สำหรับการค้นหาบ่อย:
+  - `(project, kind, jobId, createdAt)` สำหรับเรียงลำดับงานต่อ Job
+  - `(sha256)` สำหรับค้นหา/ป้องกันไฟล์ซ้ำ
+  - `UNIQUE(path)` เพื่อกันบันทึกซ้ำด้วย path เดิม
+
+```sql
+-- ตัวอย่างเชิงแนวคิด (ถ้าใช้ SQL)
+CREATE TABLE nas_files (
+  id TEXT PRIMARY KEY,
+  url TEXT NOT NULL,
+  path TEXT NOT NULL UNIQUE,
+  sha256 TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  project TEXT,
+  kind TEXT,
+  job_id TEXT,
+  source TEXT
+);
+CREATE INDEX idx_nas_files_lookup ON nas_files(project, kind, job_id, created_at);
+CREATE INDEX idx_nas_files_sha ON nas_files(sha256);
+```
+
+> หมายเหตุ: ใน Firebase Realtime Database สามารถจัดเก็บเป็น object เดียวกันนี้ และทำ key mapping ตาม use-case (เช่น `/byJob/{jobId}/{pushId}`) เพื่อเร่งการดึงข้อมูลตาม job ได้
+
+---
+
 ## ไฟล์สำคัญในโปรเจกต์
 
 | ไฟล์ | หน้าที่ |
-|------|---------|
+| ------ | --------- |
 | `utils/nasUpload.ts` | ส่งไฟล์ไป NAS ผ่าน HTTP POST |
 | `utils/fileUpload.ts` | รวม compress + upload (ฟังก์ชันหลักที่ Component เรียกใช้) |
 | `utils/imageCompression.ts` | บีบอัดรูปเป็น WebP ฝั่ง browser |
@@ -93,6 +277,7 @@ NAS ส่ง URL กลับ (Dynamic ตาม host/scheme ที่เรี
 ## โค้ดที่ถูกต้อง — คัดลอกไปแทนที่ไฟล์เดิมได้เลย (อัปเดต fallback + dynamic URL)
 
 ### `utils/nasUpload.ts` (เพิ่มการ fallback endpoint + cache 10 นาที)
+
 ```typescript
 const NAS_API_KEY = import.meta.env.VITE_NAS_API_KEY || 'NAS_UPLOAD_KEY_sansan856';
 
@@ -171,6 +356,7 @@ export const uploadToNAS = async (
 ```
 
 ### `utils/fileUpload.ts` (เปลี่ยนจาก Firebase Storage → NAS)
+
 ```typescript
 /**
  * fileUpload.ts — compress + upload ไป NAS (ไม่ใช่ Firebase Storage)

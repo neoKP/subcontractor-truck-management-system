@@ -47,7 +47,8 @@ $mimeMap = array(
     'jpeg' => 'image/jpeg',
     'png' => 'image/png',
     'gif' => 'image/gif',
-    'pdf' => 'application/pdf'
+    'pdf' => 'application/pdf',
+    'json' => 'application/json'
 );
 
 $ext = strtolower(pathinfo($realFile, PATHINFO_EXTENSION));

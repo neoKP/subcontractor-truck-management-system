@@ -7,6 +7,7 @@
 // ===== CONFIG =====
 $API_KEY = 'NAS_UPLOAD_KEY_sansan856';
 $UPLOAD_DIR = '/tmp/nas-uploads';
+$PROJECT_KEY = 'subcontractor-truck-management';
 // Build BASE_URL dynamically based on the request scheme and host so that the returned
 // public URL matches the access endpoint that actually succeeded (neosiam / tunnel / local)
 $scheme = 'http';
@@ -80,12 +81,34 @@ if (isset($_POST['action']) && $_POST['action'] === 'proxy_download' && isset($_
         exit;
     }
 
+    $sha256 = @hash_file('sha256', $fullPath);
+    $parts = explode('/', $destPath);
+    $kind = isset($parts[0]) ? $parts[0] : '';
+    $jobId = ($kind === 'pod-images' && isset($parts[1])) ? $parts[1] : null;
+    $publicUrl = $BASE_URL . '/' . $destPath;
+
+    $meta = array(
+        'project' => $PROJECT_KEY,
+        'kind' => $kind,
+        'jobId' => $jobId,
+        'originalName' => basename($destPath),
+        'mime' => $dlType,
+        'size' => strlen($fileData),
+        'sha256' => $sha256 ? $sha256 : '',
+        'createdAt' => gmdate('c'),
+        'serveUrl' => $publicUrl,
+        'source' => 'proxy_download'
+    );
+    $metaPath = preg_replace('/\.[^.]+$/', '', $fullPath) . '.json';
+    @file_put_contents($metaPath, json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
     echo json_encode(array(
         'success' => true,
-        'url' => $BASE_URL . '/' . $destPath,
+        'url' => $publicUrl,
         'path' => $destPath,
         'size' => strlen($fileData),
-        'type' => $dlType
+        'type' => $dlType,
+        'sha256' => $sha256 ? $sha256 : ''
     ));
     exit;
 }
@@ -171,11 +194,30 @@ chmod($fullPath, 0644);
 
 // ===== RESPONSE =====
 $publicUrl = $BASE_URL . '/' . $subPath;
+$sha256 = @hash_file('sha256', $fullPath);
+$parts = explode('/', $subPath);
+$kind = isset($parts[0]) ? $parts[0] : '';
+$jobId = ($kind === 'pod-images' && isset($parts[1])) ? $parts[1] : null;
+$meta = array(
+    'project' => $PROJECT_KEY,
+    'kind' => $kind,
+    'jobId' => $jobId,
+    'originalName' => isset($file['name']) ? $file['name'] : basename($subPath),
+    'mime' => $mimeType,
+    'size' => filesize($fullPath),
+    'sha256' => $sha256 ? $sha256 : '',
+    'createdAt' => gmdate('c'),
+    'serveUrl' => $publicUrl,
+    'source' => 'upload'
+);
+$metaPath = preg_replace('/\.[^.]+$/', '', $fullPath) . '.json';
+@file_put_contents($metaPath, json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
 echo json_encode(array(
     'success' => true,
     'url' => $publicUrl,
     'path' => $subPath,
     'size' => $file['size'],
-    'type' => $mimeType
+    'type' => $mimeType,
+    'sha256' => $sha256 ? $sha256 : ''
 ));

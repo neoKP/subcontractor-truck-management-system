@@ -7,7 +7,7 @@
 ## ข้อมูล NAS Server
 
 | รายการ | ค่า |
-|---|---|
+| --- | --- |
 | **NAS Model** | Synology DiskStation (DSM 7) |
 | **Domain** | `neosiam.dscloud.biz` |
 | **Internal IP** | `192.168.1.82` |
@@ -23,7 +23,7 @@
 
 ## สถาปัตยกรรม (Architecture)
 
-```
+```text
 Client App (Vercel/Browser)
     ↓ POST + API Key + FormData
 NAS: upload.php (/web/api/)
@@ -68,9 +68,9 @@ Client App → GET serve.php?file={path} → ค้นหาจาก Synology D
 ถ้าเข้า `https://neosiam.dscloud.biz/api/upload.php` จากภายนอกไม่ได้:
 
 | ตรวจสอบ | วิธีเช็ค |
-|---|---|
+| --- | --- |
 | DDNS ชี้ไป IP ถูกต้อง | `nslookup neosiam.dscloud.biz` |
-| Port เปิดอยู่ | ทดสอบจาก https://www.yougetsignal.com/tools/open-ports/ |
+| Port เปิดอยู่ | ทดสอบจาก <https://www.yougetsignal.com/tools/open-ports/> |
 | Router forward ถูก port | เช็คใน Router admin → Port Forwarding |
 | Firewall บน NAS ไม่บล็อก | DSM → Control Panel → Security → Firewall |
 | ISP ไม่บล็อก port 80/443 | ติดต่อ ISP หรือใช้ port อื่น เช่น 5001 |
@@ -399,13 +399,13 @@ export const uploadFilesToStorage = async (files: File[], basePath: string): Pro
 
 ### Step 6: ตั้ง Synology Task Scheduler (ทำครั้งเดียว — ใช้ได้ทุกโปรเจค)
 
-```
+```text
 DSM → Control Panel → Task Scheduler
 → Create → Scheduled Task → User-defined script
 ```
 
 | ตั้งค่า | ค่า |
-|---|---|
+| --- | --- |
 | **Task** | `sync-to-drive` |
 | **User** | `root` |
 | **Schedule** | Daily, Repeat every **5 minutes** |
@@ -413,7 +413,6 @@ DSM → Control Panel → Task Scheduler
 
 > ⚠️ ต้องเลือก **Scheduled Task** ไม่ใช่ **Triggered Task**
 > Triggered Task (Boot-up) จะรันแค่ตอนเปิดเครื่องเท่านั้น
-
 > ⚠️ **ห้ามใช้** `rsync -av /tmp/nas-uploads/ /volume1/.../subcontractor-truck-management/` โดยตรง
 > เพราะจะลาก folder จากระบบอื่น (migrated-ncr, migrated-returns) มาปนด้วย
 > ให้ใช้ `sync-to-drive.sh` ที่ sync เฉพาะ folder ของโปรเจคนี้ (pod-images, payment-slips)
@@ -424,10 +423,10 @@ DSM → Control Panel → Task Scheduler
 
 สร้างสคริปต์บน NAS: `/volume1/scripts/healthcheck-nas.sh` (ในโปรเจคนี้มีตัวอย่างแล้ว) แล้วตั้ง Task ตามนี้:
 
-1) Scheduled Task: ตรวจทุก 5 นาที
+1. Scheduled Task: ตรวจทุก 5 นาที
 
 | ตั้งค่า | ค่า |
-|---|---|
+| --- | --- |
 | Task | `NAS API Health Check` |
 | User | `root` |
 | Schedule | Every 5 minutes |
@@ -435,7 +434,7 @@ DSM → Control Panel → Task Scheduler
 
 สคริปต์จะ curl ไปยัง `diag.php` ถ้าไม่ผ่าน จะพยายาม restart Web Station/Nginx อัตโนมัติ และถ้ากำหนด `CLOUDFLARED_CMD` จะสั่งรัน cloudflared ให้ด้วย
 
-2) Triggered Task (Boot‑up): สตาร์ท Cloudflared อัตโนมัติเมื่อบูต
+1. Triggered Task (Boot‑up): สตาร์ท Cloudflared อัตโนมัติเมื่อบูต
 
 ```sh
 nohup /usr/local/bin/cloudflared tunnel run <ชื่อหรือUUIDของtunnel> >/volume1/scripts/cloudflared.log 2>&1 &
@@ -472,6 +471,189 @@ const url = await uploadToNAS(file, 'project-c/avatars/user123.webp');
 <img src={imageUrl} alt="POD" />
 // imageUrl มาจาก uploadToNAS() → "https://neosiam.dscloud.biz/api/serve.php?file=..."
 ```
+
+---
+
+## AI Agent Contract (Upload / Serve / Metadata)
+
+### Endpoints และ Auth
+
+- Upload: `POST {BASE}/upload.php`
+- Headers: `X-API-Key: NAS_UPLOAD_KEY_sansan856`
+- Body (FormData): `file`, `path`
+- Response ตัวอย่างจริง:
+
+```json
+{
+  "success": true,
+  "url": "https://<host>/api/serve.php?file=/pod-images/JOB-TEST/20260225/00.jpg",
+  "path": "pod-images/JOB-TEST/20260225/00.jpg",
+  "size": 162725,
+  "type": "image/jpeg",
+  "sha256": "<sha256>"
+}
+```
+
+### Sidecar Metadata (.json)
+
+- ไฟล์ `.json` ถูกสร้างคู่กับไฟล์หลักในโฟลเดอร์เดียวกัน
+- วิธีอ้างอิง: เปลี่ยนส่วนท้ายของ `file=` เป็น `.json`
+  - เช่น `...?file=pod-images/JOB-TEST/20260225/00.jpg` → `...?file=pod-images/JOB-TEST/20260225/00.json`
+- MIME: `application/json` (serve.php รองรับแล้ว)
+- Schema ที่บันทึก (ตัวอย่าง):
+
+```json
+{
+  "project": "subcontractor-truck-management",
+  "kind": "pod-images",
+  "jobId": "JOB-TEST",
+  "originalName": "151123.jpg",
+  "mime": "image/jpeg",
+  "size": 162725,
+  "sha256": "<sha256>",
+  "createdAt": "2026-02-25T06:03:53Z",
+  "serveUrl": "https://<host>/api/serve.php?file=pod-images/JOB-TEST/20260225/00.jpg",
+  "source": "upload"
+}
+```
+
+### แนวทางตั้งชื่อไฟล์/โฟลเดอร์ (Naming)
+
+- ใช้อักขระปลอดภัย [A-Za-z0-9._-]
+- แยกโปรเจกต์ด้วย project-key (เช่น `subcontractor-truck-management`)
+- ตัวอย่างที่แนะนำ:
+  - POD: `pod-images/<JOB_ID>/<YYYYMMDD>/<SEQ>.<ext>`
+  - Slip: `payment-slips/<YYYYMMDD>/<TIMESTAMP>_<SAFE_NAME>.<ext>`
+
+### สิ่งที่ควรเก็บในฐานข้อมูล
+
+- ควรเก็บ: `url`, `path`, `sha256`, `mime`, `size`, `createdAt`, และถ้ามี `project`, `kind`, `jobId`, `source`
+- ตัวอย่าง TypeScript:
+
+```ts
+type NasFileRecord = {
+  url: string;
+  path: string;
+  sha256: string;
+  mime: string;
+  size: number;
+  createdAt: string;
+  project?: string;
+  kind?: string;
+  jobId?: string;
+  source?: 'upload' | 'proxy_download';
+};
+```
+
+- วิธี derive metadata URL จาก `url`:
+
+```ts
+const metaUrl = url.replace(/\.[^.]+$/, '.json');
+// หรือแบบปลอดภัยกับ query
+const u = new URL(url);
+u.searchParams.set('file', u.searchParams.get('file')!.replace(/\.[^.]+$/, '.json'));
+const metaUrlSafe = u.toString();
+```
+
+### Fallback / Health
+
+- Client: `utils/nasUpload.ts` probe หลาย endpoint + cache 10 นาที
+- Server: `healthcheck-nas.sh` (ทุก 5 นาที) + Boot‑up Cloudflared
+
+### ตัวอย่างการใช้งาน Metadata (.json)
+
+#### TypeScript/React
+
+```ts
+// สร้าง metadata URL อย่างปลอดภัยจาก URL หลักที่ได้จาก upload
+export const toMetaUrl = (url: string): string => {
+  const u = new URL(url);
+  const f = u.searchParams.get('file');
+  if (f) u.searchParams.set('file', f.replace(/\.[^.]+$/, '.json'));
+  return u.toString();
+};
+```
+
+```tsx
+import { useEffect, useState } from 'react';
+
+type NasMeta = {
+  project: string; kind: string; jobId?: string;
+  originalName?: string; mime: string; size: number;
+  sha256: string; createdAt: string; serveUrl: string; source: string;
+};
+
+export function PodImage({ url }: { url: string }) {
+  const [meta, setMeta] = useState<NasMeta | null>(null);
+  useEffect(() => {
+    const metaUrl = toMetaUrl(url);
+    fetch(metaUrl).then(r => r.json()).then(setMeta).catch(() => setMeta(null));
+  }, [url]);
+  return (
+    <figure>
+      <img src={url} alt={meta?.originalName || 'POD'} />
+      <figcaption>{meta?.jobId} · {meta?.mime} · {meta?.size} bytes</figcaption>
+    </figure>
+  );
+}
+```
+
+#### Node.js (>=18)
+
+```js
+import crypto from 'node:crypto';
+
+// สร้าง URL ของ metadata จาก URL หลัก
+const toMetaUrl = (url) => {
+  const u = new URL(url);
+  const f = u.searchParams.get('file');
+  if (f) u.searchParams.set('file', f.replace(/\.[^.]+$/, '.json'));
+  return u.toString();
+};
+
+const metaUrl = toMetaUrl(url);
+const meta = await fetch(metaUrl).then(r => r.json());
+
+// ตรวจสอบ SHA256 ของไฟล์จริง
+const buf = Buffer.from(await fetch(url).then(r => r.arrayBuffer()));
+const hex = crypto.createHash('sha256').update(buf).digest('hex');
+if (hex !== meta.sha256) throw new Error('SHA256 mismatch');
+```
+
+#### cURL
+
+```sh
+curl -s "https://<host>/api/serve.php?file=pod-images/JOB-TEST/20260225/00.json"
+```
+
+### แนวทางโครงสร้างฐานข้อมูลและ Indexing
+
+- ควรเก็บฟิลด์: `url`, `path`, `sha256`, `mime`, `size`, `createdAt`, `project`, `kind`, `jobId`, `source`
+- แนะนำ Index สำหรับการค้นหาบ่อย:
+  - `(project, kind, jobId, createdAt)` สำหรับเรียงลำดับงานต่อ Job
+  - `(sha256)` สำหรับค้นหา/ป้องกันไฟล์ซ้ำ
+  - `UNIQUE(path)` เพื่อกันบันทึกซ้ำด้วย path เดิม
+
+```sql
+-- ตัวอย่างเชิงแนวคิด (ถ้าใช้ SQL)
+CREATE TABLE nas_files (
+  id TEXT PRIMARY KEY,
+  url TEXT NOT NULL,
+  path TEXT NOT NULL UNIQUE,
+  sha256 TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  project TEXT,
+  kind TEXT,
+  job_id TEXT,
+  source TEXT
+);
+CREATE INDEX idx_nas_files_lookup ON nas_files(project, kind, job_id, created_at);
+CREATE INDEX idx_nas_files_sha ON nas_files(sha256);
+```
+
+> หมายเหตุ: ใน Firebase Realtime Database สามารถจัดเก็บเป็น object เดียวกันนี้ และทำ key mapping ตาม use-case (เช่น `/byJob/{jobId}/{pushId}`) เพื่อเร่งการดึงข้อมูลตาม job ได้
 
 ---
 
@@ -514,7 +696,7 @@ NAS จะดาวน์โหลดจาก sourceUrl แล้วบัน�
 ## Troubleshooting
 
 | อาการ | สาเหตุ | วิธีแก้ |
-|---|---|---|
+| --- | --- | --- |
 | **CORS error** ใน browser | PHP return non-200 status → Nginx ดักจับ | เปลี่ยนทุก `http_response_code()` เป็น `echo json_encode(['success'=>false])` |
 | **401 custom error page** จาก Synology | Nginx แทนที่ PHP response | เหมือนข้อบน — ห้ามใช้ `http_response_code()` |
 | **Permission denied** เขียนไฟล์ | PHP user `http` ไม่มีสิทธิ์เขียน `/volume1/` | ใช้ `/tmp/nas-uploads/` + rsync task (root) |
@@ -528,7 +710,7 @@ NAS จะดาวน์โหลดจาก sourceUrl แล้วบัน�
 ## ไฟล์อ้างอิงในโปรเจคนี้
 
 | ไฟล์ | ตำแหน่ง | หน้าที่ |
-|---|---|---|
+| --- | --- | --- |
 | `nas-api/upload.php` | NAS `/web/api/upload.php` | รับไฟล์จาก client แล้วบันทึก |
 | `nas-api/serve.php` | NAS `/web/api/serve.php` | เสิร์ฟไฟล์ให้ browser แสดง |
 | `utils/nasUpload.ts` | Client (Vercel) | ส่งไฟล์ไป NAS API |
