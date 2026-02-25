@@ -10,7 +10,7 @@
 |---|---|
 | **NAS Model** | Synology DiskStation (DSM 7) |
 | **Domain** | `neosiam.dscloud.biz` |
-| **Internal IP** | `192.168.1.89` |
+| **Internal IP** | `192.168.1.82` |
 | **Web Server** | Nginx + PHP 8.2 (Web Station) |
 | **PHP User** | `http` (process) / `ten` (file owner) |
 | **Web Root** | `/web/` |
@@ -50,10 +50,10 @@ Client App → GET serve.php?file={path} → ค้นหาจาก Synology D
    - ตั้งค่าที่: DSM → Control Panel → External Access → DDNS
    - ปัจจุบันใช้: `neosiam.dscloud.biz` (Synology DDNS)
 
-2. **Port Forwarding** บน Router — เปิด port 80 (HTTP) และ 443 (HTTPS) ไปยัง NAS IP `192.168.1.89`
+2. **Port Forwarding** บน Router — เปิด port 80 (HTTP) และ 443 (HTTPS) ไปยัง NAS IP `192.168.1.82`
    - ตั้งค่าที่: Router admin page
-   - External port 80 → Internal 192.168.1.89:80
-   - External port 443 → Internal 192.168.1.89:443
+   - External port 80 → Internal 192.168.1.82:80
+   - External port 443 → Internal 192.168.1.82:443
 
 3. **SSL Certificate** — ให้ HTTPS ทำงาน
    - ตั้งค่าที่: DSM → Control Panel → Security → Certificate
@@ -123,110 +123,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 วางที่ `/web/api/upload.php` บน NAS
 
-ดูโค้ดเต็มที่ `nas-api/upload.php` — สิ่งที่ต้องแก้สำหรับโปรเจคใหม่:
+ดูโค้ดเต็มที่ `nas-api/upload.php` — สิ่งที่ต้องแก้สำหรับโปรเจคใหม่ (อัปเดตให้รองรับ Dynamic URL + MIME fallback):
 
 ```php
 <?php
-// ===== CONFIG — แก้ตรงนี้สำหรับโปรเจคใหม่ =====
-$API_KEY = 'YOUR_PROJECT_API_KEY_HERE';          // เปลี่ยน API Key ใหม่
-$UPLOAD_DIR = '/tmp/nas-uploads';                 // ใช้ path เดิมได้ (แยกด้วย sub-folder)
-$BASE_URL = 'https://neosiam.dscloud.biz/api/serve.php?file=';
-$MAX_FILE_SIZE = 10 * 1024 * 1024;               // 10MB
-$ALLOWED_TYPES = array('image/webp', 'image/jpeg', 'image/png', 'image/gif', 'application/pdf');
+// ===== CONFIG (แก้สำหรับโปรเจคใหม่เท่านั้น) =====
+$API_KEY = 'YOUR_PROJECT_API_KEY_HERE';               // เปลี่ยน API Key ใหม่
+$UPLOAD_DIR = '/tmp/nas-uploads';                      // ใช้ path เดิมได้ (แยกด้วย sub-folder)
+$MAX_FILE_SIZE = 10 * 1024 * 1024;                     // 10MB
+$ALLOWED_TYPES = array('image/webp','image/jpeg','image/jpg','image/png','image/x-png','image/pjpeg','image/gif','application/pdf','application/octet-stream');
 
-// ===== CORS — ต้องมีเสมอ =====
+// ===== Build BASE_URL ตาม host/scheme ที่ client ใช้เรียก (สำคัญ) =====
+$scheme = 'http';
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && !empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+    $scheme = $_SERVER['HTTP_X_FORWARDED_PROTO'];
+} elseif (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+    $scheme = 'https';
+}
+$host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
+$BASE_URL = $scheme . '://' . $host . '/api/serve.php?file=';
+
+// ===== CORS =====
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
 header('Content-Type: application/json; charset=utf-8');
 
-// Preflight — ห้ามใส่ http_response_code
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit;
-}
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { exit; }
 
 // ===== AUTH =====
 $apiKey = isset($_SERVER['HTTP_X_API_KEY']) ? $_SERVER['HTTP_X_API_KEY'] : '';
-if ($apiKey !== $API_KEY) {
-    // ⚠️ ห้ามใช้ http_response_code(401) — Nginx จะดักจับ
-    echo json_encode(array('success' => false, 'error' => 'Unauthorized'));
-    exit;
-}
+if ($apiKey !== $API_KEY) { echo json_encode(array('success'=>false,'error'=>'Unauthorized')); exit; }
 
-// ===== VALIDATE =====
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(array('success' => false, 'error' => 'Method not allowed'));
-    exit;
-}
-
-// ===== RECEIVE FILE =====
-if (!isset($_FILES['file'])) {
-    echo json_encode(array('success' => false, 'error' => 'No file uploaded'));
-    exit;
-}
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo json_encode(array('success'=>false,'error'=>'Method not allowed')); exit; }
+if (!isset($_FILES['file'])) { echo json_encode(array('success'=>false,'error'=>'No file uploaded')); exit; }
 
 $file = $_FILES['file'];
+if ($file['error'] !== UPLOAD_ERR_OK) { echo json_encode(array('success'=>false,'error'=>'Upload error','code'=>$file['error'])); exit; }
+if ($file['size'] > $MAX_FILE_SIZE) { echo json_encode(array('success'=>false,'error'=>'File too large','maxSize'=>'10MB')); exit; }
 
-if ($file['error'] !== UPLOAD_ERR_OK) {
-    echo json_encode(array('success' => false, 'error' => 'Upload error', 'code' => $file['error']));
-    exit;
-}
-
-if ($file['size'] > $MAX_FILE_SIZE) {
-    echo json_encode(array('success' => false, 'error' => 'File too large', 'maxSize' => '10MB'));
-    exit;
-}
-
-// MIME type check
+// ===== MIME type detection + fallbacks =====
 $mimeType = '';
 if (function_exists('finfo_open')) {
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     $mimeType = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
-} else {
-    $mimeType = $file['type'];
 }
-
+$clientType = isset($file['type']) ? $file['type'] : '';
+if ((!$mimeType || $mimeType === 'application/octet-stream') && $clientType) { $mimeType = $clientType; }
 if (!in_array($mimeType, $ALLOWED_TYPES)) {
-    echo json_encode(array('success' => false, 'error' => 'File type not allowed', 'type' => $mimeType));
-    exit;
+    $ext = strtolower(pathinfo($_POST['path'] ?? ($file['name'] ?? ''), PATHINFO_EXTENSION));
+    $map = array('webp'=>'image/webp','jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png','gif'=>'image/gif','pdf'=>'application/pdf');
+    if (isset($map[$ext])) { $mimeType = $map[$ext]; }
 }
+if (!in_array($mimeType, $ALLOWED_TYPES)) { echo json_encode(array('success'=>false,'error'=>'File type not allowed','type'=>$mimeType,'clientType'=>$clientType)); exit; }
 
 // ===== SAVE FILE =====
 $subPath = isset($_POST['path']) ? $_POST['path'] : '';
 $subPath = preg_replace('/[^a-zA-Z0-9_\-\/\.]/', '_', $subPath);
-
 if (empty($subPath)) {
-    $extMap = array(
-        'image/webp' => 'webp', 'image/jpeg' => 'jpg', 'image/png' => 'png',
-        'image/gif' => 'gif', 'application/pdf' => 'pdf'
-    );
+    $extMap = array('image/webp'=>'webp','image/jpeg'=>'jpg','image/png'=>'png','image/gif'=>'gif','application/pdf'=>'pdf');
     $ext = isset($extMap[$mimeType]) ? $extMap[$mimeType] : 'bin';
     $subPath = 'misc/' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
 }
-
 $fullPath = $UPLOAD_DIR . '/' . $subPath;
 $dir = dirname($fullPath);
-
-if (!is_dir($dir)) {
-    mkdir($dir, 0755, true);
-}
-
-if (!move_uploaded_file($file['tmp_name'], $fullPath)) {
-    echo json_encode(array('success' => false, 'error' => 'Failed to save file'));
-    exit;
-}
-
+if (!is_dir($dir)) { mkdir($dir, 0755, true); }
+if (!move_uploaded_file($file['tmp_name'], $fullPath)) { echo json_encode(array('success'=>false,'error'=>'Failed to save file')); exit; }
 chmod($fullPath, 0644);
 
-// ===== RESPONSE =====
-echo json_encode(array(
-    'success' => true,
-    'url' => $BASE_URL . '/' . $subPath,
-    'path' => $subPath,
-    'size' => $file['size'],
-    'type' => $mimeType
-));
+// ===== RESPONSE (Dynamic URL) =====
+echo json_encode(array('success'=>true,'url'=>$BASE_URL . '/' . $subPath,'path'=>$subPath,'size'=>$file['size'],'type'=>$mimeType));
 ```
 
 ### Step 2: สร้าง serve.php
@@ -293,45 +260,77 @@ readfile($realFile);
 
 ### Step 3: สร้าง Client Upload Utility (TypeScript/JavaScript)
 
-สร้างไฟล์ `utils/nasUpload.ts` ในโปรเจค:
+สร้างไฟล์ `utils/nasUpload.ts` ในโปรเจค (ตัวอย่างพร้อม fallback หลาย endpoint และ cache 10 นาที):
 
 ```typescript
-const NAS_API_URL = 'https://neosiam.dscloud.biz/api/upload.php';
 const NAS_API_KEY = 'YOUR_PROJECT_API_KEY_HERE';
 
-/**
- * Upload a File/Blob to NAS and return the public download URL.
- */
-export const uploadToNAS = async (
-    fileOrBlob: File | Blob,
-    path: string
-): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', fileOrBlob, path.split('/').pop() || 'file');
-    formData.append('path', path);
-
-    const response = await fetch(NAS_API_URL, {
-        method: 'POST',
-        headers: { 'X-API-Key': NAS_API_KEY },
-        body: formData,
-    });
-
-    // ⚠️ ห้ามเช็ค response.ok — เพราะ server return 200 เสมอ
-    const text = await response.text();
-
-    let result;
-    try {
-        result = JSON.parse(text);
-    } catch (e) {
-        throw new Error(`NAS upload: invalid JSON response: ${text.substring(0, 200)}`);
-    }
-
-    if (!result.success || !result.url) {
-        throw new Error(`NAS upload failed: ${result.error || JSON.stringify(result)}`);
-    }
-
-    return result.url; // URL สำหรับแสดงรูป เช่น https://neosiam.dscloud.biz/api/serve.php?file=...
+let cachedBase: string | null = null;
+const getCandidates = (): string[] => {
+  const overrides: string[] = [];
+  if (typeof window !== 'undefined') {
+    const o = window.localStorage?.getItem('NAS_API_BASE_OVERRIDE');
+    const t = window.localStorage?.getItem('NAS_API_TUNNEL');
+    if (o) overrides.push(o);
+    if (t) overrides.push(t);
+  }
+  return [
+    ...overrides,
+    'https://neosiam.dscloud.biz/api',
+    'http://192.168.1.82/api',
+  ];
 };
+
+const probe = async (base: string): Promise<boolean> => {
+  try {
+    const c = new AbortController();
+    const timer = setTimeout(() => c.abort(), 2500);
+    const res = await fetch(`${base}/diag.php`, { method: 'GET', cache: 'no-store', signal: c.signal });
+    clearTimeout(timer);
+    return res.ok;
+  } catch { return false; }
+};
+
+const resolveBaseUrl = async (): Promise<string> => {
+  if (cachedBase) return cachedBase;
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = window.localStorage?.getItem('NAS_API_BASE_CACHE');
+      if (raw) {
+        const { base, ts } = JSON.parse(raw);
+        if (base && ts && Date.now() - Number(ts) < 10 * 60 * 1000) {
+          cachedBase = base; return cachedBase;
+        }
+      }
+    } catch {}
+  }
+  for (const base of getCandidates()) {
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && base.startsWith('http://')) continue;
+    if (await probe(base)) {
+      cachedBase = base;
+      if (typeof window !== 'undefined') {
+        try { window.localStorage?.setItem('NAS_API_BASE_CACHE', JSON.stringify({ base, ts: Date.now() })); } catch {}
+      }
+      return cachedBase;
+    }
+  }
+  throw new Error('No NAS endpoint reachable');
+};
+
+export const uploadToNAS = async (fileOrBlob: File | Blob, path: string): Promise<string> => {
+  const formData = new FormData();
+  formData.append('file', fileOrBlob, path.split('/').pop() || 'file');
+  formData.append('path', path);
+  const base = await resolveBaseUrl();
+  const response = await fetch(`${base}/upload.php`, { method: 'POST', headers: { 'X-API-Key': NAS_API_KEY }, body: formData });
+  const text = await response.text();
+  let result: any; try { result = JSON.parse(text); } catch { throw new Error(`NAS upload: invalid JSON response: ${text.substring(0,200)}`); }
+  if (!result?.success || !result?.url) { throw new Error(`NAS upload failed: ${result?.error || response.status}`); }
+  return result.url as string;
+};
+
+// เคลียร์ cache (เวลาต้องสลับ endpoint เอง):
+export const clearNASBaseCache = () => { if (typeof window !== 'undefined') window.localStorage?.removeItem('NAS_API_BASE_CACHE'); };
 ```
 
 ### Step 4: (Optional) Image Compression Utility
@@ -410,7 +409,7 @@ DSM → Control Panel → Task Scheduler
 | **Task** | `sync-to-drive` |
 | **User** | `root` |
 | **Schedule** | Daily, Repeat every **5 minutes** |
-| **Script** | `bash /web/api/sync-to-drive.sh` |
+| **Script** | `sh /volume1/scripts/sync-to-drive.sh` |
 
 > ⚠️ ต้องเลือก **Scheduled Task** ไม่ใช่ **Triggered Task**
 > Triggered Task (Boot-up) จะรันแค่ตอนเปิดเครื่องเท่านั้น
@@ -418,6 +417,31 @@ DSM → Control Panel → Task Scheduler
 > ⚠️ **ห้ามใช้** `rsync -av /tmp/nas-uploads/ /volume1/.../subcontractor-truck-management/` โดยตรง
 > เพราะจะลาก folder จากระบบอื่น (migrated-ncr, migrated-returns) มาปนด้วย
 > ให้ใช้ `sync-to-drive.sh` ที่ sync เฉพาะ folder ของโปรเจคนี้ (pod-images, payment-slips)
+
+หมายเหตุ: ย้ายไฟล์สคริปต์ไปไว้ที่ Shared Folder `scripts` (ตำแหน่งจริง `/volume1/scripts/`) เพื่อความปลอดภัย ไม่วางไว้ใต้ `/web/api`.
+
+### Step 7: Health Check + Auto‑restart (แนะนำ)
+
+สร้างสคริปต์บน NAS: `/volume1/scripts/healthcheck-nas.sh` (ในโปรเจคนี้มีตัวอย่างแล้ว) แล้วตั้ง Task ตามนี้:
+
+1) Scheduled Task: ตรวจทุก 5 นาที
+
+| ตั้งค่า | ค่า |
+|---|---|
+| Task | `NAS API Health Check` |
+| User | `root` |
+| Schedule | Every 5 minutes |
+| Script | `ENDPOINT="https://neosiam.dscloud.biz/api/diag.php" sh /volume1/scripts/healthcheck-nas.sh` |
+
+สคริปต์จะ curl ไปยัง `diag.php` ถ้าไม่ผ่าน จะพยายาม restart Web Station/Nginx อัตโนมัติ และถ้ากำหนด `CLOUDFLARED_CMD` จะสั่งรัน cloudflared ให้ด้วย
+
+2) Triggered Task (Boot‑up): สตาร์ท Cloudflared อัตโนมัติเมื่อบูต
+
+```sh
+nohup /usr/local/bin/cloudflared tunnel run <ชื่อหรือUUIDของtunnel> >/volume1/scripts/cloudflared.log 2>&1 &
+```
+
+เพื่อป้องกันรันซ้ำ ให้ Disable งาน “Start Cloudflare Tunnel” ที่เป็นแบบตามเวลา เหลือเฉพาะงาน Boot‑up
 
 ---
 

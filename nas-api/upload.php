@@ -7,9 +7,18 @@
 // ===== CONFIG =====
 $API_KEY = 'NAS_UPLOAD_KEY_sansan856';
 $UPLOAD_DIR = '/tmp/nas-uploads';
-$BASE_URL = 'https://neosiam.dscloud.biz/api/serve.php?file=';
+// Build BASE_URL dynamically based on the request scheme and host so that the returned
+// public URL matches the access endpoint that actually succeeded (neosiam / tunnel / local)
+$scheme = 'http';
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && !empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+    $scheme = $_SERVER['HTTP_X_FORWARDED_PROTO'];
+} elseif (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+    $scheme = 'https';
+}
+$host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
+$BASE_URL = $scheme . '://' . $host . '/api/serve.php?file=';
 $MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-$ALLOWED_TYPES = array('image/webp', 'image/jpeg', 'image/png', 'image/gif', 'application/pdf');
+$ALLOWED_TYPES = array('image/webp', 'image/jpeg', 'image/jpg', 'image/png', 'image/x-png', 'image/pjpeg', 'image/gif', 'application/pdf', 'application/octet-stream');
 
 // ===== CORS =====
 header('Access-Control-Allow-Origin: *');
@@ -107,8 +116,26 @@ if (function_exists('finfo_open')) {
     $mimeType = $file['type'];
 }
 
+$clientType = isset($file['type']) ? $file['type'] : '';
+if ((!$mimeType || $mimeType === 'application/octet-stream') && $clientType) {
+    $mimeType = $clientType;
+}
 if (!in_array($mimeType, $ALLOWED_TYPES)) {
-    echo json_encode(array('success' => false, 'error' => 'File type not allowed', 'type' => $mimeType));
+    $ext = strtolower(pathinfo($_POST['path'] ?? ($file['name'] ?? ''), PATHINFO_EXTENSION));
+    $map = array(
+        'webp' => 'image/webp',
+        'jpg'  => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png'  => 'image/png',
+        'gif'  => 'image/gif',
+        'pdf'  => 'application/pdf'
+    );
+    if (isset($map[$ext])) {
+        $mimeType = $map[$ext];
+    }
+}
+if (!in_array($mimeType, $ALLOWED_TYPES)) {
+    echo json_encode(array('success' => false, 'error' => 'File type not allowed', 'type' => $mimeType, 'clientType' => $clientType));
     exit;
 }
 
