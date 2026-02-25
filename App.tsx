@@ -338,6 +338,18 @@ const App: React.FC = () => {
   const handleUpdateInvoice = (invoice: SubcontractorInvoice) => {
     set(ref(db, `invoices/${invoice.id}`), invoice);
   };
+  const stripUndefinedDeep = (v: any): any => {
+    if (Array.isArray(v)) return v.map(stripUndefinedDeep);
+    if (v && typeof v === 'object') {
+      const out: any = {};
+      for (const [k, val] of Object.entries(v)) {
+        if (val === undefined) continue;
+        out[k] = stripUndefinedDeep(val);
+      }
+      return out;
+    }
+    return v;
+  };
   const cleanJob = (job: Job): Job => {
     const cleaned = { ...job };
     // Numeric defaults & NaN protection
@@ -346,13 +358,7 @@ const App: React.FC = () => {
     cleaned.extraCharge = (!cleaned.extraCharge || isNaN(Number(cleaned.extraCharge))) ? 0 : Number(cleaned.extraCharge);
 
     // Explicitly remove any undefined fields that Firebase might complain about
-    Object.keys(cleaned).forEach(key => {
-      if ((cleaned as any)[key] === undefined) {
-        delete (cleaned as any)[key];
-      }
-    });
-
-    return cleaned;
+    return stripUndefinedDeep(cleaned);
   };
 
   const addJob = (job: Job) => {
