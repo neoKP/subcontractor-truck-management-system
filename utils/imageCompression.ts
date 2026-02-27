@@ -23,7 +23,13 @@ export const compressImageFile = async (file: File, options: CompressOptions = {
   if (!isImageType(file.type)) return file; // non-image: skip
 
   const { maxWidth, quality, outputType } = { ...DEFAULT_OPTS, ...options };
-  const bitmap = await createImageBitmap(file);
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    console.warn(`[imageCompression] Cannot decode "${file.name}" — uploading original file.`);
+    return file;
+  }
 
   const ratio = bitmap.width > maxWidth ? maxWidth / bitmap.width : 1;
   const targetWidth = Math.round(bitmap.width * ratio);
@@ -49,7 +55,13 @@ export const compressImageFile = async (file: File, options: CompressOptions = {
 export const compressBlobToWebP = async (blob: Blob, options: CompressOptions = {}): Promise<Blob> => {
   if (!isImageType(blob.type)) return blob;
   const { maxWidth, quality, outputType } = { ...DEFAULT_OPTS, ...options };
-  const bitmap = await createImageBitmap(blob);
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(blob);
+  } catch {
+    console.warn('[imageCompression] Cannot decode blob — returning original blob.');
+    return blob;
+  }
 
   const ratio = bitmap.width > maxWidth ? maxWidth / bitmap.width : 1;
   const targetWidth = Math.round(bitmap.width * ratio);
