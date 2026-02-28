@@ -42,8 +42,10 @@ async function sendTelegramMessage(token: string, chatId: string, text: string):
   }
 }
 
-// ── Build summary message ─────────────────────────────────────────────────────
-function buildSummaryMessage(pendingJobs: Job[]): string {
+const TELEGRAM_MAX_CHARS = 3500;
+
+// ── Build summary messages (chunked to stay under Telegram 4096 limit) ────────
+function buildSummaryMessages(pendingJobs: Job[]): string[] {
   const dateStr = new Date().toLocaleDateString("th-TH", {
     timeZone: "Asia/Bangkok",
     year: "numeric",
@@ -52,41 +54,48 @@ function buildSummaryMessage(pendingJobs: Job[]): string {
   });
 
   if (pendingJobs.length === 0) {
-    return [
+    return [[
       `✅ <b>รายงานสรุปประจำวัน</b>`,
       `🗓 ${dateStr}  |  เวลา 18:30 น.`,
       ``,
       `🎉 ไม่มีงานค้างยืนยันการจบงาน`,
       `ทุกงานเสร็จสมบูรณ์แล้ว!`,
-    ].join("\n");
+    ].join("\n")];
   }
 
-  const jobLines = pendingJobs.map((job, i) => {
+  const footer = `\n📌 กรุณายืนยันการจบงานในระบบ`;
+  const messages: string[] = [];
+  let current = [
+    `⚠️ <b>รายงานงานค้างยืนยันจบงาน</b>`,
+    `🗓 ${dateStr}  |  เวลา 18:30 น.`,
+    ``,
+    `พบงานที่ยังไม่ได้ยืนยันจบงาน <b>${pendingJobs.length} รายการ</b>`,
+  ].join("\n");
+
+  pendingJobs.forEach((job, i) => {
     const route = job.origin && job.destination
       ? `${job.origin} → ${job.destination}`
       : "-";
     const plate = job.licensePlate ? ` (${job.licensePlate})` : "";
     const truck = job.truckType ? `${job.truckType}${plate}` : "-";
-    return [
+    const jobLine = [
       ``,
       `${i + 1}. 📋 <b>${job.id}</b>`,
-      `   📅 วันที่บริการ: ${job.dateOfService || "-"}`,
-      `   🗺 เส้นทาง: ${route}`,
-      `   🚛 รถ: ${truck}`,
-      `   🏢 Subcontractor: ${job.subcontractor || "-"}`,
-      `   👷 คนขับ: ${job.driverName || "-"}`,
+      `   📅 ${job.dateOfService || "-"}`,
+      `   🗺 ${route}`,
+      `   🚛 ${truck}`,
+      `   👷 ${job.driverName || "-"}`,
     ].join("\n");
+
+    if ((current + jobLine + footer).length > TELEGRAM_MAX_CHARS) {
+      messages.push(current + footer);
+      current = `⚠️ <b>รายงานงานค้าง (ต่อ ${messages.length + 1})</b>\n`;
+    }
+    current += jobLine;
   });
 
-  return [
-    `⚠️ <b>รายงานงานค้างยืนยันจบงาน</b>`,
-    `🗓 ${dateStr}  |  เวลา 18:30 น.`,
-    ``,
-    `พบงานที่ยังไม่ได้ยืนยันจบงาน <b>${pendingJobs.length} รายการ</b>`,
-    ...jobLines,
-    ``,
-    `📌 กรุณายืนยันการจบงานในระบบ`,
-  ].join("\n");
+  messages.push(current + footer);
+  return messages;
 }
 
 // ── Scheduled Cloud Function ─────────────────────────────────────────────────
@@ -122,8 +131,10 @@ export const dailyJobReminder = onSchedule(
       (a.dateOfService || "").localeCompare(b.dateOfService || "")
     );
 
-    const message = buildSummaryMessage(pendingJobs);
-    await sendTelegramMessage(token, chatId, message);
+    const messages = buildSummaryMessages(pendingJobs);
+    for (const msg of messages) {
+      await sendTelegramMessage(token, chatId, msg);
+    }
 
     console.log(
       `[dailyJobReminder] Sent. Pending jobs: ${pendingJobs.length}`

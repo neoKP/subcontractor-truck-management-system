@@ -24,4 +24,11 @@ dist-ssr
 *.sw?
 
 .vercel
-.env*.local
+
+# Sensitive credentials — never commit these
+.env
+.env.local
+functions/.env
+functions/service-account.json
+*service-account*.json
+*-service-account.json
