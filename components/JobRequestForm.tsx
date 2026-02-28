@@ -4,6 +4,7 @@ import { Job, JobStatus, UserRole } from '../types';
 import { MASTER_DATA } from '../constants';
 import { Truck, MapPin, ClipboardCheck, ArrowRight, ArrowLeft, CheckCircle2, Zap, Search, Info, AlertTriangle, ShieldCheck, LayoutPanelTop } from 'lucide-react';
 import { formatDate } from '../utils/format';
+import { sendJobNotification } from '../utils/telegramNotify';
 import { PriceMatrix } from '../types';
 
 interface JobRequestFormProps {
@@ -192,6 +193,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     }
 
     onSubmit(newJob);
+    sendJobNotification(newJob, 'สร้างงานใหม่แล้ว').catch(() => {});
     setIsSubmitting(false);
 
     // Auto-open summary board after brief delay to let user digest success alert

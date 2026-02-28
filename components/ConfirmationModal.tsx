@@ -4,6 +4,7 @@ import { Job, JobStatus, AccountingStatus, AuditLog } from '../types';
 import { Camera, CheckCircle2, DollarSign, Image as ImageIcon, X, FileText, Upload, MapPin, Calendar, User, Phone, ShieldAlert } from 'lucide-react';
 import { formatDate } from '../utils/format';
 import { uploadFilesToStorage } from '../utils/firebaseStorage';
+import { sendJobNotification } from '../utils/telegramNotify';
 
 interface ConfirmationModalProps {
   job: Job;
@@ -163,6 +164,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
       }
 
       onConfirm(updatedJob, auditLogs);
+      sendJobNotification(updatedJob, 'จบงานแล้ว', imageUrls).catch(() => {});
 
       // Show Success Alert
       if (typeof (window as any).Swal !== 'undefined') {

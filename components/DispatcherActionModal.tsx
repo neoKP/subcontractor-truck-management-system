@@ -4,6 +4,7 @@ import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus } fro
 import { MASTER_DATA } from '../constants';
 import { AlertTriangle, Info, X, Lock, CheckCircle, User, Phone, Hash, CircleDot, DollarSign, Wallet, FileText, Clock, AlertCircle, Calendar, TrendingUp, ShieldCheck, MapPin, Upload, Camera, CheckCircle2, ClipboardCheck, CircleDollarSign } from 'lucide-react';
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
+import { sendJobNotification } from '../utils/telegramNotify';
 import ReviewConfirmModal from './ReviewConfirmModal';
 
 interface DispatcherActionModalProps {
@@ -301,6 +302,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     };
 
     onSave(updatedJob, logs);
+    sendJobNotification(updatedJob, 'มอบหมายรถแล้ว').catch(() => {});
 
     // Show Success Alert
     if (typeof (window as any).Swal !== 'undefined') {
