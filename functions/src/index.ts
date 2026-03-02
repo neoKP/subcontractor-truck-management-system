@@ -102,7 +102,7 @@ function buildSummaryMessages(pendingJobs: Job[]): string[] {
 // Runs every day at 18:30 Bangkok time (UTC+7 = 11:30 UTC)
 export const dailyJobReminder = onSchedule(
   {
-    schedule: "30 11 * * *", // 11:30 UTC = 18:30 ICT (UTC+7)
+    schedule: "30 18 * * *", // 18:30 ICT (UTC+7)
     timeZone: "Asia/Bangkok",
     region: "asia-southeast1",
   },
