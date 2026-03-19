@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserRole, Job, JobStatus, AuditLog, PriceMatrix, AccountingStatus, SubcontractorInvoice, InvoiceStatus } from './types';
+import { UserRole, Job, JobStatus, AuditLog, PriceMatrix, AccountingStatus, SubcontractorInvoice, InvoiceStatus, SubcontractorMaster } from './types';
 import JobRequestForm from './components/JobRequestForm';
 import JobBoard from './components/JobBoard';
 import Sidebar from './components/Sidebar';
@@ -25,8 +25,9 @@ import PendingPricingModal from './components/PendingPricingModal'; // Added Pen
 import HomeView from './components/HomeView'; // Added HomeView import
 import PaymentDashboard from './components/PaymentDashboard'; // Added PaymentDashboard import
 import MigrationTool from './components/MigrationTool';
+import SubcontractorMasterView from './components/SubcontractorMasterView';
 import { migrateBase64ToStorage } from './utils/migrateBase64ToStorage';
-import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3, ShieldAlert, Building2 } from 'lucide-react';
 import { db, ref, onValue, set, remove, get, query, limitToLast } from './firebaseConfig';
 
 // Initial Users Data for Seeding
@@ -52,8 +53,9 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [priceMatrix, setPriceMatrix] = useState<PriceMatrix[]>([]); // Firebase only - no initial data from constants
+  const [subcontractorMasters, setSubcontractorMasters] = useState<SubcontractorMaster[]>([]);
   const [invoices, setInvoices] = useState<SubcontractorInvoice[]>([]); // Subcontractor invoices
-  const [activeTab, setActiveTab] = useState<'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion' | 'payment'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'subcontractors' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion' | 'payment'>('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logSearch, setLogSearch] = useState('');
   const [logPage, setLogPage] = useState(1);
@@ -156,7 +158,16 @@ const App: React.FC = () => {
       }
     });
 
-    // --- 4. INVOICES: Realtime (relatively small data) ---
+    // --- 4. SUBCONTRACTOR MASTERS ---
+    const subMasterRef = ref(db, 'subcontractorMasters');
+    const unsubscribeSubMasters = onValue(subMasterRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setSubcontractorMasters(Object.values(data) as SubcontractorMaster[]);
+      }
+    });
+
+    // --- 5. INVOICES: Realtime (relatively small data) ---
     const invoicesRef = ref(db, 'invoices');
     const unsubscribeInvoices = onValue(invoicesRef, (snapshot) => {
       const data = snapshot.val();
@@ -405,6 +416,14 @@ const App: React.FC = () => {
     updateJob(finalJob, [log]);
   };
 
+  const updateSubcontractorMaster = (master: SubcontractorMaster) => {
+    set(ref(db, `subcontractorMasters/${master.id}`), master);
+  };
+
+  const deleteSubcontractorMaster = (id: string) => {
+    remove(ref(db, `subcontractorMasters/${id}`));
+  };
+
   const updatePriceMatrix = (newList: PriceMatrix[]) => {
     // Sanitize data to prevent NaN from breaking Firebase
     const sanitizedList = newList.map(p => ({
@@ -577,6 +596,7 @@ const App: React.FC = () => {
                 user={currentUser}
                 onSave={updateJob}
                 priceMatrix={priceMatrix}
+                subcontractorMasters={subcontractorMasters}
                 logs={logs}
                 logsLoaded={logsLoaded}
                 hidePrice={[UserRole.BOOKING_OFFICER, UserRole.FIELD_OFFICER].includes(currentUser.role)}
@@ -619,10 +639,28 @@ const App: React.FC = () => {
                   onUpdateJob={updateJob}
                   onDeleteJob={deleteJob}
                   priceMatrix={priceMatrix}
+                  subcontractorMasters={subcontractorMasters}
                   logs={logs}
                   logsLoaded={logsLoaded}
                 />
               )
+            )}
+
+            {activeTab === 'subcontractors' && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="bg-indigo-700 px-6 py-4 flex items-center gap-3">
+                  <Building2 className="text-white" size={24} />
+                  <h2 className="text-xl font-bold text-white">ข้อมูลบริษัทรถร่วม (Subcontractor Master)</h2>
+                </div>
+                <div className="p-6">
+                  <SubcontractorMasterView
+                    subcontractorMasters={subcontractorMasters}
+                    onUpdate={updateSubcontractorMaster}
+                    onDelete={deleteSubcontractorMaster}
+                    userRole={currentUser.role}
+                  />
+                </div>
+              </div>
             )}
 
             {activeTab === 'pricing' && (

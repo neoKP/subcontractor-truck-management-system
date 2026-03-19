@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus } from '../types';
+import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus, SubcontractorMaster } from '../types';
 import { MASTER_DATA } from '../constants';
 import { AlertTriangle, Info, X, Lock, CheckCircle, User, Phone, Hash, CircleDot, DollarSign, Wallet, FileText, Clock, AlertCircle, Calendar, TrendingUp, ShieldCheck, MapPin, Upload, Camera, CheckCircle2, ClipboardCheck, CircleDollarSign } from 'lucide-react';
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
@@ -13,12 +13,13 @@ interface DispatcherActionModalProps {
   onSave: (job: Job, logs?: AuditLog[]) => void;
   user: { id: string; name: string; role: UserRole };
   priceMatrix: PriceMatrix[];
+  subcontractorMasters?: SubcontractorMaster[];
   logs: AuditLog[];
   logsLoaded: boolean;
 }
 const Swal = (window as any).Swal;
 
-const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onClose, onSave, user, priceMatrix, logs, logsLoaded }) => {
+const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onClose, onSave, user, priceMatrix, subcontractorMasters = [], logs, logsLoaded }) => {
   // Use Firebase data only - single source of truth
   
   // Calculate initial cost including drop fees
@@ -300,14 +301,20 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
       accountingStatus: job.accountingStatus === AccountingStatus.REJECTED
         ? AccountingStatus.PENDING_REVIEW
         : job.accountingStatus,
-      // Copy payment/identity info from PriceMatrix if available
+      // Lookup bank info from SubcontractorMaster (priority) → PriceMatrix fallback
       paymentType: matchedMatrix?.paymentType ?? job.paymentType,
       paymentAccount: matchedMatrix?.paymentAccount ?? job.paymentAccount,
-      taxId: matchedMatrix?.taxId ?? job.taxId,
-      bankName: matchedMatrix?.bankName ?? job.bankName,
-      bankAccountName: matchedMatrix?.bankAccountName ?? job.bankAccountName,
-      bankAccountNo: matchedMatrix?.bankAccountNo ?? job.bankAccountNo,
-      idCardScanUrl: matchedMatrix?.idCardScanUrl ?? job.idCardScanUrl,
+      ...(() => {
+        const subName = (editData.subcontractor || '').trim();
+        const sm = subcontractorMasters.find(s => s.name === subName);
+        return {
+          taxId: sm?.taxId ?? matchedMatrix?.taxId ?? job.taxId,
+          bankName: sm?.bankName ?? matchedMatrix?.bankName ?? job.bankName,
+          bankAccountName: sm?.bankAccountName ?? matchedMatrix?.bankAccountName ?? job.bankAccountName,
+          bankAccountNo: sm?.bankAccountNo ?? matchedMatrix?.bankAccountNo ?? job.bankAccountNo,
+          idCardScanUrl: sm?.idCardScanUrl ?? matchedMatrix?.idCardScanUrl ?? job.idCardScanUrl,
+        };
+      })(),
     };
 
     onSave(updatedJob, logs);

@@ -250,19 +250,28 @@ const PaymentVoucherDocument: React.FC<PaymentVoucherProps> = ({
                         {/* Left: Bank Info + Remarks */}
                         <View style={s.summaryLeft}>
                             <View style={s.bankBox}>
-                                <Text style={s.bankTitle}>{t('🏦 ข้อมูลการชำระเงิน / Payment Details')}</Text>
-                                <View style={s.bankRow}>
-                                    <Text style={s.bankLabel}>{t('ธนาคาร:')}</Text>
-                                    <Text style={s.bankValue}>{t(job.bankName || '-')}</Text>
-                                </View>
-                                <View style={s.bankRow}>
-                                    <Text style={s.bankLabel}>{t('ชื่อบัญชี:')}</Text>
-                                    <Text style={s.bankValue}>{t(job.bankAccountName || '-')}</Text>
-                                </View>
-                                <View style={s.bankRow}>
-                                    <Text style={s.bankLabel}>{t('เลขที่บัญชี:')}</Text>
-                                    <Text style={s.bankValue}>{t(job.bankAccountNo || '-')}</Text>
-                                </View>
+                                <Text style={s.bankTitle}>{t(`🏦 ข้อมูลการชำระเงิน / Payment Details${job.paymentType === 'CASH' ? '  (💵 เงินสด)' : '  (📅 เครดิต)'}`)}</Text>
+                                {job.paymentType === 'CASH' ? (
+                                    <View style={s.bankRow}>
+                                        <Text style={s.bankLabel}>{t('บัญชีที่ชำระ:')}</Text>
+                                        <Text style={[s.bankValue, { flex: 1 }]}>{t(job.paymentAccount || '-')}</Text>
+                                    </View>
+                                ) : (
+                                    <>
+                                        <View style={s.bankRow}>
+                                            <Text style={s.bankLabel}>{t('ธนาคาร:')}</Text>
+                                            <Text style={s.bankValue}>{t(job.bankName || '-')}</Text>
+                                        </View>
+                                        <View style={s.bankRow}>
+                                            <Text style={s.bankLabel}>{t('ชื่อบัญชี:')}</Text>
+                                            <Text style={s.bankValue}>{t(job.bankAccountName || '-')}</Text>
+                                        </View>
+                                        <View style={s.bankRow}>
+                                            <Text style={s.bankLabel}>{t('เลขที่บัญชี:')}</Text>
+                                            <Text style={s.bankValue}>{t(job.bankAccountNo || '-')}</Text>
+                                        </View>
+                                    </>
+                                )}
                             </View>
 
                             <View style={s.whtBox}>

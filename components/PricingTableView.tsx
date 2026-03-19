@@ -802,58 +802,9 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                   )}
                 </div>
 
-                {/* Subcontractor Identity & Bank Info */}
-                <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-sky-50 rounded-2xl border border-blue-200">
-                  <h4 className="text-xs font-black text-blue-700 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    🏦 ข้อมูล Subcontractor (สำหรับใบสำคัญจ่าย)
-                  </h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1 col-span-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase">เลขบัตรประชาชน / เลขผู้เสียภาษี (Tax ID 13 หลัก)</label>
-                      <input
-                        type="text"
-                        maxLength={13}
-                        placeholder="x-xxxx-xxxxx-xx-x"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono"
-                        value={formData.taxId || ''}
-                        onChange={e => setFormData({ ...formData, taxId: e.target.value.replace(/\D/g, '').slice(0, 13) })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase">ธนาคาร (Bank)</label>
-                      <input
-                        list="bank-list"
-                        type="text"
-                        placeholder="เช่น กสิกรไทย, ไทยพาณิชย์"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                        value={formData.bankName || ''}
-                        onChange={e => setFormData({ ...formData, bankName: e.target.value })}
-                      />
-                      <datalist id="bank-list">
-                        {['กสิกรไทย', 'ไทยพาณิชย์', 'กรุงเทพ', 'กรุงไทย', 'กรุงศรีอยุธยา', 'ทหารไทยธนชาต', 'ออมสิน', 'ธนาคารเพื่อการเกษตรฯ (ธกส.)'].map(b => <option key={b} value={b} />)}
-                      </datalist>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase">เลขที่บัญชี (Account No.)</label>
-                      <input
-                        type="text"
-                        placeholder="xxx-x-xxxxx-x"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono"
-                        value={formData.bankAccountNo || ''}
-                        onChange={e => setFormData({ ...formData, bankAccountNo: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-1 col-span-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase">ชื่อบัญชี (Account Name)</label>
-                      <input
-                        type="text"
-                        placeholder="ชื่อเจ้าของบัญชีธนาคาร"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                        value={formData.bankAccountName || ''}
-                        onChange={e => setFormData({ ...formData, bankAccountName: e.target.value })}
-                      />
-                    </div>
-                  </div>
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-center gap-2">
+                  <span className="text-blue-500 text-lg">🏦</span>
+                  <p className="text-xs font-bold text-blue-700">ข้อมูล Tax ID / บัญชีธนาคาร จัดการได้ที่เมนู <strong>Subcontractors / บริษัทรถร่วม</strong></p>
                 </div>
               </div>
             )}

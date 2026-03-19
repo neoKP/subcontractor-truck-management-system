@@ -1,12 +1,12 @@
 
 import React from 'react';
 import { UserRole, USER_ROLE_LABELS } from '../types';
-import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users, TrendingUp, ChevronLeft, ChevronRight, LayoutPanelTop, BarChart3, FileSpreadsheet, CheckSquare, Banknote } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users, TrendingUp, ChevronLeft, ChevronRight, LayoutPanelTop, BarChart3, FileSpreadsheet, CheckSquare, Banknote, Building2 } from 'lucide-react';
 
 interface SidebarProps {
   currentRole: UserRole;
-  activeTab: 'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion' | 'payment';
-  setActiveTab: (tab: 'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion' | 'payment') => void;
+  activeTab: 'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'subcontractors' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion' | 'payment';
+  setActiveTab: (tab: 'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'subcontractors' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion' | 'payment') => void;
   onLogout: () => void;
   isOpen?: boolean;
   onClose?: () => void;
@@ -27,6 +27,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, setActiveTab,
     { id: 'verify', label: 'Verification / ตรวจสอบ', icon: ClipboardCheck, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'billing', label: 'Billing / วางบิล', icon: Receipt, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'payment', label: 'Payment / จ่ายเงินรถร่วม', icon: Banknote, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
+    { id: 'subcontractors', label: 'Subcontractors / บริษัทรถร่วม', icon: Building2, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'pricing', label: 'Master Pricing / ราคากลาง', icon: Tag, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER] },
     { id: 'aggregation', label: 'Reports / รายงานสรุป', icon: BarChart3, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'profit', label: 'Profit Analysis / วิเคราะห์กำไร', icon: PieChart, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },

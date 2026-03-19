@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Job, JobStatus, UserRole, AccountingStatus, AuditLog, PriceMatrix } from '../types';
+import { Job, JobStatus, UserRole, AccountingStatus, AuditLog, PriceMatrix, SubcontractorMaster } from '../types';
 import { Search, TrendingUp, Clock, CheckCircle, XCircle, AlertCircle, User, MapPin, Truck, Calendar, Edit, UserPlus, CheckSquare, FileText, Trash2, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDate, formatThaiCurrency } from '../utils/format';
 import DispatcherActionModal from './DispatcherActionModal';
@@ -12,6 +12,7 @@ interface DispatcherDashboardProps {
     onDeleteJob: (jobId: string) => void;
     user: { id: string; name: string; role: UserRole };
     priceMatrix?: PriceMatrix[];
+    subcontractorMasters?: SubcontractorMaster[];
     logs?: AuditLog[];
     logsLoaded?: boolean;
 }
@@ -22,6 +23,7 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
     onDeleteJob,
     user,
     priceMatrix = [],
+    subcontractorMasters = [],
     logs = [],
     logsLoaded = false
 }) => {
@@ -598,6 +600,7 @@ const DispatcherDashboard: React.FC<DispatcherDashboardProps> = ({
                     job={selectedJob}
                     user={user}
                     priceMatrix={priceMatrix}
+                    subcontractorMasters={subcontractorMasters}
                     logs={logs}
                     logsLoaded={logsLoaded}
                     onClose={() => { setShowActionModal(false); setSelectedJob(null); }}

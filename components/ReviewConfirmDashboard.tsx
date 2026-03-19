@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Job, JobStatus, UserRole, AccountingStatus } from '../types';
+import { Job, JobStatus, AccountingStatus, UserRole, AuditLog, PriceMatrix, SubcontractorMaster } from '../types';
 import { Search, Download, CheckCircle, Clock, TrendingUp, AlertCircle, User } from 'lucide-react';
 import { formatDate, formatThaiCurrency } from '../utils/format';
 import ReviewConfirmModal from './ReviewConfirmModal';
@@ -11,6 +11,7 @@ interface ReviewConfirmDashboardProps {
     onSave: (job: Job) => void;
     user: { id: string; name: string; role: UserRole };
     priceMatrix: any[];
+    subcontractorMasters?: SubcontractorMaster[];
     logs: any[];
     logsLoaded: boolean;
     hidePrice?: boolean;
@@ -21,6 +22,7 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
     onSave,
     user,
     priceMatrix,
+    subcontractorMasters = [],
     logs,
     logsLoaded,
     hidePrice = false
@@ -452,6 +454,7 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                     job={editingJob}
                     user={user}
                     priceMatrix={priceMatrix}
+                    subcontractorMasters={subcontractorMasters}
                     logs={logs}
                     logsLoaded={logsLoaded}
                     onClose={() => setEditingJob(null)}

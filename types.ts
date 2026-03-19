@@ -161,6 +161,20 @@ export interface PriceMatrix {
   idCardScanUrl?: string; // URL สแกนบัตรประชาชนใน Firebase Storage
 }
 
+export interface SubcontractorMaster {
+  id: string; // same as subcontractor name (slugified) - used as Firebase key
+  name: string; // ชื่อบริษัทรถร่วม (ต้องตรงกับ MASTER_DATA.subcontractors)
+  paymentType: 'CREDIT' | 'CASH'; // ประเภทการชำระ (CASH ใช้ paymentAccount ใน PriceMatrix แทน)
+  taxId?: string; // เลขบัตรประชาชน/เลขผู้เสียภาษี 13 หลัก
+  bankName?: string; // ชื่อธนาคาร เช่น กสิกรไทย, ไทยพาณิชย์
+  bankAccountName?: string; // ชื่อบัญชี
+  bankAccountNo?: string; // เลขที่บัญชี
+  idCardScanUrl?: string; // URL สแกนบัตรประชาชนใน Firebase Storage
+  contactName?: string; // ชื่อผู้ติดต่อ
+  contactPhone?: string; // เบอร์โทรผู้ติดต่อ
+  note?: string; // หมายเหตุ
+}
+
 // Invoice Status for Subcontractor Payment
 export enum InvoiceStatus {
   PENDING = 'PENDING',
