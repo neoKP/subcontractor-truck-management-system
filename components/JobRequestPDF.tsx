@@ -37,11 +37,15 @@ export const initPDFResources = async () => {
             // Register Fonts
             if (regRes && regRes.ok && boldRes && boldRes.ok) {
                 const [regBlob, boldBlob] = await Promise.all([regRes.blob(), boldRes.blob()]);
+                const regUrl = URL.createObjectURL(regBlob);
+                const boldUrl = URL.createObjectURL(boldBlob);
                 Font.register({
                     family: FONT_FAMILY,
                     fonts: [
-                        { src: URL.createObjectURL(regBlob), fontWeight: 400 },
-                        { src: URL.createObjectURL(boldBlob), fontWeight: 700 }
+                        { src: regUrl,  fontWeight: 400, fontStyle: 'normal' },
+                        { src: boldUrl, fontWeight: 700, fontStyle: 'normal' },
+                        { src: regUrl,  fontWeight: 400, fontStyle: 'italic' },
+                        { src: boldUrl, fontWeight: 700, fontStyle: 'italic' },
                     ]
                 });
                 console.log('PDF: Fonts registered successfully.');
@@ -62,8 +66,10 @@ export const initPDFResources = async () => {
             Font.register({
                 family: FONT_FAMILY,
                 fonts: [
-                    { src: '/fonts/Sarabun-Regular.ttf', fontWeight: 400 },
-                    { src: '/fonts/Sarabun-Bold.ttf', fontWeight: 700 }
+                    { src: '/fonts/Sarabun-Regular.ttf', fontWeight: 400, fontStyle: 'normal' },
+                    { src: '/fonts/Sarabun-Bold.ttf',    fontWeight: 700, fontStyle: 'normal' },
+                    { src: '/fonts/Sarabun-Regular.ttf', fontWeight: 400, fontStyle: 'italic' },
+                    { src: '/fonts/Sarabun-Bold.ttf',    fontWeight: 700, fontStyle: 'italic' },
                 ]
             });
         }
