@@ -550,7 +550,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
 
       {isAdding && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col animate-in fade-in zoom-in duration-200 max-h-[90vh]">
             <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white">
               <h3 className="text-lg font-bold">
                 {isReviewing
@@ -561,7 +561,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
             </div>
 
             {isReviewing ? (
-              <div className="p-6 space-y-6 animate-in slide-in-from-right-4 duration-300">
+              <div className="p-6 space-y-6 animate-in slide-in-from-right-4 duration-300 overflow-y-auto flex-1">
                 <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-2xl space-y-4">
                   <div className="grid grid-cols-2 gap-y-4">
                     <div>
@@ -636,7 +636,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                 </div>
               </div>
             ) : (
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label htmlFor="price-origin" className="text-xs font-bold text-slate-500 uppercase">Origin (ต้นทาง)</label>

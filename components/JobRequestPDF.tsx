@@ -26,32 +26,23 @@ export const initPDFResources = async () => {
             console.log('PDF: Initializing resources...');
 
             const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+            const regUrl  = `${baseUrl}/fonts/Sarabun-Regular.ttf`;
+            const boldUrl = `${baseUrl}/fonts/Sarabun-Bold.ttf`;
 
-            // Parallel fetch fonts and logo for speed
-            const [regRes, boldRes, logoRes] = await Promise.all([
-                fetch(`${baseUrl}/fonts/Sarabun-Regular.ttf?v=${Date.now()}`),
-                fetch(`${baseUrl}/fonts/Sarabun-Bold.ttf?v=${Date.now()}`),
-                fetch(`${baseUrl}/logo.png`).catch(() => null)
-            ]);
+            // Register fonts using absolute URLs directly — no blob conversion needed
+            Font.register({
+                family: FONT_FAMILY,
+                fonts: [
+                    { src: regUrl,  fontWeight: 400, fontStyle: 'normal' },
+                    { src: boldUrl, fontWeight: 700, fontStyle: 'normal' },
+                    { src: regUrl,  fontWeight: 400, fontStyle: 'italic' },
+                    { src: boldUrl, fontWeight: 700, fontStyle: 'italic' },
+                ]
+            });
+            console.log('PDF: Fonts registered successfully.');
 
-            // Register Fonts
-            if (regRes && regRes.ok && boldRes && boldRes.ok) {
-                const [regBlob, boldBlob] = await Promise.all([regRes.blob(), boldRes.blob()]);
-                const regUrl = URL.createObjectURL(regBlob);
-                const boldUrl = URL.createObjectURL(boldBlob);
-                Font.register({
-                    family: FONT_FAMILY,
-                    fonts: [
-                        { src: regUrl,  fontWeight: 400, fontStyle: 'normal' },
-                        { src: boldUrl, fontWeight: 700, fontStyle: 'normal' },
-                        { src: regUrl,  fontWeight: 400, fontStyle: 'italic' },
-                        { src: boldUrl, fontWeight: 700, fontStyle: 'italic' },
-                    ]
-                });
-                console.log('PDF: Fonts registered successfully.');
-            }
-
-            // Handle Logo
+            // Fetch logo as blob (needed for Image component)
+            const logoRes = await fetch(`${baseUrl}/logo.png`).catch(() => null);
             if (logoRes && logoRes.ok) {
                 const logoBlob = await logoRes.blob();
                 logoUrl = URL.createObjectURL(logoBlob);
