@@ -3,10 +3,11 @@ import { Job, JobStatus, AccountingStatus, ExtraChargeDetail, UserRole, PriceMat
 import {
     CheckCircle, XCircle, AlertTriangle, FileText,
     Truck, MapPin, Calendar, DollarSign, Search,
-    ChevronRight, ChevronDown, Lock, Eye, X, Edit3, Trash2, Plus, Save
+    ChevronRight, ChevronDown, Lock, Eye, X, Edit3, Trash2, Plus, Save, Printer, Download
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
+import * as XLSX from 'xlsx';
 
 const dataURItoBlob = (dataURI: string) => {
     try {
@@ -40,6 +41,22 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
     const [rejectReason, setRejectReason] = useState('');
     const [previewImage, setPreviewImage] = useState<string | null>(null);
+    const [whtRate, setWhtRate] = useState<number>(1);
+    const [isPrintingVoucher, setIsPrintingVoucher] = useState(false);
+
+    const handlePrintVoucher = async () => {
+        if (!selectedJob || isPrintingVoucher) return;
+        setIsPrintingVoucher(true);
+        try {
+            const { downloadPaymentVoucher } = await import('./PaymentVoucherPDF');
+            await downloadPaymentVoucher({ job: selectedJob, whtRate });
+        } catch (err) {
+            console.error('Error generating Payment Voucher:', err);
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้าง Payment Voucher ได้', 'error');
+        } finally {
+            setIsPrintingVoucher(false);
+        }
+    };
     
     // Extra Charges Edit State
     const [editingExtraCharges, setEditingExtraCharges] = useState(false);
@@ -228,16 +245,91 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
         setNewCharge({ type: '', amount: 0, reason: '' });
     };
 
+    const handleExportExcel = () => {
+        if (accountingJobs.length === 0) {
+            Swal.fire('ไม่มีข้อมูล', 'ไม่มีรายการที่ตรงกับตัวกรองปัจจุบัน', 'info');
+            return;
+        }
+
+        const rows = accountingJobs.map(job => {
+            const totalCost = (job.cost || 0) + (job.extraCharge || 0);
+            return {
+                'Job ID': job.id,
+                'วันที่ให้บริการ': job.dateOfService,
+                'สถานะงาน': job.accountingStatus || 'Pending Review',
+                'ต้นทาง': job.origin,
+                'ปลายทาง': job.destination,
+                'บริษัทรถร่วม (Subcontractor)': job.subcontractor || '',
+                'คนขับ': job.driverName || '',
+                'เบอร์โทรคนขับ': job.driverPhone || '',
+                'ทะเบียนรถ': job.licensePlate || '',
+                'ประเภทรถ': job.truckType,
+                'รายละเอียดสินค้า': job.productDetail,
+                'น้ำหนัก/ปริมาณ': job.weightVolume,
+                'ต้นทุนพื้นฐาน (Base Cost)': job.cost || 0,
+                'ค่าใช้จ่ายพิเศษ (Extra)': job.extraCharge || 0,
+                'ต้นทุนรวม (Total Cost)': totalCost,
+                'รายรับจากลูกค้า (Selling Price)': job.sellingPrice || 0,
+                'กำไร (Profit)': (job.sellingPrice || 0) - totalCost,
+                'ระยะเวลาชำระ': job.paymentType === 'CASH' ? 'เงินสด' : `เครดิต ${job.paymentType || ''}`,
+                'ธนาคาร': job.bankName || '',
+                'ชื่อบัญชี': job.bankAccountName || '',
+                'เลขที่บัญชี': job.bankAccountNo || '',
+                'เลขผู้เสียภาษี (Tax ID)': job.taxId || '',
+                'วันที่เสร็จงาน': job.actualArrivalTime ? formatDate(job.actualArrivalTime) : '',
+                'ระยะทาง (km)': job.mileage || '',
+                'หมายเหตุ': job.remark || '',
+                'หมายเหตุบัญชี': job.accountingRemark || '',
+            };
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+
+        // Column widths
+        worksheet['!cols'] = [
+            { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 25 }, { wch: 25 },
+            { wch: 28 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+            { wch: 22 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 14 },
+            { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 20 },
+            { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 25 }, { wch: 25 },
+        ];
+
+        const workbook = XLSX.utils.book_new();
+        const statusLabel = filterStatus === 'ALL' ? 'All' : filterStatus.replace(' ', '_');
+        XLSX.utils.book_append_sheet(workbook, worksheet, `Verification_${statusLabel}`);
+
+        const dateStr = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(workbook, `Verification_${statusLabel}_${dateStr}.xlsx`);
+
+        Swal.fire({
+            title: 'Export สำเร็จ!',
+            text: `ส่งออก ${rows.length} รายการ`,
+            icon: 'success',
+            timer: 1500,
+            showConfirmButton: false,
+            customClass: { popup: 'rounded-[2rem]' }
+        });
+    };
+
     return (
         <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-100px)] gap-4 lg:gap-6 animate-in fade-in duration-500">
             {/* Left Panel: Job List (Inbox) */}
             <div className={`w-full lg:w-1/3 flex flex-col gap-4 ${selectedJob ? 'hidden lg:flex' : 'flex'}`}>
                 {/* Search & Filter */}
                 <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-200">
-                    <h2 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">
-                        <CheckCircle className="text-blue-600" />
-                        ตรวจสอบงาน (Verification)
-                    </h2>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                            <CheckCircle className="text-blue-600" />
+                            ตรวจสอบงาน
+                        </h2>
+                        <button
+                            onClick={handleExportExcel}
+                            title="Export ไป Excel"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow transition-all"
+                        >
+                            <Download size={14} /> Excel
+                        </button>
+                    </div>
                     <div className="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">
                         {[
                             { id: AccountingStatus.PENDING_REVIEW, label: 'รอตรวจ', icon: <AlertTriangle size={14} /> },
@@ -649,7 +741,45 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
                         </div>
 
                         {/* Actions Footer */}
-                        <div className="pt-4 sm:pt-6 border-t border-slate-100 mt-auto">
+                        <div className="pt-4 sm:pt-6 border-t border-slate-100 mt-auto space-y-3">
+                            {/* Payment Voucher Row */}
+                            <div className="flex flex-wrap items-center gap-2 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
+                                <Printer size={16} className="text-blue-600 shrink-0" />
+                                <span className="text-xs font-bold text-blue-700">ใบสำคัญจ่าย WHT:</span>
+                                <div className="flex gap-1 items-center flex-wrap">
+                                    <button
+                                        onClick={() => setWhtRate(1)}
+                                        className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
+                                            whtRate === 1 ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border border-blue-200'
+                                        }`}
+                                    >1%</button>
+                                    <div className="flex items-center gap-1 bg-white border border-blue-200 rounded-lg px-2 py-0.5">
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            step={0.5}
+                                            value={whtRate}
+                                            title="อัตราหัก ณ ที่จ่าย (%)"
+                                            placeholder="%"
+                                            onChange={e => {
+                                                const v = parseFloat(e.target.value);
+                                                if (!isNaN(v) && v >= 0 && v <= 100) setWhtRate(v);
+                                            }}
+                                            className="w-10 text-xs font-black text-blue-700 bg-transparent outline-none text-center"
+                                        />
+                                        <span className="text-xs font-black text-blue-500">%</span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handlePrintVoucher}
+                                    disabled={isPrintingVoucher}
+                                    className="ml-auto px-4 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-black hover:bg-blue-700 transition-all flex items-center gap-1.5 disabled:opacity-60"
+                                >
+                                    {isPrintingVoucher ? '...' : <><Printer size={13} /> พิมพ์</>}
+                                </button>
+                            </div>
+
                             {selectedJob.accountingStatus === 'Approved' ? (
                                 <div className="bg-emerald-50 text-emerald-700 p-3 sm:p-4 rounded-2xl flex items-center justify-center gap-2 sm:gap-3 font-bold border border-emerald-100 text-xs sm:text-sm">
                                     <CheckCircle size={18} /> อนุมัติแล้ว (Verified & Approved)

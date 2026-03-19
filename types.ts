@@ -114,6 +114,12 @@ export interface Job {
   // Payment info (for CASH jobs)
   paymentType?: 'CASH' | 'CREDIT';
   paymentAccount?: string; // Bank account info for cash payment
+  // Subcontractor identity & payment info (copied from PriceMatrix at assign time)
+  taxId?: string;
+  bankName?: string;
+  bankAccountName?: string;
+  bankAccountNo?: string;
+  idCardScanUrl?: string;
 }
 
 export interface AuditLog {
@@ -147,6 +153,12 @@ export interface PriceMatrix {
   paymentType?: 'CASH' | 'CREDIT'; // Payment type for subcontractor
   creditDays?: number; // Credit days: 0, 7, 15, 30, 45, 60, or custom
   paymentAccount?: string; // Bank account info (required for CASH)
+  // Subcontractor identity & payment info
+  taxId?: string; // เลขบัตรประชาชน/เลขผู้เสียภาษี 13 หลัก
+  bankName?: string; // ชื่อธนาคาร เช่น กสิกรไทย, ไทยพาณิชย์
+  bankAccountName?: string; // ชื่อบัญชี
+  bankAccountNo?: string; // เลขที่บัญชี
+  idCardScanUrl?: string; // URL สแกนบัตรประชาชนใน Firebase Storage
 }
 
 // Invoice Status for Subcontractor Payment

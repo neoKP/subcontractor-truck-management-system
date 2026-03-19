@@ -289,6 +289,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
         logs.push(createLog('Cost (Price)', (job.cost || 0).toString(), editData.cost.toString(), finalReason));
       }
     }
+    const matchedMatrix = findContractMatch(editData.origin, editData.destination, editData.truckType, editData.subcontractor);
     const updatedJob: Job = {
       ...job,
       ...editData,
@@ -298,7 +299,15 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
       // Auto-reset accounting status if it was rejected to notify accounting to check again
       accountingStatus: job.accountingStatus === AccountingStatus.REJECTED
         ? AccountingStatus.PENDING_REVIEW
-        : job.accountingStatus
+        : job.accountingStatus,
+      // Copy payment/identity info from PriceMatrix if available
+      paymentType: matchedMatrix?.paymentType ?? job.paymentType,
+      paymentAccount: matchedMatrix?.paymentAccount ?? job.paymentAccount,
+      taxId: matchedMatrix?.taxId ?? job.taxId,
+      bankName: matchedMatrix?.bankName ?? job.bankName,
+      bankAccountName: matchedMatrix?.bankAccountName ?? job.bankAccountName,
+      bankAccountNo: matchedMatrix?.bankAccountNo ?? job.bankAccountNo,
+      idCardScanUrl: matchedMatrix?.idCardScanUrl ?? job.idCardScanUrl,
     };
 
     onSave(updatedJob, logs);
