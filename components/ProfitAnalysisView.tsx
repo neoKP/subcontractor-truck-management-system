@@ -62,17 +62,12 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
     const filteredJobs = useMemo(() => {
         return jobs.filter(j => {
             if (!j.dateOfService) return false;
-            const jobDate = new Date(j.dateOfService);
             const jobDateStr = (j.dateOfService || '').split('T')[0];
             let matchesTime = false;
             switch (filterType) {
                 case 'day': matchesTime = jobDateStr === filterDay; break;
-                case 'month': {
-                    const [y, m] = filterMonth.split('-');
-                    matchesTime = jobDate.getFullYear() === parseInt(y) && (jobDate.getMonth() + 1) === parseInt(m);
-                    break;
-                }
-                case 'year': matchesTime = jobDate.getFullYear() === filterYear; break;
+                case 'month': matchesTime = jobDateStr.startsWith(filterMonth); break;
+                case 'year': matchesTime = jobDateStr.startsWith(String(filterYear)); break;
                 case 'custom': matchesTime = jobDateStr >= filterCustom.start && jobDateStr <= filterCustom.end; break;
                 default: matchesTime = true;
             }

@@ -121,8 +121,8 @@ const App: React.FC = () => {
   React.useEffect(() => {
     // --- 1. JOBS: Realtime listener with limitToLast ---
     // Previously loaded ALL jobs (including Base64 images) = ~50MB
-    // Now limited to last 200 jobs, images stored in Firebase Storage as URLs
-    const jobsQuery = query(ref(db, 'jobs'), limitToLast(200));
+    // Now limited to last 500 jobs, images stored in Firebase Storage as URLs (small records)
+    const jobsQuery = query(ref(db, 'jobs'), limitToLast(500));
     const unsubscribeJobs = onValue(jobsQuery, (snapshot) => {
       const data = snapshot.val();
       if (data) {
