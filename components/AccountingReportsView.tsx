@@ -1,6 +1,7 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Job, AuditLog, JobStatus, UserRole } from '../types';
+import { db, ref, get, query, orderByChild, startAt, endAt } from '../firebaseConfig';
 import * as XLSX from 'xlsx';
 import {
     AreaChart,
@@ -91,6 +92,8 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
     const [groupBy, setGroupBy] = useState<'sub' | 'route'>('sub');
     const [searchQuery, setSearchQuery] = useState('');
     const [isMounted, setIsMounted] = useState(false);
+    const [analyticsJobs, setAnalyticsJobs] = useState<Job[]>([]);
+    const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
 
     // --- Cross-Filtering State ---
     const [selectedSub, setSelectedSub] = useState<string | null>(null);
@@ -108,9 +111,57 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
         setSelectedRoute(null);
     }, [filterType, filterYear, filterMonth, filterDay, filterCustom, statusFilter, searchQuery]);
 
+    // --- Firebase Date-Range Fetch for Analytics (profit mode only) ---
+    const fetchAnalyticsJobs = useCallback(async () => {
+        if (reportMode !== 'profit') return;
+
+        // Derive the year range to fetch (always full year for trend chart)
+        let fetchStart: string;
+        let fetchEnd: string;
+
+        if (filterType === 'year') {
+            fetchStart = `${filterYear}-01-01`;
+            fetchEnd = `${filterYear}-12-31\u{F8FF}`;
+        } else if (filterType === 'month') {
+            const y = filterMonth.split('-')[0];
+            fetchStart = `${y}-01-01`;
+            fetchEnd = `${y}-12-31\u{F8FF}`;
+        } else if (filterType === 'day') {
+            const y = filterDay.split('-')[0];
+            fetchStart = `${y}-01-01`;
+            fetchEnd = `${y}-12-31\u{F8FF}`;
+        } else {
+            // custom: fetch exact range
+            fetchStart = filterCustom.start;
+            fetchEnd = filterCustom.end + '\u{F8FF}';
+        }
+
+        setIsLoadingAnalytics(true);
+        try {
+            const q = query(
+                ref(db, 'jobs'),
+                orderByChild('dateOfService'),
+                startAt(fetchStart),
+                endAt(fetchEnd)
+            );
+            const snapshot = await get(q);
+            const data = snapshot.val();
+            setAnalyticsJobs(data ? (Object.values(data) as Job[]) : []);
+        } catch (err) {
+            console.error('Analytics fetch error:', err);
+            setAnalyticsJobs([]);
+        } finally {
+            setIsLoadingAnalytics(false);
+        }
+    }, [reportMode, filterType, filterYear, filterMonth, filterDay, filterCustom]);
+
+    useEffect(() => {
+        fetchAnalyticsJobs();
+    }, [fetchAnalyticsJobs]);
+
     // --- Aggregation Logic ---
     const validJobs = useMemo(() => {
-        return jobs.filter(j => {
+        return analyticsJobs.filter(j => {
             if (j.status === JobStatus.CANCELLED) return false;
 
             // Search Filter
@@ -151,7 +202,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
 
             return true;
         });
-    }, [jobs, filterType, filterDay, filterMonth, filterYear, filterCustom, statusFilter, searchQuery, selectedSub, selectedRoute]);
+    }, [analyticsJobs, filterType, filterDay, filterMonth, filterYear, filterCustom, statusFilter, searchQuery, selectedSub, selectedRoute]);
 
     // Financial KPIs - Cost Focused
     const metrics = useMemo(() => {
@@ -170,7 +221,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
         const monthlyRecords = months.map(m => ({ label: m, cost: 0, loadCount: 0 }));
         const currentYear = filterType === 'year' ? filterYear : new Date(filterMonth).getFullYear();
 
-        jobs.forEach(j => {
+        analyticsJobs.forEach(j => {
             if (j.status === JobStatus.CANCELLED) return;
 
             if (selectedSub) {
@@ -184,9 +235,10 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
             }
 
             if (!j.dateOfService) return;
-            const d = new Date(j.dateOfService);
-            if (d.getFullYear() === currentYear) {
-                const mIdx = d.getMonth();
+            const dateStr = (j.dateOfService || '').split('T')[0];
+            const jobYear = parseInt(dateStr.split('-')[0]);
+            const mIdx = parseInt(dateStr.split('-')[1]) - 1;
+            if (jobYear === currentYear && mIdx >= 0 && mIdx <= 11) {
                 const cost = (j.cost || 0);
                 monthlyRecords[mIdx].cost += cost;
                 monthlyRecords[mIdx].loadCount += 1;
@@ -196,7 +248,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
             ...r,
             avgCost: r.loadCount > 0 ? r.cost / r.loadCount : 0
         }));
-    }, [jobs, filterType, filterYear, filterMonth, selectedSub, selectedRoute]);
+    }, [analyticsJobs, filterType, filterYear, filterMonth, selectedSub, selectedRoute]);
 
     // Subcontractor Cost Distribution
     const subData = useMemo(() => {
@@ -360,6 +412,13 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                 <BillingReportView jobs={jobs} />
             ) : (
                 <>
+                    {/* Loading Indicator */}
+                    {isLoadingAnalytics && (
+                        <div className="flex items-center justify-center gap-3 py-6 bg-blue-50 rounded-2xl border border-blue-100">
+                            <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                            <span className="text-xs font-black text-blue-700 uppercase tracking-widest">กำลังโหลดข้อมูลจาก Firebase...</span>
+                        </div>
+                    )}
                     {/* Cost Focused KPIs */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {[
