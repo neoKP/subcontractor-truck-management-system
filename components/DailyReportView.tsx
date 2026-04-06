@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Job, JobStatus, JOB_STATUS_LABELS, UserRole } from '../types';
-import { FileSpreadsheet, Search, Calendar, Truck, User, MapPin, CheckCircle2, Clock, AlertCircle, Users, Eye } from 'lucide-react';
+import { FileSpreadsheet, Search, Calendar, Truck, User, MapPin, CheckCircle2, Clock, AlertCircle, Users, Eye, Phone, Package } from 'lucide-react';
 import { formatDate } from '../utils/format';
+import * as XLSX from 'xlsx';
 import JobPreviewModal from './JobPreviewModal';
 
 interface DailyReportViewProps {
@@ -13,7 +14,8 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
     // Default to today in YYYY-MM-DD format (Local Time)
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const [selectedDate, setSelectedDate] = useState<string>(today);
+    const [dateFrom, setDateFrom] = useState<string>(today);
+    const [dateTo, setDateTo] = useState<string>(today);
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState<'my' | 'all'>('all');
     const [previewJob, setPreviewJob] = useState<Job | null>(null);
@@ -56,7 +58,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                 jobCreatedDateLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             }
 
-            const isDateMatch = jobCreatedDateLocal === selectedDate;
+            const isDateMatch = jobCreatedDateLocal >= dateFrom && jobCreatedDateLocal <= dateTo;
 
             if (!isDateMatch) return false;
 
@@ -70,7 +72,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
             // Fallback to ID sorting for legacy jobs
             return a.id.localeCompare(b.id);
         });
-    }, [jobs, selectedDate, searchTerm, viewMode, currentUser.id]);
+    }, [jobs, dateFrom, dateTo, searchTerm, viewMode, currentUser.id]);
 
     // Calculate Summary Stats
     const stats = useMemo(() => {
@@ -82,58 +84,52 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
         };
     }, [filteredJobs]);
 
-    // Handle Export to CSV
+    const isFinanceRole = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.ACCOUNTANT;
+
+    // Handle Export to XLSX
     const handleExport = () => {
-        // Define CSV Headers
-        const headers = [
-            'Job ID / เลขงาน',
-            'Requested By / ผู้สร้างงาน',
-            'Job Date / วันที่สร้างใบงาน',
-            'Date of Service / วันที่ต้องการรถ',
-            'Origin / ต้นทาง',
-            'Drop-off Points / จุดส่งสินค้า',
-            'Destination / ปลายทาง',
-            'Truck Type / ประเภทรถ',
-            'License Plate / ทะเบียนรถ',
-            'Driver Name / คนขับ',
-            'Subcontractor / ผู้รับเหมา',
-            'Status / สถานะ'
-        ];
+        const rows = filteredJobs.map(job => {
+            const extraTotal = (job.extraCharges || [])
+                .filter(e => e.status === 'APPROVED')
+                .reduce((s, e) => s + (e.amount || 0), 0);
+            const totalCost = (job.cost || 0) + extraTotal;
 
-        // Map Data to CSV Rows
-        const rows = filteredJobs.map(job => [
-            job.id,
-            `"${job.requestedByName || 'Unknown'}"`,
-            job.createdAt
-                ? formatDate(job.createdAt)
-                : (job.dateOfService ? formatDate(job.dateOfService) + ' (ประมาณ)' : 'N/A'),
-            formatDate(job.dateOfService),
-            `"${job.origin}"`, // Quote strings to handle commas
-            `"${job.drops && job.drops.length > 0 ? job.drops.map(d => d.location).join('; ') : '-'}"`,
-            `"${job.destination}"`,
-            job.truckType,
-            job.licensePlate || '-',
-            job.driverName || '-',
-            `"${job.subcontractor || '-'}"`,
-            JOB_STATUS_LABELS[job.status]
-        ]);
+            const base: Record<string, any> = {
+                'Job ID': job.id,
+                'วันที่ให้บริการ': formatDate(job.dateOfService),
+                'สถานะงาน': JOB_STATUS_LABELS[job.status],
+                'ต้นทาง': job.origin,
+                'ปลายทาง': job.destination,
+                'บริษัทรถร่วม': job.subcontractor || '-',
+                'คนขับ': job.driverName || '-',
+                'เบอร์โทรคนขับ': job.driverPhone || '-',
+                'ทะเบียนรถ': job.licensePlate || '-',
+                'ประเภทรถ': job.truckType || '-',
+                'รายละเอียดสินค้า': job.productDetail || '-',
+                'น้ำหนัก/ปริมาณ': job.weightVolume || '-',
+                'วันที่เสร็จงาน': job.actualArrivalTime ? formatDate(job.actualArrivalTime) : '-',
+                'ระยะทาง (km)': job.mileage || '-',
+                'หมายเหตุ': job.remark || '-',
+            };
 
-        // Combine Headers and Rows
-        const csvContent = [
-            headers.join(','),
-            ...rows.map(row => row.join(','))
-        ].join('\n');
+            if (isFinanceRole) {
+                base['ต้นทุนพื้นฐาน (Base Cost)'] = job.cost || 0;
+                base['ค่าใช้จ่ายพิเศษ (Extra)'] = extraTotal;
+                base['ต้นทุนรวม (Total Cost)'] = totalCost;
+                base['ธนาคาร'] = job.bankName || '-';
+                base['ชื่อบัญชี'] = job.bankAccountName || '-';
+                base['เลขที่บัญชี'] = job.bankAccountNo || '-';
+                base['เลขผู้เสียภาษี (Tax ID)'] = job.taxId || '-';
+                base['หมายเหตุบัญชี'] = job.accountingRemark || '-';
+            }
 
-        // Create Blob and Download Link
-        // Add BOM for Excel to read UTF-8 correctly
-        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `Daily_Report_${selectedDate}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+            return base;
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Daily Report');
+        XLSX.writeFile(workbook, `Daily_Report_${dateFrom}_to_${dateTo}.xlsx`);
     };
 
     return (
@@ -149,7 +145,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                             สรุปงานรายวัน (Daily Report)
                         </h2>
                         <p className="text-slate-500 font-medium text-[10px] md:text-sm mt-1 ml-11 md:ml-14">
-                            รายงานงานที่สร้างในวันที่ {formatDate(selectedDate)}
+                            {dateFrom === dateTo ? `รายงานงานที่สร้างในวันที่ ${formatDate(dateFrom)}` : `รายงานงานที่สร้าง ${formatDate(dateFrom)} ถึง ${formatDate(dateTo)}`}
                         </p>
                     </div>
 
@@ -177,17 +173,26 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
-                    <div className="relative flex-1 sm:w-48">
-                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                            <Calendar className="text-slate-400" size={16} />
-                        </div>
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+                        <Calendar className="text-slate-400 shrink-0" size={15} />
                         <input
                             type="date"
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            title="เลือกวันที่ (Select Date)"
-                            placeholder="YYYY-MM-DD"
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-slate-700 focus:ring-4 focus:ring-blue-100 outline-none transition-all cursor-pointer"
+                            value={dateFrom}
+                            onChange={(e) => {
+                                setDateFrom(e.target.value);
+                                if (e.target.value > dateTo) setDateTo(e.target.value);
+                            }}
+                            title="วันที่เริ่มต้น"
+                            className="bg-transparent text-sm font-black text-slate-700 focus:outline-none cursor-pointer w-36"
+                        />
+                        <span className="text-slate-400 font-bold text-xs shrink-0">ถึง</span>
+                        <input
+                            type="date"
+                            value={dateTo}
+                            min={dateFrom}
+                            onChange={(e) => setDateTo(e.target.value)}
+                            title="วันที่สิ้นสุด"
+                            className="bg-transparent text-sm font-black text-slate-700 focus:outline-none cursor-pointer w-36"
                         />
                     </div>
                     <button
@@ -265,97 +270,122 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
 
                 {/* Desktop Table View */}
                 <div className="hidden lg:block overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full text-left border-collapse min-w-max">
                         <thead>
                             <tr className="bg-slate-50 text-xs font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                                <th className="px-6 py-4">Job ID</th>
-                                <th className="px-6 py-4">Requested By</th>
-                                <th className="px-6 py-4">Created Date</th>
-                                <th className="px-6 py-4">Date of Service</th>
-                                <th className="px-6 py-4">Route</th>
-                                <th className="px-6 py-4">Vehicle Info</th>
-                                <th className="px-6 py-4">Subcontractor</th>
-                                <th className="px-6 py-4">Status & Driver</th>
+                                <th className="px-4 py-4 whitespace-nowrap">Job ID</th>
+                                <th className="px-4 py-4 whitespace-nowrap">วันที่ให้บริการ</th>
+                                <th className="px-4 py-4 whitespace-nowrap">สถานะ</th>
+                                <th className="px-4 py-4 whitespace-nowrap">Route</th>
+                                <th className="px-4 py-4 whitespace-nowrap">บริษัทรถร่วม / คนขับ</th>
+                                <th className="px-4 py-4 whitespace-nowrap">ทะเบียน / ประเภท</th>
+                                <th className="px-4 py-4 whitespace-nowrap">สินค้า / น้ำหนัก</th>
+                                <th className="px-4 py-4 whitespace-nowrap">เสร็จงาน / ระยะทาง</th>
+                                <th className="px-4 py-4 whitespace-nowrap">หมายเหตุ</th>
+                                {isFinanceRole && <th className="px-4 py-4 whitespace-nowrap bg-amber-50 text-amber-700">ต้นทุน (฿)</th>}
+                                {isFinanceRole && <th className="px-4 py-4 whitespace-nowrap bg-amber-50 text-amber-700">ข้อมูลการชำระ</th>}
+                                {isFinanceRole && <th className="px-4 py-4 whitespace-nowrap bg-amber-50 text-amber-700">หมายเหตุบัญชี</th>}
                             </tr>
                         </thead>
                         <tbody className="text-sm divide-y divide-slate-100">
                             {filteredJobs.length > 0 ? (
-                                filteredJobs.map((job) => (
-                                    <tr key={job.id} className="hover:bg-blue-50/30 transition-colors group">
-                                        <td className="px-6 py-4 font-mono font-bold text-blue-600">
-                                            <button
-                                                onClick={() => {
-                                                    setPreviewJob(job);
-                                                    setIsPreviewOpen(true);
-                                                }}
-                                                className="flex items-center gap-2 hover:text-blue-800 transition-colors"
-                                            >
-                                                <Eye size={14} className="text-slate-400" />
-                                                #{job.id}
-                                            </button>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                                                <User size={14} className="text-indigo-500" />
-                                                {job.requestedByName || 'Unknown'}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-xs font-bold text-slate-600">
-                                            {job.createdAt ? formatDate(job.createdAt) : formatDate(job.dateOfService)}
-                                        </td>
-                                        <td className="px-6 py-4 text-sm font-bold text-slate-700">
-                                            {formatDate(job.dateOfService)}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-col gap-1 text-[11px] font-bold text-slate-600">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                                                    {job.origin}
-                                                </div>
-                                                {/* Drop-off Points */}
-                                                {job.drops && job.drops.length > 0 && (
-                                                    <div className="flex items-center gap-1 ml-3">
-                                                        {job.drops.map((drop, idx) => (
-                                                            <span key={idx} className="flex items-center gap-0.5 text-[9px] text-purple-600">
-                                                                <div className="w-1 h-1 rounded-full bg-purple-400"></div>
-                                                                {drop.location}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-orange-500"></div>
-                                                    {job.destination}
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="text-xs">
-                                                <div className="font-black text-slate-700">{job.licensePlate || '-'}</div>
-                                                <div className="font-bold text-slate-400">{job.truckType}</div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className="px-2 py-1 rounded bg-slate-100 text-[11px] font-black text-slate-600">
-                                                {job.subcontractor || '-'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="space-y-1">
-                                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide border ${job.status === JobStatus.COMPLETED || job.status === JobStatus.BILLED ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                                                    job.status === JobStatus.ASSIGNED ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                                        'bg-amber-100 text-amber-700 border-amber-200'
-                                                    }`}>
+                                filteredJobs.map((job) => {
+                                    const extraTotal = (job.extraCharges || [])
+                                        .filter(e => e.status === 'APPROVED')
+                                        .reduce((s, e) => s + (e.amount || 0), 0);
+                                    const totalCost = (job.cost || 0) + extraTotal;
+                                    return (
+                                        <tr key={job.id} className="hover:bg-blue-50/30 transition-colors group">
+                                            {/* Job ID */}
+                                            <td className="px-4 py-3 font-mono font-bold text-blue-600 whitespace-nowrap">
+                                                <button onClick={() => { setPreviewJob(job); setIsPreviewOpen(true); }} className="flex items-center gap-1.5 hover:text-blue-800 transition-colors">
+                                                    <Eye size={13} className="text-slate-400" />#{job.id}
+                                                </button>
+                                            </td>
+                                            {/* วันที่ให้บริการ */}
+                                            <td className="px-4 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">{formatDate(job.dateOfService)}</td>
+                                            {/* สถานะ */}
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-black border ${job.status === JobStatus.COMPLETED || job.status === JobStatus.BILLED ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : job.status === JobStatus.ASSIGNED ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
                                                     {JOB_STATUS_LABELS[job.status]}
                                                 </span>
-                                                {job.driverName && <div className="text-[10px] text-slate-400 font-bold">{job.driverName}</div>}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
+                                            </td>
+                                            {/* Route */}
+                                            <td className="px-4 py-3">
+                                                <div className="flex flex-col gap-0.5 text-[11px] font-bold text-slate-600 min-w-[140px]">
+                                                    <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></div>{job.origin}</div>
+                                                    {job.drops && job.drops.length > 0 && job.drops.map((d, i) => (
+                                                        <div key={i} className="flex items-center gap-1.5 ml-2 text-purple-600"><div className="w-1 h-1 rounded-full bg-purple-400 shrink-0"></div>{d.location}</div>
+                                                    ))}
+                                                    <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0"></div>{job.destination}</div>
+                                                </div>
+                                            </td>
+                                            {/* บริษัทรถร่วม / คนขับ */}
+                                            <td className="px-4 py-3">
+                                                <div className="text-xs min-w-[120px]">
+                                                    <div className="font-black text-slate-700">{job.subcontractor || '-'}</div>
+                                                    {job.driverName && <div className="flex items-center gap-1 font-bold text-slate-500 mt-0.5"><User size={10} />{job.driverName}</div>}
+                                                    {job.driverPhone && <div className="flex items-center gap-1 font-bold text-slate-400 mt-0.5"><Phone size={10} />{job.driverPhone}</div>}
+                                                </div>
+                                            </td>
+                                            {/* ทะเบียน / ประเภท */}
+                                            <td className="px-4 py-3">
+                                                <div className="text-xs whitespace-nowrap">
+                                                    <div className="font-black text-slate-700">{job.licensePlate || '-'}</div>
+                                                    <div className="font-bold text-slate-400">{job.truckType}</div>
+                                                </div>
+                                            </td>
+                                            {/* สินค้า / น้ำหนัก */}
+                                            <td className="px-4 py-3">
+                                                <div className="text-xs min-w-[110px]">
+                                                    <div className="flex items-center gap-1 font-bold text-slate-700"><Package size={10} className="shrink-0 text-slate-400" />{job.productDetail || '-'}</div>
+                                                    <div className="font-bold text-slate-400 mt-0.5">{job.weightVolume || '-'}</div>
+                                                </div>
+                                            </td>
+                                            {/* เสร็จงาน / ระยะทาง */}
+                                            <td className="px-4 py-3">
+                                                <div className="text-xs whitespace-nowrap">
+                                                    <div className="font-bold text-slate-700">{job.actualArrivalTime ? formatDate(job.actualArrivalTime) : '-'}</div>
+                                                    <div className="font-bold text-slate-400">{job.mileage ? `${job.mileage} km` : '-'}</div>
+                                                </div>
+                                            </td>
+                                            {/* หมายเหตุ */}
+                                            <td className="px-4 py-3 max-w-[140px]">
+                                                <div className="text-[11px] text-slate-500 font-medium truncate" title={job.remark || '-'}>{job.remark || '-'}</div>
+                                            </td>
+                                            {/* ต้นทุน — ADMIN/ACCOUNTANT only */}
+                                            {isFinanceRole && (
+                                                <td className="px-4 py-3 bg-amber-50/40 whitespace-nowrap">
+                                                    <div className="text-xs">
+                                                        <div className="font-bold text-slate-500">Base: ฿{(job.cost || 0).toLocaleString()}</div>
+                                                        {extraTotal > 0 && <div className="font-bold text-orange-600">Extra: ฿{extraTotal.toLocaleString()}</div>}
+                                                        <div className="font-black text-slate-800 border-t border-slate-200 mt-0.5 pt-0.5">฿{totalCost.toLocaleString()}</div>
+                                                    </div>
+                                                </td>
+                                            )}
+                                            {/* ข้อมูลการชำระ — ADMIN/ACCOUNTANT only */}
+                                            {isFinanceRole && (
+                                                <td className="px-4 py-3 bg-amber-50/40">
+                                                    <div className="text-[11px] min-w-[130px]">
+                                                        <div className="font-bold text-slate-600">{job.bankName || '-'}</div>
+                                                        <div className="font-bold text-slate-500">{job.bankAccountName || '-'}</div>
+                                                        <div className="font-bold text-slate-400">{job.bankAccountNo || '-'}</div>
+                                                        {job.taxId && <div className="font-bold text-slate-400 mt-0.5">Tax: {job.taxId}</div>}
+                                                    </div>
+                                                </td>
+                                            )}
+                                            {/* หมายเหตุบัญชี — ADMIN/ACCOUNTANT only */}
+                                            {isFinanceRole && (
+                                                <td className="px-4 py-3 bg-amber-50/40 max-w-[130px]">
+                                                    <div className="text-[11px] text-slate-500 font-medium truncate" title={job.accountingRemark || '-'}>{job.accountingRemark || '-'}</div>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    );
+                                })
                             ) : (
                                 <tr>
-                                    <td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลงาน</td>
+                                    <td colSpan={isFinanceRole ? 12 : 9} className="px-6 py-12 text-center text-slate-400 font-bold">ไม่พบข้อมูลงาน</td>
                                 </tr>
                             )}
                         </tbody>
