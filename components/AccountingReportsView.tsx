@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Job, AuditLog, JobStatus, UserRole } from '../types';
+import { Job, AuditLog, JobStatus, JOB_STATUS_LABELS, UserRole } from '../types';
 import { db, ref, get, query, orderByChild, startAt, endAt } from '../firebaseConfig';
 import * as XLSX from 'xlsx';
 import {
@@ -41,7 +41,12 @@ import {
     Target as TargetIcon,
     XCircle,
     MousePointer2,
-    Wallet
+    Wallet,
+    ChevronUp,
+    Phone,
+    Package,
+    Table2,
+    ChevronsUpDown
 } from 'lucide-react';
 import BillingReportView from './BillingReportView';
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
@@ -94,6 +99,14 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
     const [isMounted, setIsMounted] = useState(false);
     const [analyticsJobs, setAnalyticsJobs] = useState<Job[]>([]);
     const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+
+    // --- Detail Table State ---
+    const [showDetailTable, setShowDetailTable] = useState(true);
+    const [detailSearch, setDetailSearch] = useState('');
+    const [detailSubFilter, setDetailSubFilter] = useState('');
+    const [detailPage, setDetailPage] = useState(1);
+    const [detailSortCol, setDetailSortCol] = useState<string>('dateOfService');
+    const [detailSortDir, setDetailSortDir] = useState<'asc' | 'desc'>('desc');
 
     // --- Cross-Filtering State ---
     const [selectedSub, setSelectedSub] = useState<string | null>(null);
@@ -290,6 +303,99 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
         });
         return Object.values(groups).sort((a, b) => b.cost - a.cost);
     }, [validJobs, groupBy]);
+
+    // --- Detail Table Logic ---
+    const DETAIL_PAGE_SIZE = 50;
+
+    // Reset page when filter/search/sort changes
+    useEffect(() => { setDetailPage(1); }, [detailSearch, detailSubFilter, detailSortCol, detailSortDir, filterType, filterYear, filterMonth, filterDay, filterCustom, statusFilter]);
+
+    const detailSubList = useMemo(() => {
+        const names = new Set<string>();
+        validJobs.forEach(j => { if (j.subcontractor) names.add(j.subcontractor.trim()); });
+        return Array.from(names).sort();
+    }, [validJobs]);
+
+    const detailTableJobs = useMemo(() => {
+        let list = [...validJobs];
+        if (detailSubFilter) list = list.filter(j => (j.subcontractor || '').trim() === detailSubFilter);
+        if (detailSearch) {
+            const s = detailSearch.toLowerCase();
+            list = list.filter(j =>
+                j.id.toLowerCase().includes(s) ||
+                (j.subcontractor || '').toLowerCase().includes(s) ||
+                j.origin.toLowerCase().includes(s) ||
+                j.destination.toLowerCase().includes(s) ||
+                (j.driverName || '').toLowerCase().includes(s) ||
+                (j.licensePlate || '').toLowerCase().includes(s)
+            );
+        }
+        list.sort((a, b) => {
+            let va: any, vb: any;
+            if (detailSortCol === 'cost') { va = a.cost || 0; vb = b.cost || 0; }
+            else if (detailSortCol === 'totalCost') {
+                const eA = (a.extraCharges || []).filter(e => e.status === 'APPROVED').reduce((s, e) => s + (e.amount || 0), 0);
+                const eB = (b.extraCharges || []).filter(e => e.status === 'APPROVED').reduce((s, e) => s + (e.amount || 0), 0);
+                va = (a.cost || 0) + eA; vb = (b.cost || 0) + eB;
+            } else if (detailSortCol === 'subcontractor') { va = a.subcontractor || ''; vb = b.subcontractor || ''; }
+            else if (detailSortCol === 'status') { va = a.status; vb = b.status; }
+            else { va = a.dateOfService || ''; vb = b.dateOfService || ''; }
+            if (va < vb) return detailSortDir === 'asc' ? -1 : 1;
+            if (va > vb) return detailSortDir === 'asc' ? 1 : -1;
+            return 0;
+        });
+        return list;
+    }, [validJobs, detailSubFilter, detailSearch, detailSortCol, detailSortDir]);
+
+    const detailPageJobs = useMemo(() => {
+        const start = (detailPage - 1) * DETAIL_PAGE_SIZE;
+        return detailTableJobs.slice(start, start + DETAIL_PAGE_SIZE);
+    }, [detailTableJobs, detailPage]);
+
+    const detailTotalPages = Math.ceil(detailTableJobs.length / DETAIL_PAGE_SIZE);
+
+    const handleDetailExportExcel = () => {
+        const rows = detailTableJobs.map(job => {
+            const extraTotal = (job.extraCharges || []).filter(e => e.status === 'APPROVED').reduce((s, e) => s + (e.amount || 0), 0);
+            const base: Record<string, any> = {
+                'Job ID': job.id,
+                'วันที่ให้บริการ': (job.dateOfService || '').split('T')[0],
+                'สถานะงาน': JOB_STATUS_LABELS[job.status],
+                'ต้นทาง': job.origin,
+                'ปลายทาง': job.destination,
+                'บริษัทรถร่วม': job.subcontractor || '-',
+                'คนขับ': job.driverName || '-',
+                'เบอร์โทรคนขับ': job.driverPhone || '-',
+                'ทะเบียนรถ': job.licensePlate || '-',
+                'ประเภทรถ': job.truckType || '-',
+                'รายละเอียดสินค้า': job.productDetail || '-',
+                'น้ำหนัก/ปริมาณ': job.weightVolume || '-',
+                'วันที่เสร็จงาน': (job.actualArrivalTime || '').split('T')[0] || '-',
+                'ระยะทาง (km)': job.mileage || '-',
+                'หมายเหตุ': job.remark || '-',
+            };
+            if (canViewBilling) {
+                base['ต้นทุนพื้นฐาน (Base Cost)'] = job.cost || 0;
+                base['ค่าใช้จ่ายพิเศษ (Extra)'] = extraTotal;
+                base['ต้นทุนรวม (Total Cost)'] = (job.cost || 0) + extraTotal;
+                base['ธนาคาร'] = job.bankName || '-';
+                base['ชื่อบัญชี'] = job.bankAccountName || '-';
+                base['เลขที่บัญชี'] = job.bankAccountNo || '-';
+                base['เลขผู้เสียภาษี (Tax ID)'] = job.taxId || '-';
+                base['หมายเหตุบัญชี'] = job.accountingRemark || '-';
+            }
+            return base;
+        });
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Job Details');
+        XLSX.writeFile(wb, `Job_Details_${new Date().getTime()}.xlsx`);
+    };
+
+    const handleDetailSort = (col: string) => {
+        if (detailSortCol === col) setDetailSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        else { setDetailSortCol(col); setDetailSortDir('desc'); }
+    };
 
     const handleExportExcel = () => {
         const data = performanceTableData.map(d => ({
@@ -602,6 +708,210 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+
+                    {/* ===== JOB DETAIL TABLE ===== */}
+                    <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
+                        {/* Header */}
+                        <div className="p-6 md:p-8 border-b border-slate-100 bg-slate-50/30">
+                            <div className="flex flex-col gap-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-slate-800 rounded-xl text-white"><Table2 size={18} /></div>
+                                        <div>
+                                            <h4 className="text-xl font-black text-slate-900 tracking-tighter">Job Transaction Detail</h4>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                                                {detailTableJobs.length} รายการ {detailSubFilter ? `• ${detailSubFilter}` : ''}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={handleDetailExportExcel} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-black transition-all">
+                                            <FileDown size={14} />EXPORT
+                                        </button>
+                                        <button onClick={() => setShowDetailTable(v => !v)} className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-[11px] font-black transition-all">
+                                            {showDetailTable ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                            {showDetailTable ? 'ซ่อน' : 'แสดง'}
+                                        </button>
+                                    </div>
+                                </div>
+                                {/* Filters Row */}
+                                {showDetailTable && (
+                                    <div className="flex flex-col sm:flex-row gap-3">
+                                        {/* Sub Filter */}
+                                        <select
+                                            value={detailSubFilter}
+                                            onChange={e => setDetailSubFilter(e.target.value)}
+                                            title="กรองตามบริษัทรถร่วม"
+                                            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-4 focus:ring-blue-100 outline-none cursor-pointer"
+                                        >
+                                            <option value="">บริษัทรถร่วมทั้งหมด</option>
+                                            {detailSubList.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                        {/* Search */}
+                                        <div className="relative flex-1">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                            <input
+                                                type="text"
+                                                placeholder="ค้นหา Job ID, ทะเบียน, คนขับ, ต้นทาง..."
+                                                value={detailSearch}
+                                                onChange={e => setDetailSearch(e.target.value)}
+                                                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-4 focus:ring-blue-100 outline-none"
+                                            />
+                                        </div>
+                                        {(detailSubFilter || detailSearch) && (
+                                            <button onClick={() => { setDetailSubFilter(''); setDetailSearch(''); }} className="flex items-center gap-1 px-3 py-2 text-xs font-bold text-slate-500 hover:text-red-600 transition-colors">
+                                                <XCircle size={13} />ล้าง
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Table */}
+                        {showDetailTable && (
+                            <>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left min-w-max">
+                                        <thead>
+                                            <tr className="bg-slate-50/50 text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-100">
+                                                {[
+                                                    { label: 'Job ID', col: 'id' },
+                                                    { label: 'วันที่ให้บริการ', col: 'dateOfService' },
+                                                    { label: 'สถานะ', col: 'status' },
+                                                ].map(h => (
+                                                    <th key={h.col} onClick={() => handleDetailSort(h.col)} className="px-5 py-4 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap">
+                                                        <span className="flex items-center gap-1">{h.label}
+                                                            {detailSortCol === h.col ? (detailSortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />) : <ChevronsUpDown size={10} className="opacity-30" />}
+                                                        </span>
+                                                    </th>
+                                                ))}
+                                                <th className="px-5 py-4 whitespace-nowrap">ต้นทาง / ปลายทาง</th>
+                                                <th onClick={() => handleDetailSort('subcontractor')} className="px-5 py-4 cursor-pointer select-none hover:text-slate-700 whitespace-nowrap">
+                                                    <span className="flex items-center gap-1">บริษัทรถร่วม / คนขับ
+                                                        {detailSortCol === 'subcontractor' ? (detailSortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />) : <ChevronsUpDown size={10} className="opacity-30" />}
+                                                    </span>
+                                                </th>
+                                                <th className="px-5 py-4 whitespace-nowrap">ทะเบียน / ประเภท</th>
+                                                <th className="px-5 py-4 whitespace-nowrap">สินค้า / น้ำหนัก</th>
+                                                <th className="px-5 py-4 whitespace-nowrap">วันเสร็จ / ระยะทาง</th>
+                                                <th className="px-5 py-4 whitespace-nowrap">หมายเหตุ</th>
+                                                {canViewBilling && (
+                                                    <>
+                                                        <th onClick={() => handleDetailSort('cost')} className="px-5 py-4 cursor-pointer select-none hover:text-amber-700 whitespace-nowrap bg-amber-50 text-amber-600">
+                                                            <span className="flex items-center gap-1">ต้นทุน (฿)
+                                                                {detailSortCol === 'cost' ? (detailSortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />) : <ChevronsUpDown size={10} className="opacity-30" />}
+                                                            </span>
+                                                        </th>
+                                                        <th className="px-5 py-4 whitespace-nowrap bg-amber-50 text-amber-600">ข้อมูลธนาคาร</th>
+                                                        <th className="px-5 py-4 whitespace-nowrap bg-amber-50 text-amber-600">Tax ID / หมายเหตุบัญชี</th>
+                                                    </>
+                                                )}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 text-sm">
+                                            {detailPageJobs.length > 0 ? detailPageJobs.map(job => {
+                                                const extraTotal = (job.extraCharges || []).filter(e => e.status === 'APPROVED').reduce((s, e) => s + (e.amount || 0), 0);
+                                                const totalCost = (job.cost || 0) + extraTotal;
+                                                return (
+                                                    <tr key={job.id} className="hover:bg-blue-50/20 transition-colors">
+                                                        <td className="px-5 py-3 font-mono font-bold text-blue-600 text-xs whitespace-nowrap">#{job.id}</td>
+                                                        <td className="px-5 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">{(job.dateOfService || '').split('T')[0]}</td>
+                                                        <td className="px-5 py-3 whitespace-nowrap">
+                                                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-black border ${job.status === JobStatus.COMPLETED || job.status === JobStatus.BILLED ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : job.status === JobStatus.ASSIGNED ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
+                                                                {JOB_STATUS_LABELS[job.status]}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-5 py-3">
+                                                            <div className="text-[11px] font-bold min-w-[130px]">
+                                                                <div className="flex items-center gap-1 text-slate-600"><div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />{job.origin}</div>
+                                                                <div className="flex items-center gap-1 text-slate-400 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0" />{job.destination}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3">
+                                                            <div className="text-xs min-w-[120px]">
+                                                                <div className="font-black text-slate-700">{job.subcontractor || '-'}</div>
+                                                                {job.driverName && <div className="flex items-center gap-1 text-slate-500 font-bold mt-0.5"><span className="text-[10px]">{job.driverName}</span></div>}
+                                                                {job.driverPhone && <div className="flex items-center gap-1 text-slate-400 font-bold mt-0.5"><Phone size={9} /><span className="text-[10px]">{job.driverPhone}</span></div>}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3">
+                                                            <div className="text-xs whitespace-nowrap">
+                                                                <div className="font-black text-slate-700">{job.licensePlate || '-'}</div>
+                                                                <div className="font-bold text-slate-400">{job.truckType}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3">
+                                                            <div className="text-[11px] min-w-[100px]">
+                                                                <div className="flex items-center gap-1 font-bold text-slate-700"><Package size={9} className="text-slate-400 shrink-0" />{job.productDetail || '-'}</div>
+                                                                <div className="font-bold text-slate-400 mt-0.5">{job.weightVolume || '-'}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3">
+                                                            <div className="text-xs whitespace-nowrap">
+                                                                <div className="font-bold text-slate-700">{(job.actualArrivalTime || '').split('T')[0] || '-'}</div>
+                                                                <div className="font-bold text-slate-400">{job.mileage ? `${job.mileage} km` : '-'}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3 max-w-[120px]">
+                                                            <div className="text-[11px] text-slate-500 truncate" title={job.remark || '-'}>{job.remark || '-'}</div>
+                                                        </td>
+                                                        {canViewBilling && (
+                                                            <>
+                                                                <td className="px-5 py-3 bg-amber-50/30 whitespace-nowrap">
+                                                                    <div className="text-xs">
+                                                                        <div className="font-bold text-slate-500">Base: ฿{(job.cost || 0).toLocaleString()}</div>
+                                                                        {extraTotal > 0 && <div className="font-bold text-orange-600">Extra: ฿{extraTotal.toLocaleString()}</div>}
+                                                                        <div className="font-black text-slate-800 border-t border-slate-200 mt-0.5 pt-0.5">฿{totalCost.toLocaleString()}</div>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-5 py-3 bg-amber-50/30">
+                                                                    <div className="text-[11px] min-w-[120px]">
+                                                                        <div className="font-bold text-slate-600">{job.bankName || '-'}</div>
+                                                                        <div className="font-bold text-slate-500">{job.bankAccountName || '-'}</div>
+                                                                        <div className="font-bold text-slate-400">{job.bankAccountNo || '-'}</div>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-5 py-3 bg-amber-50/30">
+                                                                    <div className="text-[11px]">
+                                                                        <div className="font-bold text-slate-500">{job.taxId || '-'}</div>
+                                                                        <div className="text-slate-400 truncate max-w-[120px]" title={job.accountingRemark || '-'}>{job.accountingRemark || '-'}</div>
+                                                                    </div>
+                                                                </td>
+                                                            </>
+                                                        )}
+                                                    </tr>
+                                                );
+                                            }) : (
+                                                <tr><td colSpan={canViewBilling ? 12 : 9} className="px-6 py-10 text-center text-slate-400 font-bold text-sm">ไม่พบข้อมูล</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {/* Pagination */}
+                                {detailTotalPages > 1 && (
+                                    <div className="flex items-center justify-between px-8 py-4 border-t border-slate-100 bg-slate-50/30">
+                                        <span className="text-xs text-slate-500 font-bold">
+                                            แสดง {((detailPage - 1) * DETAIL_PAGE_SIZE) + 1}–{Math.min(detailPage * DETAIL_PAGE_SIZE, detailTableJobs.length)} จาก {detailTableJobs.length} รายการ
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => setDetailPage(p => Math.max(1, p - 1))} disabled={detailPage === 1} className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-xs font-black transition-all">← ก่อนหน้า</button>
+                                            <div className="flex gap-1">
+                                                {Array.from({ length: Math.min(detailTotalPages, 7) }, (_, i) => {
+                                                    const pg = detailTotalPages <= 7 ? i + 1 : detailPage <= 4 ? i + 1 : detailPage + i - 3;
+                                                    if (pg < 1 || pg > detailTotalPages) return null;
+                                                    return (
+                                                        <button key={pg} onClick={() => setDetailPage(pg)} className={`w-8 h-8 rounded-lg text-xs font-black transition-all ${detailPage === pg ? 'bg-slate-800 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}>{pg}</button>
+                                                    );
+                                                })}
+                                            </div>
+                                            <button onClick={() => setDetailPage(p => Math.min(detailTotalPages, p + 1))} disabled={detailPage === detailTotalPages} className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-xs font-black transition-all">ถัดไป →</button>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
                 </>
             )}
