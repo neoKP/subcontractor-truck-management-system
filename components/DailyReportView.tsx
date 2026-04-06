@@ -26,15 +26,9 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
     const subList = useMemo(() => {
         const names = new Set<string>();
         jobs.forEach(job => {
-            let jobCreatedDateLocal = '';
-            if (job.createdAt) {
-                const d = new Date(job.createdAt);
-                jobCreatedDateLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            } else if (job.dateOfService) {
-                const d = new Date(job.dateOfService);
-                jobCreatedDateLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            }
-            if (jobCreatedDateLocal >= dateFrom && jobCreatedDateLocal <= dateTo && job.subcontractor) {
+            if (!job.dateOfService) return;
+            const jobDateStr = (job.dateOfService).split('T')[0];
+            if (jobDateStr >= dateFrom && jobDateStr <= dateTo && job.subcontractor) {
                 names.add(job.subcontractor.trim());
             }
         });
@@ -63,21 +57,10 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
 
             if (isSpecificJobSearch) return true;
 
-            // 2. Filter by DATE CREATED (วันที่สร้างใบงาน)
-            // User requirement: Show all jobs created on the selected date, regardless of service date.
-
-            let jobCreatedDateLocal = '';
-            if (job.createdAt) {
-                // Convert UTC ISO string to Local Date YYYY-MM-DD
-                const d = new Date(job.createdAt);
-                jobCreatedDateLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            } else if (job.dateOfService) {
-                // Fallback for legacy jobs without createdAt - use dateOfService
-                const d = new Date(job.dateOfService);
-                jobCreatedDateLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            }
-
-            const isDateMatch = jobCreatedDateLocal >= dateFrom && jobCreatedDateLocal <= dateTo;
+            // 2. Filter by DATE OF SERVICE (วันที่ให้บริการ) — ตรงกับ Business Intelligence
+            if (!job.dateOfService) return false;
+            const jobDateStr = (job.dateOfService).split('T')[0];
+            const isDateMatch = jobDateStr >= dateFrom && jobDateStr <= dateTo;
 
             if (!isDateMatch) return false;
 
@@ -167,7 +150,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                             สรุปงานรายวัน (Daily Report)
                         </h2>
                         <p className="text-slate-500 font-medium text-[10px] md:text-sm mt-1 ml-11 md:ml-14">
-                            {dateFrom === dateTo ? `รายงานงานที่สร้างในวันที่ ${formatDate(dateFrom)}` : `รายงานงานที่สร้าง ${formatDate(dateFrom)} ถึง ${formatDate(dateTo)}`}
+                            {dateFrom === dateTo ? `รายงานงานที่ให้บริการในวันที่ ${formatDate(dateFrom)}` : `รายงานงานที่ให้บริการ ${formatDate(dateFrom)} ถึง ${formatDate(dateTo)}`}
                         </p>
                     </div>
 
