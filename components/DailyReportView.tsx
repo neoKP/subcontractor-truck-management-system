@@ -17,12 +17,31 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
     const [dateFrom, setDateFrom] = useState<string>(today);
     const [dateTo, setDateTo] = useState<string>(today);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedSub, setSelectedSub] = useState<string>('');
     const [viewMode, setViewMode] = useState<'my' | 'all'>('all');
     const [previewJob, setPreviewJob] = useState<Job | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-    // Filter jobs by date, search term, and view mode
-    // Filter jobs by date, search term, and view mode
+    // Subcontractor list derived from all jobs in date range (before sub filter)
+    const subList = useMemo(() => {
+        const names = new Set<string>();
+        jobs.forEach(job => {
+            let jobCreatedDateLocal = '';
+            if (job.createdAt) {
+                const d = new Date(job.createdAt);
+                jobCreatedDateLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            } else if (job.dateOfService) {
+                const d = new Date(job.dateOfService);
+                jobCreatedDateLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            }
+            if (jobCreatedDateLocal >= dateFrom && jobCreatedDateLocal <= dateTo && job.subcontractor) {
+                names.add(job.subcontractor.trim());
+            }
+        });
+        return Array.from(names).sort();
+    }, [jobs, dateFrom, dateTo]);
+
+    // Filter jobs by date, search term, view mode, and subcontractor
     const filteredJobs = useMemo(() => {
         return jobs.filter(job => {
             // 1. Filter by View Mode (My Jobs vs All Jobs)
@@ -62,7 +81,10 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
 
             if (!isDateMatch) return false;
 
-            // 3. Filter by Search Term
+            // 3. Filter by Subcontractor
+            if (selectedSub && (job.subcontractor || '').trim() !== selectedSub) return false;
+
+            // 4. Filter by Search Term
             return matchesSearch;
         }).sort((a, b) => {
             // Sort by Created Time (Newest First)
@@ -72,7 +94,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
             // Fallback to ID sorting for legacy jobs
             return a.id.localeCompare(b.id);
         });
-    }, [jobs, dateFrom, dateTo, searchTerm, viewMode, currentUser.id]);
+    }, [jobs, dateFrom, dateTo, selectedSub, searchTerm, viewMode, currentUser.id]);
 
     // Calculate Summary Stats
     const stats = useMemo(() => {
@@ -173,6 +195,16 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
+                    {/* Subcontractor Filter */}
+                    <select
+                        value={selectedSub}
+                        onChange={(e) => setSelectedSub(e.target.value)}
+                        title="กรองตามบริษัทรถร่วม"
+                        className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-4 focus:ring-blue-100 outline-none cursor-pointer"
+                    >
+                        <option value="">บริษัทรถร่วมทั้งหมด</option>
+                        {subList.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
                     <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
                         <Calendar className="text-slate-400 shrink-0" size={15} />
                         <input
