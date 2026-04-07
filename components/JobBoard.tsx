@@ -332,7 +332,14 @@ const JobBoard: React.FC<JobBoardProps> = ({
                     onClick={() => handleAction(job)}
                   >
                     <div className="flex justify-between items-start mb-3">
-                      <span className="text-[10px] font-black font-mono text-blue-600">#{job.id}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-black font-mono text-blue-600">#{job.id}</span>
+                        {job.isSpotRate && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-orange-500 text-white rounded text-[8px] font-black uppercase tracking-wider">
+                            🎯 SPOT
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[9px] font-bold text-slate-400">{formatDate(job.dateOfService)}</span>
                     </div>
                     {/* Rejected Badge */}
@@ -592,6 +599,11 @@ const JobBoard: React.FC<JobBoardProps> = ({
                             <span className={`inline-block px-3 py-1 rounded-lg text-[9px] font-black uppercase text-center border shadow-sm ${getStatusStyle(job.status)}`}>
                               {JOB_STATUS_LABELS[job.status]}
                             </span>
+                            {job.isSpotRate && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-500 text-white rounded-lg text-[9px] font-black uppercase shadow-sm">
+                                🎯 SPOT
+                              </span>
+                            )}
                             {job.accountingStatus === AccountingStatus.REJECTED && (
                               <span className="inline-flex items-center gap-1 px-3 py-1 bg-rose-600 text-white rounded-lg text-[9px] font-black uppercase animate-pulse shadow-lg shadow-rose-200">
                                 <ShieldAlert size={10} /> แก้ไขข้อมูล (Correction Required)

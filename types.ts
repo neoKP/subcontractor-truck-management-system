@@ -111,6 +111,10 @@ export interface Job {
   paymentDate?: string;
   paymentSlipUrl?: string;
 
+  // Spot Rate fields
+  isSpotRate?: boolean; // ติดแท็กว่าเป็น Spot Rate (กำหนดราคาเอง)
+  spotRateReason?: string; // หมายเหตุ Spot Rate
+
   // Payment info (for CASH jobs)
   paymentType?: 'CASH' | 'CREDIT';
   paymentAccount?: string; // Bank account info for cash payment

@@ -45,6 +45,13 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
   const [destQuery, setDestQuery] = useState('');
   const [showDropList, setShowDropList] = useState<boolean[]>([]);
 
+  // Spot Rate state
+  const [priceMode, setPriceMode] = useState<'standard' | 'spot'>('standard');
+  const [spotCost, setSpotCost] = useState<string>('');
+  const [spotReason, setSpotReason] = useState<string>('');
+
+  const canUseSpotRate = user.role !== UserRole.FIELD_OFFICER;
+
   const filteredLocations = (query: string) => {
     return MASTER_DATA.locations.filter(l =>
       l.toLowerCase().includes(query.toLowerCase())
@@ -151,7 +158,8 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       (p.truckType || '').trim() === (formData.truckType || '').trim()
     );
     const hasPricing = !!matchedPricing;
-    const initialStatus = hasPricing ? JobStatus.NEW_REQUEST : JobStatus.PENDING_PRICING;
+    const isSpotRateJob = priceMode === 'spot';
+    const initialStatus = isSpotRateJob || hasPricing ? JobStatus.NEW_REQUEST : JobStatus.PENDING_PRICING;
 
     // Clean up string data entries before creating job
     const cleanFormData = {
@@ -164,27 +172,35 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       licensePlate: (formData.licensePlate || '').trim(),
     };
 
+    const dropCount = formData.drops?.length || 0;
     const newJob: Job = {
       ...cleanFormData,
       id: `${yearPrefix}${formattedSeq}`,
       status: initialStatus,
-      cost: hasPricing ? (matchedPricing?.basePrice ?? 0) + ((formData.drops?.length || 0) * (matchedPricing?.dropOffFee || 0)) : 0,
-      sellingPrice: hasPricing ? (matchedPricing?.sellingBasePrice ?? 0) + ((formData.drops?.length || 0) * (matchedPricing?.dropOffFee || 0)) : 0,
+      cost: isSpotRateJob
+        ? spotCostNum
+        : hasPricing ? (matchedPricing?.basePrice ?? 0) + (dropCount * (matchedPricing?.dropOffFee || 0)) : 0,
+      sellingPrice: isSpotRateJob
+        ? 0
+        : hasPricing ? (matchedPricing?.sellingBasePrice ?? 0) + (dropCount * (matchedPricing?.dropOffFee || 0)) : 0,
       requestedBy: user.id,
       requestedByName: user.name,
-      createdAt: new Date().toISOString(), // Add creation timestamp
+      createdAt: new Date().toISOString(),
+      ...(isSpotRateJob ? { isSpotRate: true, spotRateReason: spotReason.trim() || 'Spot Rate — ราคากำหนดเองโดยผู้ใช้' } : {}),
     };
 
     // Show Success Alert and wait for user to click OK
     if (typeof Swal !== 'undefined') {
       await Swal.fire({
-        title: hasPricing ? 'Success! / บันทึกสำเร็จ' : 'Saved for Review / ส่งตรวจสอบราคา',
-        html: hasPricing
-          ? 'Job request has been created. / สร้างรายการงานเรียบร้อยแล้ว'
-          : 'Job saved but <b>Locked for Pricing Review</b>.<br/>Please notify Admin to add master price.<br/><br/>บันทึกงานแล้ว แต่สถานะเป็น <b>"รอตรวจสอบราคา"</b><br/>โปรดแจ้ง Admin ให้เพิ่มราคากลางก่อนจัดรถ',
-        icon: hasPricing ? 'success' : 'warning',
+        title: isSpotRateJob ? '🎯 Spot Rate Saved!' : hasPricing ? 'Success! / บันทึกสำเร็จ' : 'Saved for Review / ส่งตรวจสอบราคา',
+        html: isSpotRateJob
+          ? `บันทึกงาน Spot Rate เรียบร้อย<br/>ต้นทุน: <b>฿${spotCostNum.toLocaleString()}</b> | Sub: <b>${cleanFormData.subcontractor}</b><br/><small>ระบบจะบันทึกใน Audit Trail อัตโนมัติ</small>`
+          : hasPricing
+            ? 'Job request has been created. / สร้างรายการงานเรียบร้อยแล้ว'
+            : 'Job saved but <b>Locked for Pricing Review</b>.<br/>Please notify Admin to add master price.<br/><br/>บันทึกงานแล้ว แต่สถานะเป็น <b>"รอตรวจสอบราคา"</b><br/>โปรดแจ้ง Admin ให้เพิ่มราคากลางก่อนจัดรถ',
+        icon: isSpotRateJob ? 'success' : hasPricing ? 'success' : 'warning',
         confirmButtonText: 'OK / ตกลง',
-        confirmButtonColor: hasPricing ? '#2563eb' : '#f59e0b',
+        confirmButtonColor: isSpotRateJob ? '#f97316' : hasPricing ? '#2563eb' : '#f59e0b',
         customClass: {
           popup: 'rounded-[2rem]',
           confirmButton: 'rounded-xl px-10 py-3 font-bold uppercase tracking-widest text-xs'
@@ -214,7 +230,10 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     (p.destination || '').trim() === (formData.destination || '').trim() &&
     (p.truckType || '').trim() === (formData.truckType || '').trim()
   );
-  const canSaveJob = !!currentMatchedPricing;
+  const spotCostNum = parseFloat(spotCost.replace(/,/g, '')) || 0;
+  const canSaveJob = priceMode === 'spot'
+    ? (formData.subcontractor !== '' && spotCostNum > 0)
+    : !!currentMatchedPricing;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -558,9 +577,126 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
 
             return (
               <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
-                {/* Save button moved back to footer as requested */}
+
+                {/* ===== PRICE MODE TOGGLE ===== */}
+                {canUseSpotRate && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-[2rem] p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Info size={14} className="text-slate-400" />
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">โหมดราคา (Price Mode)</p>
+                    </div>
+                    <div className="flex bg-white border border-slate-200 p-1.5 rounded-2xl gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPriceMode('standard')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-black transition-all duration-200 ${priceMode === 'standard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'}`}
+                      >
+                        <ShieldCheck size={15} />
+                        ราคากลาง (Standard Rate)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPriceMode('spot')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-black transition-all duration-200 ${priceMode === 'spot' ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'}`}
+                      >
+                        <Zap size={15} />
+                        Spot Rate (กำหนดราคาเอง)
+                      </button>
+                    </div>
+                    {priceMode === 'spot' && (
+                      <p className="text-[10px] font-bold text-orange-600 mt-2 flex items-center gap-1">
+                        <AlertTriangle size={11} />
+                        Spot Rate จะถูกบันทึกใน Audit Trail ทุกครั้ง
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* ===== SPOT RATE FORM ===== */}
+                {priceMode === 'spot' && (
+                  <div className="bg-orange-50 border-2 border-orange-200 rounded-[2rem] p-6 space-y-5 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 bg-orange-500 text-white rounded-xl"><Zap size={18} /></div>
+                      <div>
+                        <h3 className="text-sm font-black text-orange-800 uppercase tracking-widest">Spot Rate — กำหนดราคาเอง</h3>
+                        <p className="text-[10px] font-bold text-orange-600">ราคาพิเศษสำหรับงานนี้ | จะบันทึกใน Audit Trail อัตโนมัติ</p>
+                      </div>
+                    </div>
+
+                    {/* Subcontractor */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-orange-700 uppercase tracking-widest ml-1">บริษัทรถร่วม (Subcontractor) *</label>
+                      <select
+                        title="เลือกบริษัทรถร่วม"
+                        className="w-full px-4 py-3 rounded-2xl border-2 border-orange-200 bg-white focus:ring-4 focus:ring-orange-100 focus:border-orange-400 outline-none transition-all font-bold text-slate-800"
+                        value={formData.subcontractor}
+                        onChange={e => setFormData({ ...formData, subcontractor: e.target.value })}
+                      >
+                        <option value="">เลือกบริษัทรถร่วม...</option>
+                        {MASTER_DATA.subcontractors.map((s, idx) => (
+                          <option key={`${s}-${idx}`} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Cost Input */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-orange-700 uppercase tracking-widest ml-1">ต้นทุน Spot Rate (Cost) *</label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-400 font-black text-lg">฿</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0.00"
+                          className="w-full pl-9 pr-5 py-3.5 rounded-2xl border-2 border-orange-200 bg-white focus:ring-4 focus:ring-orange-100 focus:border-orange-400 outline-none transition-all font-black text-slate-800 text-lg"
+                          value={spotCost}
+                          onChange={e => {
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            setSpotCost(val);
+                          }}
+                        />
+                        {spotCostNum > 0 && (
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-orange-600 bg-orange-100 px-2 py-1 rounded-lg">
+                            ฿{spotCostNum.toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Reason */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-orange-700 uppercase tracking-widest ml-1">หมายเหตุ Spot Rate (Reason — จะบันทึกใน Audit Trail)</label>
+                      <input
+                        type="text"
+                        placeholder="เช่น ราคาพิเศษตามที่ตกลงกับลูกค้า, รถเร่งด่วน..."
+                        className="w-full px-4 py-3 rounded-2xl border-2 border-orange-200 bg-white focus:ring-4 focus:ring-orange-100 focus:border-orange-400 outline-none transition-all font-bold text-slate-700"
+                        value={spotReason}
+                        onChange={e => setSpotReason(e.target.value)}
+                      />
+                    </div>
+
+                    {/* Drop point hint */}
+                    {formData.drops && formData.drops.length > 0 && (
+                      <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                        <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-[11px] font-bold text-amber-700">
+                          งานนี้มี <span className="text-amber-900">{formData.drops.length} จุดดร็อป</span> — กรุณารวมค่าดร็อปทั้งหมดไว้ในราคา Spot Rate ด้านบนด้วย
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Validation hint */}
+                    {!canSaveJob && (
+                      <div className="flex items-center gap-2 bg-orange-100 rounded-xl px-4 py-2">
+                        <AlertTriangle size={13} className="text-orange-500 shrink-0" />
+                        <p className="text-[11px] font-bold text-orange-700">กรุณาเลือกบริษัทรถร่วมและระบุต้นทุนก่อนบันทึก</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Smart Pricing Insight Tool */}
+                {priceMode === 'standard' && (
                 <div className={`p-6 rounded-[2rem] border-2 transition-all duration-500 ${hasPricing ? 'bg-emerald-50 border-emerald-100 shadow-lg shadow-emerald-100' : 'bg-rose-50 border-rose-100 shadow-lg shadow-rose-100'}`}>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -714,6 +850,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                     )}
                   </div>
                 </div>
+                )}
 
                 <div className="bg-blue-50/50 border border-blue-100 rounded-[2rem] p-8 space-y-8">
 

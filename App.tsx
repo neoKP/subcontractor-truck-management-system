@@ -375,6 +375,25 @@ const App: React.FC = () => {
   const addJob = (job: Job) => {
     // Persist to Firebase
     set(ref(db, `jobs/${job.id}`), cleanJob(job));
+
+    // Write Audit Log for Spot Rate jobs
+    if (job.isSpotRate) {
+      const spotLog: AuditLog = {
+        id: `LOG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        jobId: job.id,
+        userId: currentUser?.id || 'unknown',
+        userName: currentUser?.name || 'unknown',
+        userRole: currentUser?.role || UserRole.BOOKING_OFFICER,
+        timestamp: new Date().toISOString(),
+        field: 'Spot Rate Created',
+        oldValue: 'Standard Rate — ไม่ใช้ราคากลาง',
+        newValue: `Cost: ฿${(job.cost || 0).toLocaleString()} | Sub: ${job.subcontractor || '-'}`,
+        reason: job.spotRateReason || 'Spot Rate — ราคากำหนดเองโดยผู้ใช้',
+      };
+      set(ref(db, `logs/${spotLog.id}`), spotLog);
+      setLogs(prev => [spotLog, ...prev]);
+    }
+
     setActiveTab('board');
   };
 
