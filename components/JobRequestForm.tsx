@@ -1034,10 +1034,16 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                     ) : (
                       <div className="space-y-1">
                         <p className="text-sm font-black text-rose-900 uppercase">ไม่สามารถสร้างใบงานได้ (Invalid Request)</p>
-                        <p className="text-xs font-bold text-rose-700 leading-relaxed">
-                          เส้นทาง ({formData.origin} → {formData.destination}) สำหรับประเภทรถ {formData.truckType} <span className="underline decoration-2">ยังไม่มีราคากลางในระบบ</span>
-                          กรุณาแจ้งแอดมินให้เพิ่มราคาก่อนจึงจะสามารถสร้างใบงานได้
-                        </p>
+                        {priceMode === 'spot' ? (
+                          <p className="text-xs font-bold text-rose-700 leading-relaxed">
+                            โหมด Spot Rate: กรุณา<span className="underline decoration-2">เลือกบริษัทรถร่วม</span>และ<span className="underline decoration-2">ระบุต้นทุน</span>ให้ครบถ้วนก่อนบันทึก
+                          </p>
+                        ) : (
+                          <p className="text-xs font-bold text-rose-700 leading-relaxed">
+                            เส้นทาง ({formData.origin} → {formData.destination}) สำหรับประเภทรถ {formData.truckType} <span className="underline decoration-2">ยังไม่มีราคากลางในระบบ</span>
+                            กรุณาแจ้งแอดมินให้เพิ่มราคาก่อนจึงจะสามารถสร้างใบงานได้ หรือเปลี่ยนเป็นโหมด <strong>Spot Rate</strong> เพื่อกำหนดราคาเอง
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
