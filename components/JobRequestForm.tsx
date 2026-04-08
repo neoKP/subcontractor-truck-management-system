@@ -1,23 +1,23 @@
 
 import React, { useState } from 'react';
-import { Job, JobStatus, UserRole } from '../types';
+import { Job, JobStatus, UserRole, PriceMatrix, SubcontractorMaster } from '../types';
 import { MASTER_DATA } from '../constants';
 import { Truck, MapPin, ClipboardCheck, ArrowRight, ArrowLeft, CheckCircle2, Zap, Search, Info, AlertTriangle, ShieldCheck, LayoutPanelTop } from 'lucide-react';
 import { formatDate } from '../utils/format';
 import { sendJobNotification } from '../utils/telegramNotify';
-import { PriceMatrix } from '../types';
 
 interface JobRequestFormProps {
   onSubmit: (job: Job) => void;
   existingJobs: Job[];
   priceMatrix: PriceMatrix[];
+  subcontractorMasters: SubcontractorMaster[];
   onShowSummary: () => void;
   user: { id: string; name: string; role: UserRole };
 }
 
 declare const Swal: any;
 
-const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs, priceMatrix, onShowSummary, user }) => {
+const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs, priceMatrix, subcontractorMasters, onShowSummary, user }) => {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -49,6 +49,8 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
   const [priceMode, setPriceMode] = useState<'standard' | 'spot'>('standard');
   const [spotCost, setSpotCost] = useState<string>('');
   const [spotReason, setSpotReason] = useState<string>('');
+  const [spotSubSearch, setSpotSubSearch] = useState<string>('');
+  const [showSubDropdown, setShowSubDropdown] = useState<boolean>(false);
 
   const canUseSpotRate = user.role !== UserRole.FIELD_OFFICER;
 
@@ -623,20 +625,69 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                       </div>
                     </div>
 
-                    {/* Subcontractor */}
+                    {/* Subcontractor — Searchable Combobox */}
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-orange-700 uppercase tracking-widest ml-1">บริษัทรถร่วม (Subcontractor) *</label>
-                      <select
-                        title="เลือกบริษัทรถร่วม"
-                        className="w-full px-4 py-3 rounded-2xl border-2 border-orange-200 bg-white focus:ring-4 focus:ring-orange-100 focus:border-orange-400 outline-none transition-all font-bold text-slate-800"
-                        value={formData.subcontractor}
-                        onChange={e => setFormData({ ...formData, subcontractor: e.target.value })}
-                      >
-                        <option value="">เลือกบริษัทรถร่วม...</option>
-                        {MASTER_DATA.subcontractors.map((s, idx) => (
-                          <option key={`${s}-${idx}`} value={s}>{s}</option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          autoComplete="off"
+                          placeholder="พิมพ์เพื่อค้นหาบริษัทรถร่วม..."
+                          className="w-full px-4 py-3 rounded-2xl border-2 border-orange-200 bg-white focus:ring-4 focus:ring-orange-100 focus:border-orange-400 outline-none transition-all font-bold text-slate-800 pr-10"
+                          value={showSubDropdown ? spotSubSearch : (formData.subcontractor || '')}
+                          onFocus={() => {
+                            setSpotSubSearch('');
+                            setShowSubDropdown(true);
+                          }}
+                          onChange={e => {
+                            setSpotSubSearch(e.target.value);
+                            setShowSubDropdown(true);
+                            if (!e.target.value) setFormData({ ...formData, subcontractor: '' });
+                          }}
+                          onBlur={() => setTimeout(() => setShowSubDropdown(false), 150)}
+                        />
+                        {formData.subcontractor && !showSubDropdown && (
+                          <button
+                            type="button"
+                            onClick={() => { setFormData({ ...formData, subcontractor: '' }); setSpotSubSearch(''); }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 transition-colors p-1"
+                          >✕</button>
+                        )}
+                        {showSubDropdown && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border-2 border-orange-200 rounded-2xl shadow-xl max-h-60 overflow-y-auto">
+                            {(() => {
+                              const registeredNames = new Set(subcontractorMasters.map(m => m.name));
+                              const allSubs = Array.from(new Set([
+                                ...subcontractorMasters.map(m => m.name),
+                                ...MASTER_DATA.subcontractors,
+                                ...priceMatrix.map(p => p.subcontractor).filter(Boolean),
+                              ])).sort();
+                              const filtered = allSubs.filter(s => !spotSubSearch || s.toLowerCase().includes(spotSubSearch.toLowerCase()));
+                              if (filtered.length === 0) return <div className="px-4 py-3 text-sm text-slate-400 font-bold">ไม่พบบริษัทที่ค้นหา</div>;
+                              return filtered.map((s, idx) => (
+                                <button
+                                  key={`${s}-${idx}`}
+                                  type="button"
+                                  onMouseDown={() => {
+                                    setFormData({ ...formData, subcontractor: s });
+                                    setSpotSubSearch('');
+                                    setShowSubDropdown(false);
+                                  }}
+                                  className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors hover:bg-orange-50 hover:text-orange-700 flex items-center justify-between ${formData.subcontractor === s ? 'bg-orange-100 text-orange-800' : 'text-slate-700'} ${idx !== 0 ? 'border-t border-slate-100' : ''}`}
+                                >
+                                  <span>{s}</span>
+                                  {registeredNames.has(s) && <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full shrink-0">✓ ลงทะเบียน</span>}
+                                </button>
+                              ));
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                      {formData.subcontractor && (
+                        <p className="text-[11px] font-black text-orange-600 ml-1 flex items-center gap-1">
+                          <span className="text-green-500">✓</span> เลือกแล้ว: {formData.subcontractor}
+                        </p>
+                      )}
                     </div>
 
                     {/* Cost Input */}

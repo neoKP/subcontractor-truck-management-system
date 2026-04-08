@@ -634,6 +634,7 @@ const App: React.FC = () => {
                     onSubmit={addJob}
                     existingJobs={jobs}
                     priceMatrix={priceMatrix}
+                    subcontractorMasters={subcontractorMasters}
                     onShowSummary={() => setShowSummaryBoard(true)}
                     user={currentUser}
                   />

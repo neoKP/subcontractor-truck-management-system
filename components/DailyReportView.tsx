@@ -16,24 +16,33 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const [dateFrom, setDateFrom] = useState<string>(today);
     const [dateTo, setDateTo] = useState<string>(today);
+    const [filterMode, setFilterMode] = useState<'today' | 'month' | 'custom'>('custom');
+    const [filterMonth, setFilterMonth] = useState<string>(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedSub, setSelectedSub] = useState<string>('');
     const [viewMode, setViewMode] = useState<'my' | 'all'>('all');
     const [previewJob, setPreviewJob] = useState<Job | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-    // Subcontractor list derived from all jobs in date range (before sub filter)
+    const effectiveDateFrom = filterMode === 'today' ? today
+        : filterMode === 'month' ? `${filterMonth}-01`
+        : dateFrom;
+    const effectiveDateTo = filterMode === 'today' ? today
+        : filterMode === 'month' ? (() => { const [y, m] = filterMonth.split('-'); return `${y}-${m}-${String(new Date(+y, +m, 0).getDate()).padStart(2, '0')}`; })()
+        : dateTo;
+
+    // Subcontractor list derived from all jobs in effective date range (before sub filter)
     const subList = useMemo(() => {
         const names = new Set<string>();
         jobs.forEach(job => {
             if (!job.dateOfService) return;
             const jobDateStr = (job.dateOfService).split('T')[0];
-            if (jobDateStr >= dateFrom && jobDateStr <= dateTo && job.subcontractor) {
+            if (jobDateStr >= effectiveDateFrom && jobDateStr <= effectiveDateTo && job.subcontractor) {
                 names.add(job.subcontractor.trim());
             }
         });
         return Array.from(names).sort();
-    }, [jobs, dateFrom, dateTo]);
+    }, [jobs, effectiveDateFrom, effectiveDateTo]);
 
     // Filter jobs by date, search term, view mode, and subcontractor
     const filteredJobs = useMemo(() => {
@@ -60,7 +69,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
             // 2. Filter by DATE OF SERVICE (วันที่ให้บริการ) — ตรงกับ Business Intelligence
             if (!job.dateOfService) return false;
             const jobDateStr = (job.dateOfService).split('T')[0];
-            const isDateMatch = jobDateStr >= dateFrom && jobDateStr <= dateTo;
+            const isDateMatch = jobDateStr >= effectiveDateFrom && jobDateStr <= effectiveDateTo;
 
             if (!isDateMatch) return false;
 
@@ -77,7 +86,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
             // Fallback to ID sorting for legacy jobs
             return a.id.localeCompare(b.id);
         });
-    }, [jobs, dateFrom, dateTo, selectedSub, searchTerm, viewMode, currentUser.id]);
+    }, [jobs, effectiveDateFrom, effectiveDateTo, selectedSub, searchTerm, viewMode, currentUser.id]);
 
     // Calculate Summary Stats
     const stats = useMemo(() => {
@@ -90,6 +99,14 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
     }, [filteredJobs]);
 
     const isFinanceRole = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.ACCOUNTANT;
+
+    // Cost summary (matching BI formula: sum of job.cost)
+    const costStats = useMemo(() => {
+        const totalBaseCost = filteredJobs.reduce((s, j) => s + (j.cost || 0), 0);
+        const totalExtraCost = filteredJobs.reduce((s, j) =>
+            s + (j.extraCharges || []).filter(e => e.status === 'APPROVED').reduce((es, e) => es + (e.amount || 0), 0), 0);
+        return { totalBaseCost, totalExtraCost, totalCombined: totalBaseCost + totalExtraCost };
+    }, [filteredJobs]);
 
     // Handle Export to XLSX
     const handleExport = () => {
@@ -150,7 +167,9 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                             สรุปงานรายวัน (Daily Report)
                         </h2>
                         <p className="text-slate-500 font-medium text-[10px] md:text-sm mt-1 ml-11 md:ml-14">
-                            {dateFrom === dateTo ? `รายงานงานที่ให้บริการในวันที่ ${formatDate(dateFrom)}` : `รายงานงานที่ให้บริการ ${formatDate(dateFrom)} ถึง ${formatDate(dateTo)}`}
+                            {filterMode === 'today' ? `รายงานงานที่ให้บริการวันที่ ${formatDate(today)}`
+                                : filterMode === 'month' ? `รายงานงานประจำเดือน ${new Date(filterMonth + '-01').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}`
+                                : effectiveDateFrom === effectiveDateTo ? `รายงานงานที่ให้บริการวันที่ ${formatDate(effectiveDateFrom)}` : `รายงานงานที่ให้บริการ ${formatDate(effectiveDateFrom)} ถึง ${formatDate(effectiveDateTo)}`}
                         </p>
                     </div>
 
@@ -188,28 +207,52 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                         <option value="">บริษัทรถร่วมทั้งหมด</option>
                         {subList.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
-                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-                        <Calendar className="text-slate-400 shrink-0" size={15} />
-                        <input
-                            type="date"
-                            value={dateFrom}
-                            onChange={(e) => {
-                                setDateFrom(e.target.value);
-                                if (e.target.value > dateTo) setDateTo(e.target.value);
-                            }}
-                            title="วันที่เริ่มต้น"
-                            className="bg-transparent text-sm font-black text-slate-700 focus:outline-none cursor-pointer w-36"
-                        />
-                        <span className="text-slate-400 font-bold text-xs shrink-0">ถึง</span>
-                        <input
-                            type="date"
-                            value={dateTo}
-                            min={dateFrom}
-                            onChange={(e) => setDateTo(e.target.value)}
-                            title="วันที่สิ้นสุด"
-                            className="bg-transparent text-sm font-black text-slate-700 focus:outline-none cursor-pointer w-36"
-                        />
+                    {/* Filter Mode Buttons */}
+                    <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                        <button onClick={() => setFilterMode('today')} className={`px-3 py-2 rounded-lg text-xs font-black transition-all ${filterMode === 'today' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>วันนี้</button>
+                        <button onClick={() => setFilterMode('month')} className={`px-3 py-2 rounded-lg text-xs font-black transition-all ${filterMode === 'month' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>เดือน</button>
+                        <button onClick={() => setFilterMode('custom')} className={`px-3 py-2 rounded-lg text-xs font-black transition-all ${filterMode === 'custom' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>กำหนดเอง</button>
                     </div>
+
+                    {/* Month Picker */}
+                    {filterMode === 'month' && (
+                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+                            <Calendar className="text-blue-500 shrink-0" size={15} />
+                            <input
+                                type="month"
+                                value={filterMonth}
+                                onChange={e => setFilterMonth(e.target.value)}
+                                title="เลือกเดือน"
+                                className="bg-transparent text-sm font-black text-slate-700 focus:outline-none cursor-pointer"
+                            />
+                        </div>
+                    )}
+
+                    {/* Custom Date Range Picker */}
+                    {filterMode === 'custom' && (
+                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+                            <Calendar className="text-slate-400 shrink-0" size={15} />
+                            <input
+                                type="date"
+                                value={dateFrom}
+                                onChange={(e) => {
+                                    setDateFrom(e.target.value);
+                                    if (e.target.value > dateTo) setDateTo(e.target.value);
+                                }}
+                                title="วันที่เริ่มต้น"
+                                className="bg-transparent text-sm font-black text-slate-700 focus:outline-none cursor-pointer w-32"
+                            />
+                            <span className="text-slate-400 font-bold text-xs shrink-0">ถึง</span>
+                            <input
+                                type="date"
+                                value={dateTo}
+                                min={dateFrom}
+                                onChange={(e) => setDateTo(e.target.value)}
+                                title="วันที่สิ้นสุด"
+                                className="bg-transparent text-sm font-black text-slate-700 focus:outline-none cursor-pointer w-32"
+                            />
+                        </div>
+                    )}
                     <button
                         onClick={handleExport}
                         disabled={filteredJobs.length === 0}
@@ -222,7 +265,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className={`grid gap-4 ${isFinanceRole ? 'grid-cols-2 lg:grid-cols-5' : 'grid-cols-2 lg:grid-cols-4'}`}>
                 <div className="bg-white p-3 md:p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 md:gap-4">
                     <div className="p-2 md:p-3 bg-blue-50 text-blue-600 rounded-lg">
                         <Truck size={20} />
@@ -259,6 +302,20 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                         <p className="text-xl md:text-2xl font-black text-slate-800">{stats.completed}</p>
                     </div>
                 </div>
+                {isFinanceRole && (
+                    <div className="bg-amber-50 p-3 md:p-4 rounded-xl border border-amber-200 shadow-sm flex items-center gap-3 md:gap-4 col-span-2 lg:col-span-1">
+                        <div className="p-2 md:p-3 bg-amber-100 text-amber-700 rounded-lg shrink-0">
+                            <FileSpreadsheet size={20} />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-[10px] font-bold text-amber-600 uppercase">ต้นทุนรวม (BI)</p>
+                            <p className="text-lg md:text-xl font-black text-amber-800 truncate">฿{costStats.totalBaseCost.toLocaleString()}</p>
+                            {costStats.totalExtraCost > 0 && (
+                                <p className="text-[10px] font-bold text-orange-500">+Extra ฿{costStats.totalExtraCost.toLocaleString()}</p>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Table/List Section */}
@@ -404,6 +461,24 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                                 </tr>
                             )}
                         </tbody>
+                        {isFinanceRole && filteredJobs.length > 0 && (
+                            <tfoot>
+                                <tr className="bg-amber-50 border-t-2 border-amber-200">
+                                    <td colSpan={9} className="px-4 py-3 text-right text-[11px] font-black text-amber-700 uppercase tracking-wider">
+                                        ยอดรวม {filteredJobs.length} งาน
+                                    </td>
+                                    <td className="px-4 py-3 bg-amber-100 whitespace-nowrap">
+                                        <div className="text-xs">
+                                            <div className="font-bold text-slate-600">Base: ฿{costStats.totalBaseCost.toLocaleString()}</div>
+                                            {costStats.totalExtraCost > 0 && <div className="font-bold text-orange-600">Extra: ฿{costStats.totalExtraCost.toLocaleString()}</div>}
+                                            <div className="font-black text-amber-800 border-t border-amber-300 mt-0.5 pt-0.5">รวม ฿{costStats.totalCombined.toLocaleString()}</div>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3 bg-amber-100"></td>
+                                    <td className="px-4 py-3 bg-amber-100"></td>
+                                </tr>
+                            </tfoot>
+                        )}
                     </table>
                 </div>
 
