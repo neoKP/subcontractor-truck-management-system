@@ -1,14 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Job, JobStatus, JOB_STATUS_LABELS, UserRole } from '../types';
 import { FileSpreadsheet, Search, Calendar, Truck, User, MapPin, CheckCircle2, Clock, AlertCircle, Users, Eye, Phone, Package } from 'lucide-react';
 import { formatDate } from '../utils/format';
 import * as XLSX from 'xlsx';
 import JobPreviewModal from './JobPreviewModal';
+import { db, ref, get, query, orderByChild, startAt, endAt } from '../firebaseConfig';
 
 interface DailyReportViewProps {
     jobs: Job[];
     currentUser: { id: string; name: string; role: UserRole };
 }
+
+const normalizeSub = (name: string) => name.replace(/\s*BO$/i, '').trim();
 
 const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) => {
     // Default to today in YYYY-MM-DD format (Local Time)
@@ -23,6 +26,8 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
     const [viewMode, setViewMode] = useState<'my' | 'all'>('all');
     const [previewJob, setPreviewJob] = useState<Job | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+    const [fetchedJobs, setFetchedJobs] = useState<Job[]>(jobs);
+    const [isFetchingJobs, setIsFetchingJobs] = useState(false);
 
     const effectiveDateFrom = filterMode === 'today' ? today
         : filterMode === 'month' ? `${filterMonth}-01`
@@ -31,22 +36,46 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
         : filterMode === 'month' ? (() => { const [y, m] = filterMonth.split('-'); return `${y}-${m}-${String(new Date(+y, +m, 0).getDate()).padStart(2, '0')}`; })()
         : dateTo;
 
+    const fetchDailyJobs = useCallback(async () => {
+        setIsFetchingJobs(true);
+        try {
+            const q = query(
+                ref(db, 'jobs'),
+                orderByChild('dateOfService'),
+                startAt(effectiveDateFrom),
+                endAt(effectiveDateTo + '\u{F8FF}')
+            );
+            const snapshot = await get(q);
+            const data = snapshot.val();
+            setFetchedJobs(data ? (Object.values(data) as Job[]) : []);
+        } catch (err) {
+            console.error('Daily report fetch error:', err);
+            setFetchedJobs([]);
+        } finally {
+            setIsFetchingJobs(false);
+        }
+    }, [effectiveDateFrom, effectiveDateTo]);
+
+    useEffect(() => {
+        fetchDailyJobs();
+    }, [fetchDailyJobs]);
+
     // Subcontractor list derived from all jobs in effective date range (before sub filter)
     const subList = useMemo(() => {
         const names = new Set<string>();
-        jobs.forEach(job => {
+        fetchedJobs.forEach(job => {
             if (!job.dateOfService) return;
             const jobDateStr = (job.dateOfService).split('T')[0];
             if (jobDateStr >= effectiveDateFrom && jobDateStr <= effectiveDateTo && job.subcontractor) {
-                names.add(job.subcontractor.trim());
+                names.add(normalizeSub(job.subcontractor));
             }
         });
         return Array.from(names).sort();
-    }, [jobs, effectiveDateFrom, effectiveDateTo]);
+    }, [fetchedJobs, effectiveDateFrom, effectiveDateTo]);
 
     // Filter jobs by date, search term, view mode, and subcontractor
     const filteredJobs = useMemo(() => {
-        return jobs.filter(job => {
+        return fetchedJobs.filter(job => {
             // 1. Filter by View Mode (My Jobs vs All Jobs)
             if (viewMode === 'my' && job.requestedBy !== currentUser.id) {
                 return false;
@@ -74,7 +103,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
             if (!isDateMatch) return false;
 
             // 3. Filter by Subcontractor
-            if (selectedSub && (job.subcontractor || '').trim() !== selectedSub) return false;
+            if (selectedSub && normalizeSub(job.subcontractor || '') !== selectedSub) return false;
 
             // 4. Filter by Search Term
             return matchesSearch;
@@ -86,7 +115,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
             // Fallback to ID sorting for legacy jobs
             return a.id.localeCompare(b.id);
         });
-    }, [jobs, effectiveDateFrom, effectiveDateTo, selectedSub, searchTerm, viewMode, currentUser.id]);
+    }, [fetchedJobs, effectiveDateFrom, effectiveDateTo, selectedSub, searchTerm, viewMode, currentUser.id]);
 
     // Calculate Summary Stats
     const stats = useMemo(() => {
@@ -326,6 +355,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                         <div className="flex items-center gap-2">
                             <h3 className="font-black text-slate-700 text-sm uppercase tracking-wide">รายการเดินรถประจำวัน</h3>
                             <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">{filteredJobs.length} รายการ</span>
+                            {isFetchingJobs && <span className="text-[10px] text-blue-500 font-bold animate-pulse">กำลังโหลด...</span>}
                         </div>
                         <div className="relative w-full md:w-80">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
