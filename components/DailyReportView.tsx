@@ -12,6 +12,11 @@ interface DailyReportViewProps {
 }
 
 const normalizeSub = (name: string) => name.replace(/\s*BO$/i, '').trim();
+const getExtraTotal = (job: Job): number => {
+    const arr = job.extraCharges || [];
+    if (arr.length > 0) return arr.filter(e => e.status !== 'REJECTED').reduce((s, e) => s + (e.amount || 0), 0);
+    return job.extraCharge || 0;
+};
 
 const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) => {
     // Default to today in YYYY-MM-DD format (Local Time)
@@ -132,17 +137,14 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
     // Cost summary (matching BI formula: sum of job.cost)
     const costStats = useMemo(() => {
         const totalBaseCost = filteredJobs.reduce((s, j) => s + (j.cost || 0), 0);
-        const totalExtraCost = filteredJobs.reduce((s, j) =>
-            s + (j.extraCharges || []).filter(e => e.status === 'APPROVED').reduce((es, e) => es + (e.amount || 0), 0), 0);
+        const totalExtraCost = filteredJobs.reduce((s, j) => s + getExtraTotal(j), 0);
         return { totalBaseCost, totalExtraCost, totalCombined: totalBaseCost + totalExtraCost };
     }, [filteredJobs]);
 
     // Handle Export to XLSX
     const handleExport = () => {
         const rows = filteredJobs.map(job => {
-            const extraTotal = (job.extraCharges || [])
-                .filter(e => e.status === 'APPROVED')
-                .reduce((s, e) => s + (e.amount || 0), 0);
+            const extraTotal = getExtraTotal(job);
             const totalCost = (job.cost || 0) + extraTotal;
 
             const base: Record<string, any> = {
@@ -392,9 +394,10 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                         <tbody className="text-sm divide-y divide-slate-100">
                             {filteredJobs.length > 0 ? (
                                 filteredJobs.map((job) => {
-                                    const extraTotal = (job.extraCharges || [])
-                                        .filter(e => e.status === 'APPROVED')
-                                        .reduce((s, e) => s + (e.amount || 0), 0);
+                                    const extraTotal = getExtraTotal(job);
+                                    const hasPendingExtra = (job.extraCharges || []).length > 0
+                                        ? (job.extraCharges || []).some(e => e.status === 'PENDING')
+                                        : (job.extraCharge || 0) > 0;
                                     const totalCost = (job.cost || 0) + extraTotal;
                                     return (
                                         <tr key={job.id} className="hover:bg-blue-50/30 transition-colors group">
@@ -460,7 +463,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                                                 <td className="px-4 py-3 bg-amber-50/40 whitespace-nowrap">
                                                     <div className="text-xs">
                                                         <div className="font-bold text-slate-500">Base: ฿{(job.cost || 0).toLocaleString()}</div>
-                                                        {extraTotal > 0 && <div className="font-bold text-orange-600">Extra: ฿{extraTotal.toLocaleString()}</div>}
+                                                        {extraTotal > 0 && <div className="font-bold text-orange-600">Extra: ฿{extraTotal.toLocaleString()}{hasPendingExtra ? ' *' : ''}</div>}
                                                         <div className="font-black text-slate-800 border-t border-slate-200 mt-0.5 pt-0.5">฿{totalCost.toLocaleString()}</div>
                                                     </div>
                                                 </td>
@@ -500,7 +503,7 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
                                     <td className="px-4 py-3 bg-amber-100 whitespace-nowrap">
                                         <div className="text-xs">
                                             <div className="font-bold text-slate-600">Base: ฿{costStats.totalBaseCost.toLocaleString()}</div>
-                                            {costStats.totalExtraCost > 0 && <div className="font-bold text-orange-600">Extra: ฿{costStats.totalExtraCost.toLocaleString()}</div>}
+                                            {costStats.totalExtraCost > 0 && <div className="font-bold text-orange-600">Extra: ฿{costStats.totalExtraCost.toLocaleString()} <span className="text-[9px] text-orange-400">(รวม pending)</span></div>}
                                             <div className="font-black text-amber-800 border-t border-amber-300 mt-0.5 pt-0.5">รวม ฿{costStats.totalCombined.toLocaleString()}</div>
                                         </div>
                                     </td>

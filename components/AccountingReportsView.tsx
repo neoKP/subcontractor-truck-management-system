@@ -57,6 +57,18 @@ interface AccountingReportsViewProps {
     userRole: UserRole;
 }
 
+const jobExtraTotal = (j: Job): number => {
+    const arr = j.extraCharges || [];
+    if (arr.length > 0) return arr.filter(e => e.status !== 'REJECTED').reduce((s, e) => s + (e.amount || 0), 0);
+    return j.extraCharge || 0; // Legacy fallback (set by ConfirmationModal, no status)
+};
+const jobHasPending = (j: Job): boolean => {
+    const arr = j.extraCharges || [];
+    if (arr.length > 0) return arr.some(e => e.status === 'PENDING');
+    return (j.extraCharge || 0) > 0; // Legacy extra is implicitly PENDING
+};
+const jobTotalCost = (j: Job) => (j.cost || 0) + jobExtraTotal(j);
+
 // Recharts Custom Tooltip (Cost Focused)
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -220,7 +232,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
     // Financial KPIs - Cost Focused
     const metrics = useMemo(() => {
         const totalItems = validJobs.length;
-        const totalCost = validJobs.reduce((acc, j) => acc + (j.cost || 0), 0);
+        const totalCost = validJobs.reduce((acc, j) => acc + jobTotalCost(j), 0);
         const avgCost = totalItems > 0 ? totalCost / totalItems : 0;
         const successCount = validJobs.filter(j => j.status === JobStatus.COMPLETED).length;
         const success = totalItems > 0 ? (successCount / totalItems) * 100 : 0;
@@ -252,7 +264,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
             const jobYear = parseInt(dateStr.split('-')[0]);
             const mIdx = parseInt(dateStr.split('-')[1]) - 1;
             if (jobYear === currentYear && mIdx >= 0 && mIdx <= 11) {
-                const cost = (j.cost || 0);
+                const cost = jobTotalCost(j);
                 monthlyRecords[mIdx].cost += cost;
                 monthlyRecords[mIdx].loadCount += 1;
             }
@@ -268,7 +280,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
         const dist: Record<string, number> = {};
         validJobs.forEach(j => {
             const name = (j.subcontractor || 'Waiting').replace(/\s*BO$/i, '').trim();
-            dist[name] = (dist[name] || 0) + (j.cost || 0);
+            dist[name] = (dist[name] || 0) + jobTotalCost(j);
         });
         return Object.entries(dist)
             .map(([name, value]) => ({ name, value }))
@@ -281,7 +293,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
         const dist: Record<string, number> = {};
         validJobs.forEach(j => {
             const route = `${j.origin} → ${j.destination}`;
-            dist[route] = (dist[route] || 0) + (j.cost || 0);
+            dist[route] = (dist[route] || 0) + jobTotalCost(j);
         });
         return Object.entries(dist)
             .map(([name, value]) => ({ name, value }))
@@ -299,7 +311,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
 
             if (!groups[key]) groups[key] = { name: key, jobs: 0, cost: 0 };
             groups[key].jobs += 1;
-            groups[key].cost += (j.cost || 0);
+            groups[key].cost += jobTotalCost(j);
         });
         return Object.values(groups).sort((a, b) => b.cost - a.cost);
     }, [validJobs, groupBy]);
@@ -334,9 +346,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
             let va: any, vb: any;
             if (detailSortCol === 'cost') { va = a.cost || 0; vb = b.cost || 0; }
             else if (detailSortCol === 'totalCost') {
-                const eA = (a.extraCharges || []).filter(e => e.status === 'APPROVED').reduce((s, e) => s + (e.amount || 0), 0);
-                const eB = (b.extraCharges || []).filter(e => e.status === 'APPROVED').reduce((s, e) => s + (e.amount || 0), 0);
-                va = (a.cost || 0) + eA; vb = (b.cost || 0) + eB;
+                va = jobTotalCost(a); vb = jobTotalCost(b);
             } else if (detailSortCol === 'subcontractor') { va = a.subcontractor || ''; vb = b.subcontractor || ''; }
             else if (detailSortCol === 'status') { va = a.status; vb = b.status; }
             else { va = a.dateOfService || ''; vb = b.dateOfService || ''; }
@@ -356,7 +366,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
 
     const handleDetailExportExcel = () => {
         const rows = detailTableJobs.map(job => {
-            const extraTotal = (job.extraCharges || []).filter(e => e.status === 'APPROVED').reduce((s, e) => s + (e.amount || 0), 0);
+            const extraTotal = jobExtraTotal(job);
             const base: Record<string, any> = {
                 'Job ID': job.id,
                 'วันที่ให้บริการ': (job.dateOfService || '').split('T')[0],
@@ -812,7 +822,8 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                                         </thead>
                                         <tbody className="divide-y divide-slate-50 text-sm">
                                             {detailPageJobs.length > 0 ? detailPageJobs.map(job => {
-                                                const extraTotal = (job.extraCharges || []).filter(e => e.status === 'APPROVED').reduce((s, e) => s + (e.amount || 0), 0);
+                                                const extraTotal = jobExtraTotal(job);
+                                                const hasPendingExtra = jobHasPending(job);
                                                 const totalCost = (job.cost || 0) + extraTotal;
                                                 return (
                                                     <tr key={job.id} className="hover:bg-blue-50/20 transition-colors">
@@ -862,7 +873,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
                                                                 <td className="px-5 py-3 bg-amber-50/30 whitespace-nowrap">
                                                                     <div className="text-xs">
                                                                         <div className="font-bold text-slate-500">Base: ฿{(job.cost || 0).toLocaleString()}</div>
-                                                                        {extraTotal > 0 && <div className="font-bold text-orange-600">Extra: ฿{extraTotal.toLocaleString()}</div>}
+                                                                        {extraTotal > 0 && <div className="font-bold text-orange-600">Extra: ฿{extraTotal.toLocaleString()}{hasPendingExtra ? ' *' : ''}</div>}
                                                                         <div className="font-black text-slate-800 border-t border-slate-200 mt-0.5 pt-0.5">฿{totalCost.toLocaleString()}</div>
                                                                     </div>
                                                                 </td>
