@@ -153,12 +153,20 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
 
     const formattedSeq = nextSeq.toString().padStart(4, '0');
 
-    // Check for pricing availability
-    const matchedPricing = priceMatrix.find(p =>
-      (p.origin || '').trim() === (formData.origin || '').trim() &&
-      (p.destination || '').trim() === (formData.destination || '').trim() &&
-      (p.truckType || '').trim() === (formData.truckType || '').trim()
-    );
+    // Check for pricing availability.
+    // ⚠️ A single route+truck can have MULTIPLE subcontractors at different prices.
+    // If a subcontractor is already chosen, the price MUST belong to that sub.
+    // Otherwise pick the CHEAPEST matching row deterministically — never an
+    // arbitrary first match (which previously caused the wrong sub's price to be used).
+    const selectedSub = (formData.subcontractor || '').trim();
+    const matchedPricing = priceMatrix
+      .filter((p: PriceMatrix) =>
+        (p.origin || '').trim() === (formData.origin || '').trim() &&
+        (p.destination || '').trim() === (formData.destination || '').trim() &&
+        (p.truckType || '').trim() === (formData.truckType || '').trim() &&
+        (!selectedSub || (p.subcontractor || '').trim() === selectedSub)
+      )
+      .sort((a: PriceMatrix, b: PriceMatrix) => (a.basePrice || 0) - (b.basePrice || 0))[0];
     const hasPricing = !!matchedPricing;
     const isSpotRateJob = priceMode === 'spot';
     const initialStatus = isSpotRateJob || hasPricing ? JobStatus.NEW_REQUEST : JobStatus.PENDING_PRICING;
