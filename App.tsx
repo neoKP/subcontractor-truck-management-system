@@ -297,20 +297,32 @@ const App: React.FC = () => {
     if (pendingJobs.length === 0) return;
 
     pendingJobs.forEach(job => {
-      const match = priceMatrix.find(p =>
-        p.origin === job.origin &&
-        p.destination === job.destination &&
-        p.truckType === job.truckType
-      );
+      // ⚠️ A single route+truck can have MULTIPLE subcontractors at different prices.
+      // If this job already has a subcontractor assigned, the price MUST belong to
+      // that sub. Otherwise pick the CHEAPEST matching row deterministically — never
+      // an arbitrary first match (the old `.find()` could write the wrong sub's price,
+      // e.g. 27,000 instead of the assigned sub's 12,000).
+      const assignedSub = (job.subcontractor || '').trim();
+      const match = priceMatrix
+        .filter((p: PriceMatrix) =>
+          p.origin === job.origin &&
+          p.destination === job.destination &&
+          p.truckType === job.truckType &&
+          (!assignedSub || (p.subcontractor || '').trim() === assignedSub)
+        )
+        .sort((a: PriceMatrix, b: PriceMatrix) => (a.basePrice || 0) - (b.basePrice || 0))[0];
 
       if (match) {
         console.log(`Auto-Updating Job ${job.id}: Price found in Master Matrix.`);
 
+        const dropCount = job.drops?.length || 0;
+        const dropFeeTotal = dropCount * (match.dropOffFee || 0);
+
         const updatedJob: Job = {
           ...job,
           status: JobStatus.NEW_REQUEST,
-          cost: match.basePrice,
-          sellingPrice: match.sellingBasePrice
+          cost: (match.basePrice || 0) + dropFeeTotal,
+          sellingPrice: (match.sellingBasePrice || 0) + dropFeeTotal
         };
 
         const auditLog: AuditLog = {

@@ -32,3 +32,8 @@ functions/.env
 functions/service-account.json
 *service-account*.json
 *-service-account.json
+
+# Generated data reports — contain real financial/subcontractor data, never commit
+price-audit.csv
+*.audit.csv
+.pr-body.md
