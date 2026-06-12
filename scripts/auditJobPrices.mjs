@@ -61,7 +61,7 @@ async function main() {
   console.log(`พบงานทั้งหมด ${jobs.length} ใบ | ราคากลาง ${matrix.length} แถว\n`);
 
   const mismatches = []; // ราคาผิด (มีสัญญาของรถร่วมเจ้านั้น แต่ cost ไม่ตรง)
-  const noContract = []; // จัดรถร่วมแล้ว แต่ไม่มีราคากลางของเจ้านั้นในเส้นทางนี้
+  const manualPrice = []; // ตั้งใจกรอกราคาเอง — ไม่มีราคากลางของเจ้านั้นในเส้นทางนี้ (ปกติ ไม่ใช่ปัญหา)
   const skipped = { spot: 0, noSub: 0, noCost: 0 };
 
   for (const job of jobs) {
@@ -76,7 +76,7 @@ async function main() {
     const myRow = routeRows.find((p) => norm(p.subcontractor) === sub);
 
     if (!myRow) {
-      noContract.push({ job, routeRows });
+      manualPrice.push({ job, routeRows });
       continue;
     }
 
@@ -112,23 +112,23 @@ async function main() {
   if (mismatches.length === 0) console.log('  — ไม่พบ —');
 
   console.log(`\n${line}`);
-  console.log(`⚠️ จัดรถร่วมแล้ว แต่ไม่มีราคากลางของเจ้านั้นในเส้นทางนี้: ${noContract.length} ใบ`);
+  console.log(`ℹ️ ราคากรอกเอง (ตั้งใจ — ไม่มีราคากลางของเจ้านั้นในเส้นทางนี้ ถือว่าปกติ): ${manualPrice.length} ใบ`);
   console.log(line);
-  for (const n of noContract) {
+  for (const n of manualPrice) {
     const j = n.job;
     const others = n.routeRows.map((p) => `${norm(p.subcontractor)} ฿${baht(p.basePrice)}`).join(', ') || '— ไม่มีราคากลางเส้นทางนี้เลย —';
     console.log(`\n  • ${j.id}  [${norm(j.status)}]  cost=฿${baht(j.cost)}`);
     console.log(`    ${norm(j.origin)} → ${norm(j.destination)} | ${norm(j.truckType)} | รถร่วม: ${norm(j.subcontractor)}`);
-    console.log(`    รถร่วมที่มีราคากลางในเส้นทางนี้: ${others}`);
+    console.log(`    รถร่วมอื่นที่มีราคากลางในเส้นทางนี้: ${others}`);
   }
-  if (noContract.length === 0) console.log('  — ไม่พบ —');
+  if (manualPrice.length === 0) console.log('  — ไม่พบ —');
 
   console.log(`\n${line}`);
   console.log('สรุป (SUMMARY)');
   console.log(line);
   console.log(`  งานทั้งหมด            : ${jobs.length}`);
   console.log(`  ❌ ราคาเพี้ยน         : ${mismatches.length}`);
-  console.log(`  ⚠️ ไม่มีราคาของรถร่วม : ${noContract.length}`);
+  console.log(`  ℹ️ ราคากรอกเอง (ปกติ) : ${manualPrice.length}`);
   console.log(`  ข้าม (Spot Rate)      : ${skipped.spot}`);
   console.log(`  ข้าม (ยังไม่จัดรถ)    : ${skipped.noSub}`);
   console.log(`  ข้าม (ยังไม่มีราคา)   : ${skipped.noCost}`);
@@ -142,9 +142,9 @@ async function main() {
         m.dropCount, norm(m.job.subcontractor), m.job.cost || 0, m.expect, m.diff,
         m.matchedOther ? norm(m.matchedOther.subcontractor) : '', 'PRICE_MISMATCH',
       ]),
-      ...noContract.map((n) => [
+      ...manualPrice.map((n) => [
         n.job.id, norm(n.job.status), norm(n.job.origin), norm(n.job.destination), norm(n.job.truckType),
-        Array.isArray(n.job.drops) ? n.job.drops.length : 0, norm(n.job.subcontractor), n.job.cost || 0, '', '', '', 'NO_CONTRACT_FOR_SUB',
+        Array.isArray(n.job.drops) ? n.job.drops.length : 0, norm(n.job.subcontractor), n.job.cost || 0, '', '', '', 'MANUAL_PRICE_INTENTIONAL',
       ]),
     ];
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
