@@ -120,9 +120,12 @@ const App: React.FC = () => {
   // ============================================================
   React.useEffect(() => {
     // --- 1. JOBS: Realtime listener with limitToLast ---
-    // Previously loaded ALL jobs (including Base64 images) = ~50MB
-    // Now limited to last 500 jobs, images stored in Firebase Storage as URLs (small records)
-    const jobsQuery = query(ref(db, 'jobs'), limitToLast(500));
+    // ⚠️ limitToLast(500) used to hide ~1,173 older jobs from the ENTIRE app — any job
+    // below the most recent 500 IDs was never loaded, so it couldn't be found anywhere.
+    // Raised to 5000 so all current jobs load (records are ~1KB each once POD images live
+    // in Storage as URLs). A handful of legacy jobs still embed Base64 POD images in
+    // drops[].podUrl and bloat the payload — those are being migrated to Storage separately.
+    const jobsQuery = query(ref(db, 'jobs'), limitToLast(5000));
     const unsubscribeJobs = onValue(jobsQuery, (snapshot) => {
       const data = snapshot.val();
       if (data) {
