@@ -417,7 +417,7 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                             ...selectedJob,
                             isBaseCostLocked: true,
                             status: JobStatus.ASSIGNED,
-                            accountingStatus: 'PENDING_REVIEW' as any,
+                            accountingStatus: AccountingStatus.PENDING_REVIEW,
                             reviewedAt: new Date().toISOString(),
                             reviewedBy: user.name
                         };
