@@ -1,0 +1,33 @@
+{
+  "//": "Phase 2 security rules — DO NOT deploy until Phase 1 (anonymous auth in firebaseConfig.ts) is live AND the Anonymous provider is enabled in the Firebase Console, otherwise the whole app loses DB access. Deploy with: firebase deploy --only database",
+  "//2": "WARNING: this only blocks unauthenticated REST. The custom login still reads /users (with plaintext passwords) client-side, so any signed-in (even anonymous) client can read them. Fixing that requires Phase 3 (real Firebase Auth + server-side login + password hashing).",
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "jobs": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["dateOfService"]
+    },
+    "priceMatrix": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "logs": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "invoices": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "subcontractorMasters": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "users": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}
