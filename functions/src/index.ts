@@ -141,3 +141,149 @@ export const dailyJobReminder = onSchedule(
     );
   }
 );
+
+// ── ราคาดีเซล ปตท. ───────────────────────────────────────────────────────────
+// ดึงจากหน้า oil_price_board ของ ปตท. ฝั่งเซิร์ฟเวอร์ เพราะหน้านั้นไม่ส่ง CORS header
+// เบราว์เซอร์จึงเรียกตรงไม่ได้ · เก็บลง RTDB ให้หน้าเว็บอ่านต่อ
+//
+// %สะสมสหพัฒน์ = ราคาดีเซล − 31.94 (ฐานตามข้อตกลง ไม่ใช่ค่าที่คำนวณได้)
+const SAHA_DIESEL_BASE = 31.94;
+
+const THAI_MONTH_ABBR: Record<string, number> = {
+  "ม.ค.": 1, "ก.พ.": 2, "มี.ค.": 3, "เม.ย.": 4, "พ.ค.": 5, "มิ.ย.": 6,
+  "ก.ค.": 7, "ส.ค.": 8, "ก.ย.": 9, "ต.ค.": 10, "พ.ย.": 11, "ธ.ค.": 12,
+};
+
+interface PttOilPrice {
+  diesel: number;
+  base: number;
+  pct: number;
+  effectiveDate: string;   // ISO ค.ศ. yyyy-mm-dd
+  source: string;
+  fetchedAt: string;
+}
+
+/** ดึงและแกะราคาดีเซลจากหน้า ปตท. — throw เมื่ออ่านไม่ได้ ให้ผู้เรียกตัดสินใจ */
+async function fetchPttDiesel(): Promise<PttOilPrice> {
+  const res = await fetch("https://www.pttor.com/th/oil_price_board?lang=th", {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/120 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml",
+      "Accept-Language": "th,en;q=0.9",
+    },
+  });
+  if (!res.ok) throw new Error(`ปตท. ตอบ HTTP ${res.status}`);
+
+  const html = await res.text();
+
+  // แต่ละบล็อกราคา: alt="ชนิดน้ำมัน" ... <div class="oil-price">ราคา</div>
+  const re = /alt="([^"]+)"[\s\S]{0,600}?<div class="oil-price">\s*([\d.]+)\s*<\/div>/g;
+  const rows: { type: string; price: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    rows.push({ type: m[1].trim(), price: parseFloat(m[2]) });
+  }
+
+  // ต้องเป็น "Diesel" เป๊ะ — หน้านี้มี Diesel B20 และ Premium Diesel ปนอยู่ด้วย
+  const diesel = rows.find((x) => x.type === "Diesel");
+  if (!diesel || !Number.isFinite(diesel.price)) {
+    throw new Error("อ่านราคาดีเซลไม่ได้ — โครงสร้างหน้า ปตท. อาจเปลี่ยน");
+  }
+
+  // "ปรับราคาเมื่อ 19 ส.ค. 2569" → 2026-08-19 (พ.ศ. → ค.ศ.)
+  let effectiveDate = "";
+  const dm = html.match(
+    /ปรับราคาเมื่อ\s*(\d{1,2})\s*(ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.)\s*(\d{4})/
+  );
+  if (dm) {
+    const day = Number(dm[1]);
+    const mon = THAI_MONTH_ABBR[dm[2]];
+    const year = Number(dm[3]) - 543;
+    if (mon) {
+      effectiveDate =
+        `${year}-${String(mon).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+  }
+  if (!effectiveDate) throw new Error("อ่านวันที่มีผลจากหน้า ปตท. ไม่ได้");
+
+  return {
+    diesel: diesel.price,
+    base: SAHA_DIESEL_BASE,
+    pct: Math.round((diesel.price - SAHA_DIESEL_BASE) * 100) / 100,
+    effectiveDate,
+    source: "pttor.com",
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * บันทึกราคาลง RTDB
+ *
+ * เขียนงวดใหม่เฉพาะเมื่อ %สะสมเปลี่ยนจริง — ปตท. ประกาศราคาเดิมซ้ำได้หลายวัน
+ * และการเขียนทับทุกครั้งจะทำให้ประวัติงวดปรับนับผิด
+ */
+async function saveOilPrice(
+  price: PttOilPrice
+): Promise<"created" | "unchanged" | "stale"> {
+  // เทียบกับ "งวดล่าสุดที่บันทึกไว้" ไม่ใช่แค่งวดวันเดียวกัน — ปตท. ประกาศวันใหม่
+  // ด้วยราคาเดิมได้ ถ้าเช็คเฉพาะวันเดียวกันจะได้งวดปลอมเพิ่มทุกครั้ง ทำให้จำนวน
+  // งวดปรับที่หน้าเว็บนับได้สูงเกินจริง
+  const bandsRef = db.ref("oilPrice/bands");
+  const lastSnap = await bandsRef.orderByKey().limitToLast(1).once("value");
+
+  let lastDate = "";
+  let lastPct: number | null = null;
+  lastSnap.forEach((child) => {
+    lastDate = child.key as string;
+    const v = child.val() as { pct?: number } | null;
+    lastPct = typeof v?.pct === "number" ? v.pct : null;
+  });
+
+  // CDN ของ ปตท. เสิร์ฟหน้าเก่าคืนมาได้ ถ้าเขียนทับ latest ด้วยงวดที่เก่ากว่าที่มีอยู่
+  // ราคาบนหน้าเว็บจะถอยหลัง และค่าขนส่งที่คิดจากราคานั้นจะผิดตามไปด้วย
+  if (lastDate && price.effectiveDate < lastDate) return "stale";
+
+  await db.ref("oilPrice/latest").set(price);
+
+  // ราคายังเท่าเดิม → ไม่ต้องเพิ่มงวดใหม่ (latest อัปเดต fetchedAt ไปแล้ว)
+  if (lastPct !== null && lastPct === price.pct) return "unchanged";
+
+  await bandsRef.child(price.effectiveDate).set({
+    diesel: price.diesel,
+    pct: price.pct,
+    source: price.source,
+    recordedAt: price.fetchedAt,
+  });
+  return "created";
+}
+
+// ปตท. ประกาศราคาใหม่ประมาณ 05:00 น. — ดึงตอน 06:00 และเผื่อรอบบ่ายไว้กันพลาด
+export const fetchOilPrice = onSchedule(
+  {
+    schedule: "0 6,14 * * *",
+    timeZone: "Asia/Bangkok",
+    region: "asia-southeast1",
+  },
+  async () => {
+    try {
+      const price = await fetchPttDiesel();
+      const result = await saveOilPrice(price);
+      if (result === "stale") {
+        console.warn(
+          `[fetchOilPrice] ข้ามการบันทึก — ปตท. ส่งงวด ${price.effectiveDate} ` +
+          "ซึ่งเก่ากว่างวดล่าสุดที่มีอยู่ (น่าจะเป็น cache ของ CDN)"
+        );
+      } else {
+        console.log(
+          `[fetchOilPrice] ${result} — ดีเซล ${price.diesel} บาท ` +
+          `(%สะสม ${price.pct}) มีผล ${price.effectiveDate}`
+        );
+      }
+    } catch (e) {
+      // ไม่ throw ต่อ — ราคาเดิมใน RTDB ยังใช้ได้ ไม่ควรทำให้ job ล้มทั้งรอบ
+      console.error("[fetchOilPrice] ดึงราคาไม่สำเร็จ:", (e as Error).message);
+    }
+  }
+);

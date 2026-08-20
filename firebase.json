@@ -1,6 +1,8 @@
 {
   "functions": {
     "source": "functions",
+    "//": "predeploy บังคับ compile ก่อน deploy — Firebase โหลด lib/index.js ถ้าลืม build ฟังก์ชันใหม่จะไม่ขึ้นโดยไม่มี error",
+    "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"],
     "codebase": "default",
     "ignore": [
       "node_modules",

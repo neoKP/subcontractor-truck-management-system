@@ -3,12 +3,13 @@ import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import {
-    Fuel, TrendingUp, CalendarClock, ArrowUpDown, FileDown, Table2, History, Info
+    Fuel, TrendingUp, CalendarClock, ArrowUpDown, FileDown, Table2, History, Info,
+    CheckCircle2, AlertTriangle
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import SAHA_OIL from '../data/sahaOilAdjust.json';
 import DIESEL_HISTORY from '../data/dieselHistory.json';
 import { buildOilRounds, todayIsoLocal, OIL_BASE } from '../utils/oilRounds';
+import { useOilPrice } from '../utils/useOilPrice';
 
 const TH_MONTH = ['', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 const TH_MON_ABBR = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -17,11 +18,14 @@ type RangeKey = '3เดือน' | '6เดือน' | 'ปีนี้' | 'a
 
 const OilPriceHistoryView: React.FC = () => {
     const [range, setRange] = useState<RangeKey>('all');
+    const live = useOilPrice();
 
     // คำนวณครั้งเดียวตอน mount — งวดล่าสุดต้องนับถึงวันนี้
     const todayIso = useMemo(() => todayIsoLocal(), []);
 
-    const byDate = (SAHA_OIL as { byDate: Record<string, number> }).byDate;
+    // ใช้ข้อมูลที่รวมงวดใหม่จาก ปตท. แล้ว — ไม่ใช่ไฟล์ที่ bundle มาอย่างเดียว
+    // ไม่งั้นตาราง/กราฟ/Export จะค้างที่งวดสุดท้ายในไฟล์ทั้งที่การ์ดด้านบนขึ้นราคาใหม่
+    const byDate = live.byDate;
     const rounds = useMemo(() => buildOilRounds(byDate, todayIso), [byDate, todayIso]);
 
     const filtered = useMemo(() => {
@@ -114,9 +118,9 @@ const OilPriceHistoryView: React.FC = () => {
             tone: 'blue' as const,
         },
         {
-            label: 'ราคาดีเซลล่าสุด',
-            value: latest ? `฿${latest.diesel.toFixed(2)}` : '-',
-            suffix: latest ? `มีผล ${latest.day} ${TH_MON_ABBR[latest.month]} ${String(latest.year + 543).slice(-2)}` : '',
+            label: 'ราคาดีเซล ปตท.',
+            value: `฿${live.diesel.toFixed(2)}`,
+            suffix: live.source === 'live' ? 'อัปเดตอัตโนมัติจาก ปตท.' : 'จากข้อมูลที่บันทึกไว้',
             icon: Fuel,
             tone: 'emerald' as const,
         },
@@ -170,6 +174,30 @@ const OilPriceHistoryView: React.FC = () => {
                     <FileDown size={18} />
                     <span>Export</span>
                 </button>
+            </div>
+
+            {/* สถานะแหล่งราคา — บอกให้ชัดว่าตัวเลขที่เห็นสดแค่ไหน */}
+            <div className={`flex flex-col sm:flex-row sm:items-center gap-2 px-5 py-3 rounded-[1.5rem] border ${
+                live.source === 'live' && live.ageDays <= 14
+                    ? 'bg-emerald-50 border-emerald-100'
+                    : 'bg-amber-50 border-amber-100'
+            }`}>
+                <div className="flex items-center gap-2">
+                    {live.source === 'live' && live.ageDays <= 14
+                        ? <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                        : <AlertTriangle size={15} className="text-amber-600 shrink-0" />}
+                    <span className={`text-[11px] font-black uppercase tracking-widest ${
+                        live.source === 'live' && live.ageDays <= 14 ? 'text-emerald-700' : 'text-amber-700'
+                    }`}>
+                        {live.source === 'live' ? 'อัปเดตอัตโนมัติ' : 'ยังไม่ได้เชื่อมต่อ ปตท.'}
+                    </span>
+                </div>
+                <p className="text-[11px] text-slate-600 font-medium sm:border-l sm:border-slate-200 sm:pl-3">
+                    {live.source === 'live'
+                        ? `ดีเซล ${live.diesel.toFixed(2)} บาท มีผล ${live.effectiveDate}`
+                        : `ใช้ราคาที่บันทึกไว้ ${live.diesel.toFixed(2)} บาท (${live.effectiveDate})`}
+                    {live.ageDays > 14 && ` · ข้อมูลนี้เก่า ${live.ageDays} วันแล้ว ควรตรวจสอบ`}
+                </p>
             </div>
 
             {/* KPI cards */}

@@ -101,11 +101,17 @@
 → ถ้า deploy rules ตอนนี้เลย **ทุกคนใช้งานไม่ได้ทันที**
 
 **กับดัก 2 — คำสั่ง deploy ที่จดไว้ใช้ไม่ได้**
-คอมเมนต์ในไฟล์เขียนว่าให้ใช้ `firebase deploy --only database` แต่ `firebase.json` **ไม่มีการชี้ไปที่ไฟล์ rules เลย** ต้องเพิ่มก่อน:
+คอมเมนต์ในไฟล์เขียนว่าให้ใช้ `firebase deploy --only database` แต่ `firebase.json` **ไม่มีการชี้ไปที่ไฟล์ rules เลย** ต้องเพิ่มบรรทัดนี้ก่อน:
 
 ```json
 "database": { "rules": "database.rules.json" }
 ```
+
+> ⚠️ **เพิ่มตอนจะ deploy rules เท่านั้น แล้วเอาออกทันทีที่เสร็จ**
+>
+> ถ้าทิ้งไว้ถาวร คำสั่ง `firebase deploy` ธรรมดา (เช่น ตอน deploy Cloud Function ดึงราคาน้ำมัน) จะ**ลาก rules ที่เข้มงวดขึ้นไปด้วยโดยไม่ตั้งใจ** → ระบบล่มทันทีถ้ายังไม่ได้เปิด Anonymous provider
+>
+> ปัจจุบัน `firebase.json` มีแต่ `functions` ตั้งใจให้เป็นแบบนั้น
 
 **กับดัก 3 — `authReady` ประกาศไว้แต่ไม่มีใครเรียกใช้**
 `firebaseConfig.ts:34` สร้าง `authReady` ไว้แล้ว แต่ค้นทั้งโปรเจกต์**ไม่มีไฟล์ไหน `await` มันเลย**
