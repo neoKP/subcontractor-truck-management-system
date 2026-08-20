@@ -3,10 +3,29 @@
  * Utility for Standard Thai Revenue Rounding (Round Half Up to 2 decimal places)
  */
 export const roundHalfUp = (num: number, decimals: number = 2): number => {
-    const factor = Math.pow(10, decimals);
-    // Add a tiny epsilon to handle floating point precision issues
-    // then round and shift back
-    return Math.round((num + Number.EPSILON) * factor) / factor;
+    // Non-finite input (undefined/null/NaN via Number()) must never leak into money totals
+    if (!Number.isFinite(num)) return 0;
+
+    // Shift using exponent notation rather than multiplying by a power of 10.
+    // Multiplying re-uses the binary approximation of the value, so amounts whose
+    // decimal form ends in 5 (e.g. 10.075 -> 10.074999999999999) round DOWN and the
+    // invoice ends up 0.01 short. Exponent notation shifts the decimal digits instead.
+    const sign = num < 0 ? -1 : 1;
+    const abs = Math.abs(num);
+
+    // Past MAX_SAFE_INTEGER a 2-decimal fraction cannot be represented anyway, and such
+    // values stringify as exponent notation ("1e+21"), which would corrupt the shift below.
+    if (abs >= Number.MAX_SAFE_INTEGER) return num;
+
+    const shifted = Number(`${abs}e${decimals}`);
+    if (!Number.isFinite(shifted)) return num;
+
+    // Shifting can push a large value past the safe range, where it also stringifies
+    // as exponent notation and would produce an unparsable "1e+22e-2".
+    const rounded = Math.round(shifted);
+    if (!Number.isSafeInteger(rounded)) return num;
+
+    return sign * Number(`${rounded}e-${decimals}`);
 };
 
 /**

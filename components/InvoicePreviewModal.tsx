@@ -491,16 +491,16 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                                                             </div>
                                                         </td>
                                                         <td className="border border-slate-200 p-2 text-center">1 Trip</td>
-                                                        <td className="border border-slate-200 p-2 text-right">{formatThaiCurrency(Number(j.cost))}</td>
-                                                        <td className="border border-slate-200 p-2 text-right font-black">{formatThaiCurrency(Number(j.cost))}</td>
+                                                        <td className="border border-slate-200 p-2 text-right">{formatThaiCurrency(Number(j.cost) || 0)}</td>
+                                                        <td className="border border-slate-200 p-2 text-right font-black">{formatThaiCurrency(Number(j.cost) || 0)}</td>
                                                     </tr>
                                                     {Number(j.extraCharge) > 0 && (
                                                         <tr className="bg-yellow-50/30 print:bg-yellow-50">
                                                             <td className="border border-slate-200 p-2"></td>
                                                             <td className="border border-slate-200 p-2 italic text-slate-600">- Extra Charge / ค่าใช้จ่ายเพิ่มเติม</td>
                                                             <td className="border border-slate-200 p-2 text-center">1 Job</td>
-                                                            <td className="border border-slate-200 p-2 text-right">{formatThaiCurrency(Number(j.extraCharge))}</td>
-                                                            <td className="border border-slate-200 p-2 text-right font-bold text-slate-800">{formatThaiCurrency(Number(j.extraCharge))}</td>
+                                                            <td className="border border-slate-200 p-2 text-right">{formatThaiCurrency(Number(j.extraCharge) || 0)}</td>
+                                                            <td className="border border-slate-200 p-2 text-right font-bold text-slate-800">{formatThaiCurrency(Number(j.extraCharge) || 0)}</td>
                                                         </tr>
                                                     )}
                                                 </React.Fragment>
