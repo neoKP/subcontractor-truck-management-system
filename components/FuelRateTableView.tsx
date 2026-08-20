@@ -179,7 +179,7 @@ const FuelRateTableView: React.FC = () => {
                 <p className="text-[11px] text-slate-600 font-medium sm:border-l sm:border-amber-200 sm:pl-3">
                     ดีเซล <b className="text-slate-900 tabular-nums">{live.diesel.toFixed(2)}</b> บาท/ลิตร
                     {live.effectiveDate && ` (มีผล ${live.effectiveDate})`}
-                    {live.source === 'bundled' && ' · จากข้อมูลที่บันทึกไว้ ยังไม่ได้เชื่อมต่อ ปตท.'}
+                    {live.source === 'bundled' && ' · จากข้อมูลที่บันทึกไว้ ยังไม่ได้เชื่อมต่อแหล่งข้อมูล'}
                 </p>
             </div>
 

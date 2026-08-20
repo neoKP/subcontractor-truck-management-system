@@ -1,20 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { db, ref, onValue, authReady } from '../firebaseConfig';
 import SAHA_OIL from '../data/sahaOilAdjust.json';
-import { OIL_BASE } from './oilRounds';
+import { OIL_BASE, mergeOilBands, type OilBands } from './oilRounds';
+import { getNasOilPrice, getNasOilHistory } from './nasOilApi';
 
 /**
  * ราคาดีเซลที่ระบบใช้เปิดตารางเรทค่าขนส่ง
  *
- * แหล่งข้อมูลเรียงตามลำดับความสด:
- *   1. RTDB `oilPrice/latest` — Cloud Function `fetchOilPrice` ดึงจาก ปตท. วันละ 2 ครั้ง
- *   2. ไฟล์ data/sahaOilAdjust.json — ค่าที่ bundle มากับเว็บ ใช้เมื่อ RTDB ยังไม่มีข้อมูล
+ * แหล่งข้อมูลเรียงตามความน่าเชื่อ:
+ *   1. NAS ของบริษัท (`/api/oil/*`) — ดึงจาก ปตท. ทุก 3 ชม. เก็บประวัติครบทุกงวด
+ *   2. RTDB `oilPrice/*` — Cloud Function `fetchOilPrice` (ยังไม่ได้ deploy: ต้องใช้ Blaze plan)
+ *   3. ไฟล์ data/sahaOilAdjust.json — ค่าที่ bundle มากับเว็บ ใช้เมื่อสองทางแรกไม่ตอบ
+ *
+ * เก็บผลของแต่ละแหล่งแยก state กัน แล้วเลือกตอนคืนค่า — ถ้าปล่อยให้ callback เขียนทับ
+ * state เดียวกัน ผลลัพธ์จะขึ้นกับว่าใครตอบก่อน ไม่ใช่ว่าแหล่งไหนน่าเชื่อกว่า
  *
  * ไม่ยิงหา ปตท. จากเบราว์เซอร์ตรง ๆ เพราะหน้านั้นไม่ส่ง CORS header
  */
-
-/** งวดปรับที่ Cloud Function บันทึกไว้ — key = วันที่มีผล (ISO), value = %สะสม */
-export type OilBands = Record<string, number>;
 
 export interface OilPriceState {
     /** ราคาดีเซล บาท/ลิตร */
@@ -23,15 +25,15 @@ export interface OilPriceState {
     pct: number;
     /** วันที่ราคานี้มีผล (ISO ค.ศ.) */
     effectiveDate: string;
-    /** มาจาก ปตท. ผ่าน Cloud Function หรือจากไฟล์ที่ bundle มา */
-    source: 'live' | 'bundled';
-    /** เวลาที่ Cloud Function ดึงมาได้ (ISO) — ว่างเมื่อ source เป็น bundled */
+    /** แหล่งที่ราคานี้มาจริง — แถบสถานะบนหน้าจอต้องบอกให้ตรง ไม่งั้นจะเข้าใจผิดว่า NAS ทำงานอยู่ */
+    source: 'nas' | 'rtdb' | 'bundled';
+    /** เวลาที่ดึงข้อมูลมาได้ (ISO) — ว่างเมื่อมาจาก NAS หรือ bundled */
     fetchedAt: string;
     /** จำนวนวันนับจากวันที่ราคามีผล ใช้เตือนเมื่อข้อมูลค้างนาน */
     ageDays: number;
     /**
-     * %สะสมรายวันสำหรับสร้างตารางประวัติ — รวมข้อมูลที่ bundle มากับงวดใหม่จาก ปตท.
-     * ถ้าไม่รวม ตารางจะค้างอยู่ที่งวดสุดท้ายในไฟล์ ทั้งที่ Cloud Function เก็บงวดใหม่ไว้แล้ว
+     * %สะสมรายวันสำหรับสร้างตารางประวัติ — รวมทุกแหล่งเข้าด้วยกัน
+     * ถ้าไม่รวม ตารางจะค้างที่งวดสุดท้ายในไฟล์ ทั้งที่ NAS มีงวดใหม่แล้ว
      */
     byDate: OilBands;
 }
@@ -48,6 +50,9 @@ interface RtdbOilBand {
     diesel?: number;
 }
 
+/** ราคาที่แต่ละแหล่งให้มา (ยังไม่รวม byDate ซึ่งประกอบตอนคืนค่า) */
+type SourcePrice = Omit<OilPriceState, 'byDate'>;
+
 const daysSince = (iso: string): number => {
     if (!iso) return 0;
     const [y, m, d] = iso.split('-').map(Number);
@@ -58,10 +63,16 @@ const daysSince = (iso: string): number => {
     return Math.max(0, Math.round((today - then) / 86400000));
 };
 
+const pctFromDiesel = (diesel: number): number =>
+    Math.round((diesel - OIL_BASE) * 100) / 100;
+
 const BUNDLED_BY_DATE = (SAHA_OIL as { byDate: OilBands }).byDate;
 
-/** ค่าสำรองจากไฟล์ที่ bundle มา — ใช้ระหว่างรอ RTDB หรือเมื่อยังไม่ได้ deploy Function */
-const bundledPrice = (): OilPriceState => {
+/** ดึงราคาจาก NAS ซ้ำทุกชั่วโมง — ราคาเปลี่ยนวันละครั้ง ถี่กว่านี้ไม่มีประโยชน์ */
+const NAS_REFRESH_MS = 60 * 60 * 1000;
+
+/** ค่าสำรองจากไฟล์ที่ bundle มา — ใช้เมื่อทั้ง NAS และ RTDB ไม่ตอบ */
+const bundledPrice = (): SourcePrice => {
     const dates = Object.keys(BUNDLED_BY_DATE).sort();
     const lastIso = dates[dates.length - 1] || '';
     const pct = lastIso ? BUNDLED_BY_DATE[lastIso] : 0;
@@ -72,14 +83,63 @@ const bundledPrice = (): OilPriceState => {
         source: 'bundled',
         fetchedAt: '',
         ageDays: daysSince(lastIso),
-        byDate: BUNDLED_BY_DATE,
     };
 };
 
 export function useOilPrice(): OilPriceState {
-    const [price, setPrice] = useState<OilPriceState>(bundledPrice);
-    const [liveBands, setLiveBands] = useState<OilBands | null>(null);
+    // แยก state ต่อแหล่งและต่อชนิดข้อมูล — callback ของ RTDB สองตัวมาถึงคนละเวลา
+    // ถ้าเก็บรวมก้อนเดียว ตัวที่มาก่อนจะถูกตัวที่มาทีหลังลบทิ้ง
+    const [nasPrice, setNasPrice] = useState<SourcePrice | null>(null);
+    const [nasBands, setNasBands] = useState<OilBands | null>(null);
+    const [rtdbPrice, setRtdbPrice] = useState<SourcePrice | null>(null);
+    const [rtdbBands, setRtdbBands] = useState<OilBands | null>(null);
 
+    // NAS — ดึงตอนเปิดหน้า แล้วซ้ำทุกชั่วโมง
+    // ผู้ใช้เปิดหน้าค้างทั้งวันเป็นเรื่องปกติ ถ้าดึงครั้งเดียวจะเห็นราคาเก่าข้ามวัน
+    // (ปตท. ประกาศราคาใหม่ราว 05:00 · NAS ดึงต่อทุก 3 ชม.)
+    useEffect(() => {
+        let cancelled = false;
+
+        const load = async () => {
+            const [latest, history] = await Promise.all([getNasOilPrice(), getNasOilHistory()]);
+            if (cancelled) return;
+
+            // ต้องได้ครบทั้งราคาและประวัติจึงจะใช้ NAS ได้
+            // ถ้าได้แค่ราคา การ์ดจะโชว์ราคาใหม่แต่ตารางยังเป็นของเก่า = เล่าคนละเรื่อง
+            const parsed: OilBands = {};
+            if (history) {
+                for (const b of history) parsed[b.from] = pctFromDiesel(b.diesel);
+            }
+            if (!latest || !Object.keys(parsed).length) {
+                // ดึงไม่สำเร็จ → ทิ้งของเก่า ไม่งั้นหน้าจะยังบอกว่า "จาก NAS" ทั้งที่ NAS ล่ม
+                setNasPrice(null);
+                setNasBands(null);
+                return;
+            }
+
+            // ปตท. ประกาศราคาใหม่ก่อนที่ NAS จะบันทึกลงประวัติได้ (NAS ดึงทุก 3 ชม.)
+            // เติมงวดจากราคาล่าสุดเองเพื่อให้การ์ดกับตารางตรงกัน — ทั้งคู่มาจาก NAS อยู่แล้ว
+            if (parsed[latest.effectiveDate] === undefined) {
+                parsed[latest.effectiveDate] = latest.pct;
+            }
+
+            setNasBands(parsed);
+            setNasPrice({
+                diesel: latest.diesel,
+                pct: latest.pct,
+                effectiveDate: latest.effectiveDate,
+                source: 'nas',
+                fetchedAt: new Date().toISOString(),
+                ageDays: daysSince(latest.effectiveDate),
+            });
+        };
+
+        void load();
+        const timer = setInterval(() => { void load(); }, NAS_REFRESH_MS);
+        return () => { cancelled = true; clearInterval(timer); };
+    }, []);
+
+    // RTDB — ใช้เมื่อ NAS ไม่ตอบ (เช่น อยู่นอกวง หรือโดเมนไม่อยู่ใน allowlist ของ NAS)
     useEffect(() => {
         // ผูก listener หลัง sign-in เสร็จ — rules ของ oilPrice ต้องการ auth != null
         // ถ้าอ่านก่อน token พร้อม เซิร์ฟเวอร์จะปฏิเสธ แล้วหน้าจะค้างที่ข้อมูล bundled เงียบ ๆ
@@ -94,24 +154,20 @@ export function useOilPrice(): OilPriceState {
                 ref(db, 'oilPrice/latest'),
                 (snap: { val: () => RtdbOilPrice | null }) => {
                     const v = snap.val();
-                    // ต้องมีทั้งราคาและวันที่มีผล ไม่งั้นถือว่าใช้ไม่ได้ — คงค่า bundled ไว้
+                    // ต้องมีทั้งราคาและวันที่มีผล ไม่งั้นถือว่าใช้ไม่ได้
                     if (!v || typeof v.diesel !== 'number' || !v.effectiveDate) return;
-                    const diesel = v.diesel;
-                    const effectiveDate = v.effectiveDate;
-                    setPrice(prev => ({
-                        ...prev,
-                        diesel,
-                        pct: typeof v.pct === 'number'
-                            ? v.pct
-                            : Math.round((diesel - OIL_BASE) * 100) / 100,
-                        effectiveDate,
-                        source: 'live',
+                    // รับทุก snapshot รวมถึงการแก้ไขงวดเดิม — การจัดลำดับแหล่งทำตอนคืนค่า
+                    setRtdbPrice({
+                        diesel: v.diesel,
+                        pct: typeof v.pct === 'number' ? v.pct : pctFromDiesel(v.diesel),
+                        effectiveDate: v.effectiveDate,
+                        source: 'rtdb',
                         fetchedAt: v.fetchedAt || '',
-                        ageDays: daysSince(effectiveDate),
-                    }));
+                        ageDays: daysSince(v.effectiveDate),
+                    });
                 },
                 () => {
-                    // อ่านไม่ได้ (เช่น rules ปิด หรือ sign-in ล้มเหลว) — ใช้ค่า bundled ต่อไป
+                    // อ่านไม่ได้ (เช่น rules ปิด หรือ sign-in ล้มเหลว) — ใช้แหล่งอื่นต่อไป
                 }
             );
 
@@ -125,18 +181,18 @@ export function useOilPrice(): OilPriceState {
                         const pct = typeof band?.pct === 'number'
                             ? band.pct
                             : typeof band?.diesel === 'number'
-                                ? Math.round((band.diesel - OIL_BASE) * 100) / 100
+                                ? pctFromDiesel(band.diesel)
                                 : null;
                         if (pct !== null) parsed[iso] = pct;
                     }
-                    if (Object.keys(parsed).length) setLiveBands(parsed);
+                    // แทนที่ทั้งชุด — snapshot ล่าสุดคือความจริงของ RTDB (รวมการลบ/แก้งวด)
+                    if (Object.keys(parsed).length) setRtdbBands(parsed);
                 },
-                () => { /* เงียบ — ใช้ค่า bundled ต่อไป */ }
+                () => { /* เงียบ — ใช้แหล่งอื่นต่อไป */ }
             );
         };
 
         // authReady rejects ไม่ได้ (firebaseConfig จับไว้แล้ว) — ผูก listener เสมอ
-        // ถ้า sign-in ล้มเหลว การอ่านจะโดนปฏิเสธและ hook คงค่า bundled ไว้ตามเดิม
         void authReady.then(subscribe);
 
         return () => {
@@ -146,11 +202,24 @@ export function useOilPrice(): OilPriceState {
         };
     }, []);
 
-    // งวดจาก ปตท. ทับงวดที่ bundle มาเมื่อวันที่ตรงกัน — ปตท. เป็นแหล่งที่สดกว่า
+    // แหล่งจะใช้ได้ต่อเมื่อมีครบทั้งราคาและประวัติ — การ์ดกับตารางต้องมาจากที่เดียวกัน
+    const chosen = useMemo(() => {
+        const usable = [
+            nasPrice && nasBands ? { price: nasPrice, bands: nasBands } : null,
+            rtdbPrice && rtdbBands ? { price: rtdbPrice, bands: rtdbBands } : null,
+        ].filter((x): x is { price: SourcePrice; bands: OilBands } => x !== null);
+
+        if (!usable.length) return null;
+        // สดที่สุดชนะ · เท่ากันเลือก NAS (อยู่ก่อนในรายการ) เพราะดึงจาก ปตท. ถี่กว่า
+        return usable.reduce((best, c) =>
+            c.price.effectiveDate > best.price.effectiveDate ? c : best
+        );
+    }, [nasPrice, nasBands, rtdbPrice, rtdbBands]);
+
     const byDate = useMemo(
-        () => (liveBands ? { ...BUNDLED_BY_DATE, ...liveBands } : BUNDLED_BY_DATE),
-        [liveBands]
+        () => mergeOilBands(BUNDLED_BY_DATE, chosen?.bands),
+        [chosen]
     );
 
-    return { ...price, byDate };
+    return { ...(chosen?.price ?? bundledPrice()), byDate };
 }

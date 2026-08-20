@@ -73,3 +73,30 @@ export function buildOilRounds(byDate: Record<string, number>, todayIso: string)
 /** วันนี้ในรูป ISO (yyyy-mm-dd) ตามเวลาเครื่องผู้ใช้ */
 export const todayIsoLocal = (d: Date = new Date()): string =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** %สะสมรายวัน — key = วันที่มีผล (ISO), value = %สะสม */
+export type OilBands = Record<string, number>;
+
+/**
+ * รวมงวดจากหลายแหล่ง โดยให้แหล่งที่น่าเชื่อกว่า "แทนที่ทั้งช่วง" ไม่ใช่ทับทีละวัน
+ *
+ * ไฟล์ที่ bundle มาบันทึกทุกวัน แต่ NAS/RTDB บันทึกเฉพาะวันที่ราคาเปลี่ยน
+ * ถ้ารวมด้วยการทับทีละวัน ค่าเก่าจะค้างอยู่ในวันระหว่างงวด แล้วตารางจะนับงวดเกินจริง
+ * (ทดสอบแล้ว: NAS ส่ง 4 งวด แต่รวมแบบทับได้ 30 งวด)
+ *
+ * เรียงจากน่าเชื่อน้อยไปมาก — แหล่งหลังชนะเสมอในช่วงที่ตัวเองครอบคลุม
+ */
+export function mergeOilBands(...sources: (OilBands | null | undefined)[]): OilBands {
+    let result: OilBands = {};
+    for (const src of sources) {
+        if (!src) continue;
+        const dates = Object.keys(src).sort();
+        if (!dates.length) continue;
+        const from = dates[0];
+        // เก็บเฉพาะวันก่อนหน้าที่แหล่งนี้เริ่มครอบคลุม แล้ววางชุดของแหล่งนี้ต่อท้าย
+        const kept: OilBands = {};
+        for (const [d, v] of Object.entries(result)) if (d < from) kept[d] = v;
+        result = { ...kept, ...src };
+    }
+    return result;
+}

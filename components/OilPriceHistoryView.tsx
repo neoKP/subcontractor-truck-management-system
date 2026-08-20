@@ -16,9 +16,24 @@ const TH_MON_ABBR = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
 
 type RangeKey = '3เดือน' | '6เดือน' | 'ปีนี้' | 'all';
 
+// แถบสถานะต้องบอกแหล่งที่มาให้ตรง — ถ้าเขียนรวมว่า "จาก NAS" ทุกกรณี
+// เวลา NAS ล่มแล้วใช้ค่าสำรอง ผู้ใช้จะเข้าใจผิดว่าระบบยังต่อ NAS อยู่
+const SOURCE_LABEL: Record<string, string> = {
+    nas: 'อัปเดตอัตโนมัติจาก NAS',
+    rtdb: 'อัปเดตอัตโนมัติจาก Firebase',
+    bundled: 'ยังไม่ได้เชื่อมต่อแหล่งข้อมูล',
+};
+
+const SOURCE_DETAIL: Record<string, string> = {
+    nas: 'NAS ดึงจาก ปตท. ทุก 3 ชม.',
+    rtdb: 'Cloud Function ดึงจาก ปตท. วันละ 2 ครั้ง',
+    bundled: 'ใช้ราคาที่บันทึกไว้ในระบบ ต่อ NAS และ Firebase ไม่ได้',
+};
+
 const OilPriceHistoryView: React.FC = () => {
     const [range, setRange] = useState<RangeKey>('all');
     const live = useOilPrice();
+    const isFresh = live.source !== 'bundled' && live.ageDays <= 14;
 
     // คำนวณครั้งเดียวตอน mount — งวดล่าสุดต้องนับถึงวันนี้
     const todayIso = useMemo(() => todayIsoLocal(), []);
@@ -120,7 +135,7 @@ const OilPriceHistoryView: React.FC = () => {
         {
             label: 'ราคาดีเซล ปตท.',
             value: `฿${live.diesel.toFixed(2)}`,
-            suffix: live.source === 'live' ? 'อัปเดตอัตโนมัติจาก ปตท.' : 'จากข้อมูลที่บันทึกไว้',
+            suffix: live.source === 'bundled' ? 'จากข้อมูลที่บันทึกไว้' : 'อัปเดตอัตโนมัติจาก ปตท.',
             icon: Fuel,
             tone: 'emerald' as const,
         },
@@ -177,25 +192,21 @@ const OilPriceHistoryView: React.FC = () => {
             </div>
 
             {/* สถานะแหล่งราคา — บอกให้ชัดว่าตัวเลขที่เห็นสดแค่ไหน */}
-            <div className={`flex flex-col sm:flex-row sm:items-center gap-2 px-5 py-3 rounded-[1.5rem] border ${
-                live.source === 'live' && live.ageDays <= 14
-                    ? 'bg-emerald-50 border-emerald-100'
-                    : 'bg-amber-50 border-amber-100'
-            }`}>
+            <div className={`flex flex-col sm:flex-row sm:items-center gap-2 px-5 py-3 rounded-[1.5rem] border ${isFresh ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'
+                }`}>
                 <div className="flex items-center gap-2">
-                    {live.source === 'live' && live.ageDays <= 14
+                    {isFresh
                         ? <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
                         : <AlertTriangle size={15} className="text-amber-600 shrink-0" />}
-                    <span className={`text-[11px] font-black uppercase tracking-widest ${
-                        live.source === 'live' && live.ageDays <= 14 ? 'text-emerald-700' : 'text-amber-700'
-                    }`}>
-                        {live.source === 'live' ? 'อัปเดตอัตโนมัติ' : 'ยังไม่ได้เชื่อมต่อ ปตท.'}
+                    <span className={`text-[11px] font-black uppercase tracking-widest ${isFresh ? 'text-emerald-700' : 'text-amber-700'
+                        }`}>
+                        {SOURCE_LABEL[live.source]}
                     </span>
                 </div>
                 <p className="text-[11px] text-slate-600 font-medium sm:border-l sm:border-slate-200 sm:pl-3">
-                    {live.source === 'live'
-                        ? `ดีเซล ${live.diesel.toFixed(2)} บาท มีผล ${live.effectiveDate}`
-                        : `ใช้ราคาที่บันทึกไว้ ${live.diesel.toFixed(2)} บาท (${live.effectiveDate})`}
+                    ดีเซล <b className="tabular-nums">{live.diesel.toFixed(2)}</b> บาท
+                    {live.effectiveDate && ` มีผล ${live.effectiveDate}`}
+                    {` · ${SOURCE_DETAIL[live.source]}`}
                     {live.ageDays > 14 && ` · ข้อมูลนี้เก่า ${live.ageDays} วันแล้ว ควรตรวจสอบ`}
                 </p>
             </div>
