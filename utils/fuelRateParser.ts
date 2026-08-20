@@ -30,6 +30,7 @@ export interface FuelRateRow {
 }
 
 export type IssueKind =
+    | 'zero-price'        // ค่าขนส่งเป็น 0 บาท — ใช้คิดเงินไม่ได้
     | 'price-decreases'   // น้ำมันแพงขึ้นแต่ค่าขนส่งถูกลง
     | 'missing-band'      // ช่องว่างกลางตาราง
     | 'duplicate-route'   // เส้นทาง+ประเภทรถซ้ำ แต่ราคาต่างกัน
@@ -224,10 +225,14 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
     const decreasing: number[] = [];
     const missing: number[] = [];
     const empty: number[] = [];
+    const zeroPriced: number[] = [];
 
     rows.forEach((row, idx) => {
         const filled = row.bands.filter(b => b.price !== null);
         if (!filled.length) { empty.push(idx); return; }
+
+        // 0 บาทแปลว่ายังไม่ได้ตกลงราคาช่วงนั้น — แยกรายงานเพราะคิดเงินไม่ได้จริง
+        if (filled.some(b => b.price === 0)) zeroPriced.push(idx);
 
         // ช่องว่างที่อยู่ "ระหว่าง" ช่องที่มีค่า (ช่องว่างหัวท้ายเป็นเรื่องปกติ)
         const firstIdx = row.bands.findIndex(b => b.price !== null);
@@ -237,10 +242,10 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
             if (row.bands[i].price === null) { missing.push(idx); break; }
         }
 
-        // ค่าขนส่งต้องไม่ลดลงเมื่อน้ำมันแพงขึ้น
+        // ค่าขนส่งต้องไม่ลดลงเมื่อน้ำมันแพงขึ้น — ข้ามช่อง 0 เพราะรายงานแยกไว้แล้ว
         let prev: number | null = null;
         for (const b of row.bands) {
-            if (b.price === null) continue;
+            if (b.price === null || b.price === 0) continue;
             if (prev !== null && b.price < prev) { decreasing.push(idx); break; }
             prev = b.price;
         }
@@ -259,6 +264,13 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
         return `${r.company} | ${r.origin} → ${r.destination} | ${r.truckType}`;
     };
 
+    if (zeroPriced.length) {
+        issues.push({
+            kind: 'zero-price',
+            message: `${zeroPriced.length} เส้นทางมีค่าขนส่งเป็น 0 บาทในบางช่วงราคาน้ำมัน ใช้คิดเงินไม่ได้ เช่น ${describe(zeroPriced[0])}`,
+            rows: zeroPriced,
+        });
+    }
     if (decreasing.length) {
         issues.push({
             kind: 'price-decreases',
@@ -300,6 +312,8 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
  */
 export function findRateAt(row: FuelRateRow, fuelPrice: number): RateBand | null {
     const hit = row.bands.find(b => fuelPrice >= b.fuelFrom && fuelPrice <= b.fuelTo);
-    if (hit && hit.price !== null) return hit;
+    // 0 บาทถือว่า "ไม่มีเรท" ไม่ใช่ค่าขนส่งฟรี — ไฟล์จริงใส่ 0 ในช่วงที่ยังไม่ได้ตกลงราคา
+    // ถ้าคืนค่านี้ไป ระบบจะคิดค่าขนส่งเป็นศูนย์แทนที่จะเตือนว่าหาเรทไม่ได้
+    if (hit && hit.price !== null && hit.price > 0) return hit;
     return null;
 }

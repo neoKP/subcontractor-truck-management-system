@@ -14,6 +14,8 @@ import AccountingVerificationView from './components/AccountingVerificationView'
 import UserManagementView from './components/UserManagementView';
 import ProfitAnalysisView from './components/ProfitAnalysisView';
 import OilPriceHistoryView from './components/OilPriceHistoryView';
+import FuelRateTableView from './components/FuelRateTableView';
+import FuelRateUploadView from './components/FuelRateUploadView';
 import JobSummaryBoard from './components/JobSummaryBoard';
 import JobTrackingModal from './components/JobTrackingModal';
 import BookingOfficerDashboard from './components/BookingOfficerDashboard';
@@ -56,7 +58,7 @@ const App: React.FC = () => {
   const [priceMatrix, setPriceMatrix] = useState<PriceMatrix[]>([]); // Firebase only - no initial data from constants
   const [subcontractorMasters, setSubcontractorMasters] = useState<SubcontractorMaster[]>([]);
   const [invoices, setInvoices] = useState<SubcontractorInvoice[]>([]); // Subcontractor invoices
-  const [activeTab, setActiveTab] = useState<'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'subcontractors' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion' | 'payment' | 'oil-price'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'subcontractors' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion' | 'payment' | 'oil-price' | 'fuel-rates' | 'fuel-rate-upload'>('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logSearch, setLogSearch] = useState('');
   const [logPage, setLogPage] = useState(1);
@@ -731,6 +733,14 @@ const App: React.FC = () => {
 
             {activeTab === 'oil-price' && (
               <OilPriceHistoryView />
+            )}
+
+            {activeTab === 'fuel-rates' && (
+              <FuelRateTableView />
+            )}
+
+            {activeTab === 'fuel-rate-upload' && (
+              <FuelRateUploadView currentUserName={currentUser.name} />
             )}
 
 

@@ -29,6 +29,12 @@
       ".read": "auth != null",
       ".write": "auth != null"
     },
+    "fuelRates": {
+      "//": "ตารางเรทค่าขนส่งตามราคาน้ำมันที่หน่วยงานส่งมา — เก็บเป็นรุ่น ไม่ทับของเดิม",
+      "//2": "TODO(ระยะที่ 4): ควรจำกัดสิทธิ์เขียนเฉพาะ admin/accountant แต่ทำไม่ได้จนกว่าจะย้ายไป Firebase Auth จริง — ตอนนี้ทุก client เป็น anonymous เหมือนกันหมด rules จึงแยกบทบาทไม่ได้ (ปัญหาเดียวกับ priceMatrix/invoices) ดู docs/SECURITY_REMEDIATION_PLAN_TH.md",
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
     "oilPrice": {
       "//": "ราคาดีเซล ปตท. — Cloud Function fetchOilPrice เขียนผ่าน Admin SDK ซึ่งข้าม rules อยู่แล้ว จึงปิด write ฝั่ง client ไว้ กันคนแก้ราคาน้ำมันที่ใช้คิดค่าขนส่ง",
       ".read": "auth != null",
