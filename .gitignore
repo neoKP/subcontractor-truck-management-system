@@ -40,3 +40,6 @@ price-audit.csv
 
 # Excel lock files (Office creates these while a workbook is open)
 ~$*
+
+# Rate workbooks — subcontractor cost data, and this repo is public
+Excel/
