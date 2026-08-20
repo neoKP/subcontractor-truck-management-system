@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DIESEL_HISTORY from '../data/dieselHistory.json';
-import { buildOilRounds, todayIsoLocal, OIL_BASE } from '../utils/oilRounds';
+import { buildOilRounds, todayIsoLocal } from '../utils/oilRounds';
 import { useOilPrice } from '../utils/useOilPrice';
 
 const TH_MONTH = ['', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
@@ -63,7 +63,6 @@ const OilPriceHistoryView: React.FC = () => {
     const chartData = filtered.map(r => ({
         label: `${r.day} ${TH_MON_ABBR[r.month]}`,
         'ราคาดีเซล': r.diesel,
-        'น้ำมัน%': r.pctCum,
     }));
 
     // ราคาดีเซลตลาดย้อนหลัง (ปตท. B7 เฉลี่ยรายเดือน) — ข้อมูลอ้างอิง ไม่ใช่ %ค่าขนส่ง
@@ -104,11 +103,10 @@ const OilPriceHistoryView: React.FC = () => {
             'เดือน': TH_MONTH[r.month],
             'ราคาดีเซล': r.diesel,
             'ปรับครั้งนี้': r.seq === 0 ? '—' : r.delta,
-            '%สะสม': r.pctCum,
             'จำนวนวัน': r.days,
         }));
         const ws1 = XLSX.utils.json_to_sheet(roundRows);
-        ws1['!cols'] = [{ wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }];
+        ws1['!cols'] = [{ wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }];
         XLSX.utils.book_append_sheet(wb, ws1, 'งวดปรับน้ำมัน');
 
         const histRows = histMonths.map(m => ({
@@ -126,14 +124,18 @@ const OilPriceHistoryView: React.FC = () => {
 
     const KPI_CARDS = [
         {
-            label: 'งวดล่าสุด (%สะสม)',
-            value: latest ? `${latest.pctCum.toFixed(2)}%` : '-',
-            suffix: latest ? `ดีเซล ${latest.diesel.toFixed(2)} บาท` : '',
+            label: 'ปรับครั้งล่าสุด',
+            value: latest
+                ? `${latest.seq === 0 ? '' : latest.delta > 0 ? '+' : ''}${latest.seq === 0 ? '—' : latest.delta.toFixed(2)}`
+                : '-',
+            suffix: latest
+                ? `${latest.day} ${TH_MON_ABBR[latest.month]} ${String(latest.year + 543).slice(-2)} · ใช้มา ${latest.days} วัน`
+                : '',
             icon: TrendingUp,
             tone: 'blue' as const,
         },
         {
-            label: 'ราคาดีเซล ปตท.',
+            label: 'ราคาดีเซลปัจจุบัน',
             value: `฿${live.diesel.toFixed(2)}`,
             suffix: live.source === 'bundled' ? 'จากข้อมูลที่บันทึกไว้' : 'อัปเดตอัตโนมัติจาก ปตท.',
             icon: Fuel,
@@ -171,13 +173,13 @@ const OilPriceHistoryView: React.FC = () => {
                         <Fuel size={28} />
                     </div>
                     <div>
-                        <h2 className="text-xl sm:text-3xl font-black tracking-tight">ประวัติราคาน้ำมัน (สหพัฒน์)</h2>
+                        <h2 className="text-xl sm:text-3xl font-black tracking-tight">ประวัติราคาน้ำมันดีเซล</h2>
                         <p className="text-slate-400 text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] mt-1 flex items-center gap-2">
                             Diesel Price Timeline
                             <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
                         </p>
                         <p className="text-slate-400 text-[11px] sm:text-xs mt-1.5">
-                            งวดปรับ %ค่าขนส่งตามราคาดีเซล · %สะสม = ราคาดีเซล − {OIL_BASE}
+                            ราคาดีเซล ปตท. ย้อนหลัง · ใช้เปิดตารางเรทค่าขนส่ง
                         </p>
                     </div>
                 </div>
@@ -241,7 +243,7 @@ const OilPriceHistoryView: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                     <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
                         <TrendingUp size={18} className="text-blue-600" />
-                        แนวโน้มราคาดีเซล &amp; %สะสม
+                        แนวโน้มราคาดีเซล
                     </h3>
                     <div className="flex bg-slate-100 p-1.5 rounded-[1.5rem] gap-1">
                         {(['3เดือน', '6เดือน', 'ปีนี้', 'all'] as RangeKey[]).map(rg => (
@@ -269,20 +271,11 @@ const OilPriceHistoryView: React.FC = () => {
                             <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                             <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
                             <YAxis
-                                yAxisId="left"
                                 tick={{ fontSize: 11, fill: '#94A3B8' }}
                                 axisLine={false}
                                 tickLine={false}
                                 domain={['auto', 'auto']}
                                 label={{ value: 'บาท/ลิตร', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#94A3B8' }}
-                            />
-                            <YAxis
-                                yAxisId="right"
-                                orientation="right"
-                                tick={{ fontSize: 11, fill: '#94A3B8' }}
-                                axisLine={false}
-                                tickLine={false}
-                                label={{ value: '%', angle: 90, position: 'insideRight', fontSize: 10, fill: '#94A3B8' }}
                             />
                             <Tooltip
                                 contentStyle={{
@@ -292,9 +285,7 @@ const OilPriceHistoryView: React.FC = () => {
                                     boxShadow: '0 10px 40px rgba(15,23,42,0.12)',
                                 }}
                             />
-                            <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 700 }} />
-                            <Line yAxisId="left" type="monotone" dataKey="ราคาดีเซล" stroke="#0F172A" strokeWidth={2.5} dot={{ r: 2 }} />
-                            <Line yAxisId="right" type="monotone" dataKey="น้ำมัน%" stroke="#F59E0B" strokeWidth={2.5} dot={{ r: 2 }} />
+                            <Line type="monotone" dataKey="ราคาดีเซล" stroke="#0F172A" strokeWidth={2.5} dot={{ r: 2 }} />
                         </LineChart>
                     </ResponsiveContainer>
                 )}
@@ -314,14 +305,13 @@ const OilPriceHistoryView: React.FC = () => {
                                 <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-widest">วันเริ่มงวด</th>
                                 <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-widest">ราคาดีเซล</th>
                                 <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-widest">ปรับครั้งนี้</th>
-                                <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-widest">%สะสม</th>
                                 <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-widest rounded-r-2xl">จำนวนวัน</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400 text-xs font-bold">
+                                    <td colSpan={5} className="px-4 py-10 text-center text-slate-400 text-xs font-bold">
                                         ไม่มีข้อมูลในช่วงที่เลือก
                                     </td>
                                 </tr>
@@ -349,9 +339,6 @@ const OilPriceHistoryView: React.FC = () => {
                                             }`}>
                                             {r.seq === 0 ? '—' : `${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)}`}
                                         </td>
-                                        <td className="px-4 py-3 text-right tabular-nums font-black text-blue-600">
-                                            {r.pctCum.toFixed(2)}%
-                                        </td>
                                         <td className="px-4 py-3 text-center text-slate-500 font-bold">{r.days}</td>
                                     </tr>
                                 ))
@@ -378,8 +365,8 @@ const OilPriceHistoryView: React.FC = () => {
                 <div className="flex items-start gap-2 mb-6 px-4 py-3 rounded-2xl bg-slate-50 border border-slate-100">
                     <Info size={14} className="text-slate-400 mt-0.5 shrink-0" />
                     <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-                        ราคาน้ำมันตลาดใช้อ้างอิงเท่านั้น — ไม่ใช่ %ค่าขนส่งสหพัฒน์ ·
-                        ปี 59 – ก.พ. 69 = ปตท. B7 · ปี 69 (มี.ค. เป็นต้นไป) = ฐานสหพัฒน์ {OIL_BASE} + %สะสม
+                        ราคาดีเซลเฉลี่ยรายเดือนย้อนหลัง ใช้ดูแนวโน้มระยะยาว —
+                        ไม่ใช่ตัวที่ระบบใช้คิดค่าขนส่ง (ระบบใช้ราคาล่าสุดเปิดตารางเรท)
                     </p>
                 </div>
 

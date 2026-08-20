@@ -21,7 +21,7 @@ import { getNasOilPrice, getNasOilHistory } from './nasOilApi';
 export interface OilPriceState {
     /** ราคาดีเซล บาท/ลิตร */
     diesel: number;
-    /** %สะสมสหพัฒน์ = diesel − 31.94 */
+    /** %สะสม = diesel − 31.94 · ใช้ภายในสำหรับแปลงข้อมูล ไม่ได้ใช้คิดค่าขนส่ง */
     pct: number;
     /** วันที่ราคานี้มีผล (ISO ค.ศ.) */
     effectiveDate: string;
