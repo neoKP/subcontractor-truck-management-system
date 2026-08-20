@@ -37,3 +37,6 @@ functions/service-account.json
 price-audit.csv
 *.audit.csv
 .pr-body.md
+
+# Excel lock files (Office creates these while a workbook is open)
+~$*

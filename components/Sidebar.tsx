@@ -1,12 +1,12 @@
 
 import React from 'react';
 import { UserRole, USER_ROLE_LABELS } from '../types';
-import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users, TrendingUp, ChevronLeft, ChevronRight, LayoutPanelTop, BarChart3, FileSpreadsheet, CheckSquare, Banknote, Building2 } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users, TrendingUp, ChevronLeft, ChevronRight, LayoutPanelTop, BarChart3, FileSpreadsheet, CheckSquare, Banknote, Building2, Fuel } from 'lucide-react';
 
 interface SidebarProps {
   currentRole: UserRole;
-  activeTab: 'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'subcontractors' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion' | 'payment';
-  setActiveTab: (tab: 'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'subcontractors' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion' | 'payment') => void;
+  activeTab: 'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'subcontractors' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion' | 'payment' | 'oil-price';
+  setActiveTab: (tab: 'home' | 'analytics' | 'board' | 'create' | 'review-confirm' | 'logs' | 'billing' | 'pricing' | 'subcontractors' | 'aggregation' | 'verify' | 'users' | 'profit' | 'daily-report' | 'completion' | 'payment' | 'oil-price') => void;
   onLogout: () => void;
   isOpen?: boolean;
   onClose?: () => void;
@@ -31,6 +31,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, setActiveTab,
     { id: 'pricing', label: 'Master Pricing / ราคากลาง', icon: Tag, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER] },
     { id: 'aggregation', label: 'Reports / รายงานสรุป', icon: BarChart3, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'profit', label: 'Profit Analysis / วิเคราะห์กำไร', icon: PieChart, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
+    { id: 'oil-price', label: 'Oil Price / ประวัติราคาน้ำมัน', icon: Fuel, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER] },
     { id: 'users', label: 'Users Management / จัดการผู้ใช้', icon: Users, roles: [UserRole.ADMIN] },
     { id: 'logs', label: 'Audit Trail / ประวัติระบบ', icon: ShieldCheck, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
   ];
