@@ -72,6 +72,10 @@ foreach ($dirs as $dir) {
     $result['scan'][] = $info;
 }
 
+// ด่านตรวจชนิดไฟล์ใน upload.php ทั้งหมดแขวนอยู่กับ finfo
+// ถ้าส่วนขยายนี้ไม่ได้เปิดบน NAS ระบบจะเหลือแค่ความเชื่อในนามสกุลไฟล์
+// (ไฟล์ HTML ที่ตั้งชื่อ .pdf จะผ่าน) — หลัง deploy ต้องเช็คว่าค่านี้เป็น true
+$result['finfo'] = function_exists('finfo_open');
 $result['php_user'] = exec('whoami');
 $result['document_root'] = $_SERVER['DOCUMENT_ROOT'] ?? 'unknown';
 $result['script_filename'] = $_SERVER['SCRIPT_FILENAME'] ?? 'unknown';
