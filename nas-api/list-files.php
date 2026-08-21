@@ -4,15 +4,32 @@
 // เดิมเปิดให้ใครเปิด URL นี้ก็เห็นรายการไฟล์ทั้งหมด รวมรูป POD ของงานจริง
 // พร้อมลิงก์เปิดดูได้ทันที โดยไม่ต้องยืนยันตัวตนเลย
 // ตอนนี้ต้องแนบคีย์มาด้วย: list-files.php?key=<คีย์เดียวกับ upload.php>
-// คีย์อ่านจากไฟล์บน NAS (api-key.php) ไม่ฝังในโค้ด — ดูคำอธิบายใน upload.php
-$KEY_FILE = __DIR__ . '/api-key.php';
+// คีย์อ่านจากไฟล์นอก web root ไม่ฝังในโค้ด — ดูคำอธิบายใน upload.php
+$KEY_FILE = getenv('NAS_API_KEY_FILE') ?: '/volume1/nas-secrets/api-key.php';
 $API_KEY = is_readable($KEY_FILE) ? trim((string) @include $KEY_FILE) : '';
 
-$key = isset($_GET['key']) ? $_GET['key'] : '';
+// รับคีย์ทาง header หรือ POST เท่านั้น — **ห้ามรับผ่าน ?key=**
+// เพราะ query string จะถูกบันทึกลง access log ของ Nginx และหลุดไปกับ Referer
+// ถ้าหน้านี้มีลิงก์ออกไปที่อื่น · หน้าเว็บจึงใช้ฟอร์ม POST แทน คนยังเปิดใช้ได้ตามปกติ
+$key = '';
+if (isset($_SERVER['HTTP_X_API_KEY'])) {
+    $key = (string) $_SERVER['HTTP_X_API_KEY'];
+} elseif (isset($_POST['key'])) {
+    $key = (string) $_POST['key'];
+}
+
 if ($API_KEY === '' || !hash_equals($API_KEY, $key)) {
-    http_response_code(401);
-    header('Content-Type: text/plain; charset=utf-8');
-    echo 'Unauthorized';
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!doctype html><html lang="th"><head><meta charset="utf-8">';
+    echo '<title>NAS Uploads</title><style>body{font-family:sans-serif;margin:40px}';
+    echo 'input,button{font-size:15px;padding:8px}</style></head><body>';
+    echo '<h3>ต้องใส่คีย์ก่อนดูรายการไฟล์</h3>';
+    if (isset($_POST['key'])) {
+        echo '<p style="color:#c00">คีย์ไม่ถูกต้อง</p>';
+    }
+    echo '<form method="post"><input type="password" name="key" autofocus placeholder="API key">';
+    echo ' <button type="submit">เข้าดู</button></form>';
+    echo '</body></html>';
     exit;
 }
 

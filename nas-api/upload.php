@@ -7,10 +7,11 @@
 // ===== CONFIG =====
 // คีย์อ่านจากไฟล์ที่วางไว้บน NAS เท่านั้น ไม่ฝังในโค้ดแล้ว (repo นี้เป็น public)
 //
-// ทำไมเป็นไฟล์ .php ไม่ใช่ .txt: ไฟล์นี้อยู่ในโฟลเดอร์เว็บ ถ้าเป็น .txt ใครก็เปิด
-// https://<โดเมน>/api/api-key.txt แล้วโหลดคีย์ไปตรง ๆ ได้ ส่วน .php จะถูกรันไม่ใช่ถูกส่ง
-// ตัวไฟล์มีแค่บรรทัดเดียว: <?php return 'คีย์'; · ดูวิธีทำที่ api-key.example.php
-$KEY_FILE = __DIR__ . '/api-key.php';
+// เก็บไว้ "นอก web root" — ถ้าเก็บในโฟลเดอร์เดียวกับไฟล์นี้ จะปลอดภัยแค่ตราบใดที่ PHP
+// ยังทำงาน วันไหน PHP handler พังหรือถูกปิด เว็บจะส่งไฟล์นั้นเป็นข้อความธรรมดาทันที
+// และคีย์หลุดทั้งใบ · ตัวไฟล์มีบรรทัดเดียว: <?php return 'คีย์';
+// ดูวิธีทำที่ api-key.example.php · เปลี่ยนที่เก็บได้ด้วย env NAS_API_KEY_FILE
+$KEY_FILE = getenv('NAS_API_KEY_FILE') ?: '/volume1/nas-secrets/api-key.php';
 $API_KEY = is_readable($KEY_FILE) ? trim((string) @include $KEY_FILE) : '';
 $UPLOAD_DIR = '/tmp/nas-uploads';
 $PROJECT_KEY = 'subcontractor-truck-management';
