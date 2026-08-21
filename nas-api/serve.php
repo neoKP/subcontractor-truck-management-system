@@ -107,8 +107,13 @@ $mime = $mimeMap[$ext];
 
 // Cache 30 days
 header('Content-Type: ' . $mime);
+// endpoint นี้ไม่มีคีย์ เสิร์ฟไบต์ที่ผู้ใช้อัปมา และอยู่โดเมนเดียวกับ DSM ที่แอดมินล็อกอินอยู่
+// nosniff กันเบราว์เซอร์เดาชนิดไฟล์เองแล้วรันเป็น HTML
+header('X-Content-Type-Options: nosniff');
 header('Content-Length: ' . filesize($realFile));
 header('Cache-Control: public, max-age=2592000');
-header('ETag: "' . md5_file($realFile) . '"');
+// ETag จากเวลาแก้ไข+ขนาด ไม่ใช่ md5 ของทั้งไฟล์ — เดิมต้องอ่านไฟล์ทั้งก้อนซ้ำทุก request
+// หน้า POD เปิดทีละหลายสิบรูปพร้อมกัน
+header('ETag: "' . filemtime($realFile) . '-' . filesize($realFile) . '"');
 
 readfile($realFile);

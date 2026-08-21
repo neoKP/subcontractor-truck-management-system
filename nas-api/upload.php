@@ -153,7 +153,9 @@ $subPath = implode('/', $segments);
 // ถ้าโดนตัดอะไรออก แปลว่า path ที่ส่งมาไม่ปกติ — ตอบกลับไปเลย อย่าเขียนเงียบ ๆ
 // (เดิมแค่ตัด ".." ทิ้งแล้วเขียนต่อ ทำให้ไม่มีสัญญาณว่ามีคนยิง exploit เข้ามา
 //  และยังสร้างโฟลเดอร์ขยะที่ Task Scheduler จะ rsync ตามไป Synology Drive ด้วย)
-if ($subPath !== trim($cleanPath, '/')) {
+// ห้ามใช้ trim($cleanPath, '/') ตรงนี้ — มันตัดสแลชนำหน้าทิ้งก่อนเทียบ
+// ทำให้ path=/etc/cron.d/evil.jpg ผ่านได้ทั้งที่เป็น absolute path (พิสูจน์ด้วยเทสต์จริงแล้ว)
+if ($subPath !== $cleanPath) {
     echo json_encode(array('success' => false, 'error' => 'Invalid path'));
     exit;
 }
@@ -175,13 +177,6 @@ if ($subPath !== '') {
 // ชนิดไฟล์: เชื่อผลตรวจจากเนื้อไฟล์เป็นหลัก
 // ของเดิมถ้า finfo ตอบไม่ได้จะไปเชื่อ $file['type'] ซึ่งผู้เรียกกำหนดเองได้ = ด่านนี้ถูกข้ามได้
 // ตอนนี้ใช้ได้แค่ 2 ทาง: ผลจาก finfo หรือมาจากนามสกุลไฟล์ที่เรากำหนดรายการเอง
-$mimeType = '';
-if (function_exists('finfo_open')) {
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mimeType = (string) finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-}
-
 $EXT_MIME = array(
     'webp' => 'image/webp',
     'jpg'  => 'image/jpeg',
@@ -190,18 +185,56 @@ $EXT_MIME = array(
     'gif'  => 'image/gif',
     'pdf'  => 'application/pdf'
 );
+// finfo ตอบชื่อพ้องได้หลายแบบ ยุบให้เป็นชื่อหลักก่อนเทียบ
+$MIME_ALIAS = array(
+    'image/x-png' => 'image/png',
+    'image/pjpeg' => 'image/jpeg',
+    'image/jpg'   => 'image/jpeg'
+);
 
-if (!in_array($mimeType, $ALLOWED_TYPES, true)) {
-    // ใช้นามสกุลจาก path ที่สะอาดแล้ว (หรือชื่อไฟล์) เป็นทางสำรองทางเดียว
-    $extSource = $subPath;
-    if ($extSource === '') {
-        $extSource = isset($file['name']) && is_string($file['name']) ? $file['name'] : '';
-    }
-    $ext = strtolower(pathinfo($extSource, PATHINFO_EXTENSION));
-    if (isset($EXT_MIME[$ext])) {
-        $mimeType = $EXT_MIME[$ext];
+$detected = '';
+if (function_exists('finfo_open')) {
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $detected = (string) finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    if (isset($MIME_ALIAS[$detected])) {
+        $detected = $MIME_ALIAS[$detected];
     }
 }
+
+// เบาะแสนามสกุล: ใช้ path ปลายทางถ้ามี ไม่งั้นใช้ชื่อไฟล์ที่ผู้เรียกส่งมา
+// (โหมด "ไม่ส่ง path" ยังต้องอัปได้ ระบบจะตั้งชื่อ misc/... ให้เองทีหลัง)
+$hintExt = '';
+if ($subPath !== '') {
+    $hintExt = $outExt;
+} elseif (isset($file['name']) && is_string($file['name'])) {
+    $hintExt = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+}
+$extMime = isset($EXT_MIME[$hintExt]) ? $EXT_MIME[$hintExt] : '';
+
+// เทียบ "ผลตรวจจากเนื้อไฟล์" กับ "นามสกุลปลายทาง" โดยดูจากค่าที่ finfo ตรวจได้จริง
+// ไม่ใช่ค่าหลังเติมจากนามสกุล ไม่งั้นจะกลายเป็นเทียบตัวเองกับตัวเอง
+if ($detected !== '' && $detected !== 'application/octet-stream') {
+    if (!in_array($detected, $ALLOWED_TYPES, true)) {
+        // เนื้อไฟล์เป็นชนิดที่ไม่รับเลย เช่น text/html หรือ text/x-php ที่ตั้งชื่อเป็น .pdf
+        echo json_encode(array('success' => false, 'error' => 'File type not allowed', 'type' => $detected));
+        exit;
+    }
+    // เทียบเฉพาะตอนที่ผู้เรียก "ตั้งชื่อไฟล์ปลายทางเอง" — โหมดไม่ส่ง path ระบบตั้งชื่อตามชนิดจริงอยู่แล้ว
+    if ($subPath !== '' && $extMime !== '' && $extMime !== $detected) {
+        echo json_encode(array(
+            'success' => false,
+            'error' => 'Extension does not match file content',
+            'ext' => $outExt,
+            'type' => $detected
+        ));
+        exit;
+    }
+}
+
+// สรุปชนิดไฟล์: ใช้ผลจาก finfo ถ้าใช้ได้ ไม่งั้นค่อยใช้ตารางนามสกุล
+// (libmagic รุ่นเก่าตอบ webp เป็น octet-stream — กรณีนั้นยังต้องอัปได้)
+$mimeType = in_array($detected, $ALLOWED_TYPES, true) ? $detected : $extMime;
 
 if (!in_array($mimeType, $ALLOWED_TYPES, true)) {
     echo json_encode(array('success' => false, 'error' => 'File type not allowed', 'type' => $mimeType));
