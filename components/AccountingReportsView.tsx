@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Job, AuditLog, JobStatus, JOB_STATUS_LABELS, UserRole } from '../types';
 import { db, ref, get, query, orderByChild, startAt, endAt } from '../firebaseConfig';
-import * as XLSX from 'xlsx';
+import { exportExcelReport, thaiFileDate, type ReportColumn, type ReportSheet } from '../utils/excelReport';
 import {
     AreaChart,
     Area,
@@ -364,42 +364,43 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
 
     const detailTotalPages = Math.ceil(detailTableJobs.length / DETAIL_PAGE_SIZE);
 
-    const handleDetailExportExcel = () => {
-        const rows = detailTableJobs.map(job => {
-            const extraTotal = jobExtraTotal(job);
-            const base: Record<string, any> = {
-                'Job ID': job.id,
-                'วันที่ให้บริการ': (job.dateOfService || '').split('T')[0],
-                'สถานะงาน': JOB_STATUS_LABELS[job.status],
-                'ต้นทาง': job.origin,
-                'ปลายทาง': job.destination,
-                'บริษัทรถร่วม': job.subcontractor || '-',
-                'คนขับ': job.driverName || '-',
-                'เบอร์โทรคนขับ': job.driverPhone || '-',
-                'ทะเบียนรถ': job.licensePlate || '-',
-                'ประเภทรถ': job.truckType || '-',
-                'รายละเอียดสินค้า': job.productDetail || '-',
-                'น้ำหนัก/ปริมาณ': job.weightVolume || '-',
-                'วันที่เสร็จงาน': (job.actualArrivalTime || '').split('T')[0] || '-',
-                'ระยะทาง (km)': job.mileage || '-',
-                'หมายเหตุ': job.remark || '-',
-            };
-            if (canViewBilling) {
-                base['ต้นทุนพื้นฐาน (Base Cost)'] = job.cost || 0;
-                base['ค่าใช้จ่ายพิเศษ (Extra)'] = extraTotal;
-                base['ต้นทุนรวม (Total Cost)'] = (job.cost || 0) + extraTotal;
-                base['ธนาคาร'] = job.bankName || '-';
-                base['ชื่อบัญชี'] = job.bankAccountName || '-';
-                base['เลขที่บัญชี'] = job.bankAccountNo || '-';
-                base['เลขผู้เสียภาษี (Tax ID)'] = job.taxId || '-';
-                base['หมายเหตุบัญชี'] = job.accountingRemark || '-';
-            }
-            return base;
-        });
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Job Details');
-        XLSX.writeFile(wb, `Job_Details_${new Date().getTime()}.xlsx`);
+    const handleDetailExportExcel = async () => {
+        // คอลัมน์เงินและบัญชีแสดงเฉพาะคนที่มีสิทธิ์ดูข้อมูลการเงิน เหมือนที่แสดงบนหน้าจอ
+        const moneyColumns: ReportColumn<Job>[] = canViewBilling ? [
+            { header: 'ต้นทุนพื้นฐาน (บาท)', value: j => j.cost || 0, type: 'money', total: true },
+            { header: 'ค่าใช้จ่ายพิเศษ (บาท)', value: j => jobExtraTotal(j), type: 'money', total: true },
+            { header: 'ต้นทุนรวม (บาท)', value: j => (j.cost || 0) + jobExtraTotal(j), type: 'money', total: true },
+            { header: 'ธนาคาร', value: j => j.bankName || '-', type: 'text' },
+            { header: 'ชื่อบัญชี', value: j => j.bankAccountName || '-', type: 'text' },
+            { header: 'เลขที่บัญชี', value: j => j.bankAccountNo || '-', type: 'text' },
+            { header: 'เลขผู้เสียภาษี', value: j => j.taxId || '-', type: 'text' },
+            { header: 'หมายเหตุบัญชี', value: j => j.accountingRemark || '-', type: 'text' },
+        ] : [];
+
+        await exportExcelReport([{
+            name: 'รายละเอียดงาน',
+            title: 'รายงานรายละเอียดงานขนส่ง',
+            subtitle: `${detailTableJobs.length} งาน`,
+            columns: [
+                { header: 'Job ID', value: j => j.id, type: 'text' },
+                { header: 'วันที่ให้บริการ', value: j => (j.dateOfService || '').split('T')[0], type: 'text' },
+                { header: 'สถานะงาน', value: j => JOB_STATUS_LABELS[j.status], type: 'text' },
+                { header: 'ต้นทาง', value: j => j.origin, type: 'text' },
+                { header: 'ปลายทาง', value: j => j.destination, type: 'text' },
+                { header: 'บริษัทรถร่วม', value: j => j.subcontractor || '-', type: 'text' },
+                { header: 'คนขับ', value: j => j.driverName || '-', type: 'text' },
+                { header: 'เบอร์โทรคนขับ', value: j => j.driverPhone || '-', type: 'text' },
+                { header: 'ทะเบียนรถ', value: j => j.licensePlate || '-', type: 'text' },
+                { header: 'ประเภทรถ', value: j => j.truckType || '-', type: 'text' },
+                { header: 'รายละเอียดสินค้า', value: j => j.productDetail || '-', type: 'text' },
+                { header: 'น้ำหนัก/ปริมาณ', value: j => j.weightVolume || '-', type: 'text' },
+                { header: 'วันที่เสร็จงาน', value: j => (j.actualArrivalTime || '').split('T')[0] || '-', type: 'text' },
+                { header: 'ระยะทาง (กม.)', value: j => j.mileage ?? null, type: 'number' },
+                { header: 'หมายเหตุ', value: j => j.remark || '-', type: 'text' },
+                ...moneyColumns,
+            ],
+            rows: detailTableJobs,
+        }] as ReportSheet<Job>[], `รายละเอียดงาน_${thaiFileDate()}`);
     };
 
     const handleDetailSort = (col: string) => {
@@ -407,18 +408,23 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
         else { setDetailSortCol(col); setDetailSortDir('desc'); }
     };
 
-    const handleExportExcel = () => {
-        const data = performanceTableData.map(d => ({
-            "Analysis Target": d.name,
-            "Total Jobs": d.jobs,
-            "Total Cost": formatThaiCurrency(d.cost),
-            "Avg Cost/Job": formatThaiCurrency(d.cost / d.jobs),
-            "Cost Share %": ((d.cost / metrics.totalCost) * 100 || 0).toFixed(2) + "%"
-        }));
-        const worksheet = XLSX.utils.json_to_sheet(data);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Cost_Analysis");
-        XLSX.writeFile(workbook, `Cost_Analysis_Export_${new Date().getTime()}.xlsx`);
+    const handleExportExcel = async () => {
+        // เดิมส่งออกยอดเงินเป็นข้อความจัดรูปแบบแล้ว ทำให้เอาไปบวกต่อใน Excel ไม่ได้
+        // ตอนนี้ส่งเป็นตัวเลขจริงและให้ไฟล์จัดรูปแบบเอง
+        await exportExcelReport([{
+            name: 'วิเคราะห์ต้นทุน',
+            title: 'รายงานวิเคราะห์ต้นทุน',
+            subtitle: `${performanceTableData.length} รายการ · ต้นทุนรวมทั้งหมด ${formatThaiCurrency(metrics.totalCost)} บาท`,
+            columns: [
+                { header: 'รายการที่วิเคราะห์', value: d => d.name, type: 'text' },
+                { header: 'จำนวนงาน', value: d => d.jobs, type: 'number', total: true },
+                { header: 'ต้นทุนรวม (บาท)', value: d => d.cost, type: 'money', total: true },
+                { header: 'ต้นทุนเฉลี่ยต่องาน (บาท)', value: d => (d.jobs ? d.cost / d.jobs : null), type: 'money' },
+                // รูปแบบ % ของ Excel คูณ 100 ให้เอง จึงต้องส่งเป็นสัดส่วน ไม่ใช่ 12.34
+                { header: 'สัดส่วนต้นทุน', value: d => (metrics.totalCost ? d.cost / metrics.totalCost : null), type: 'percent' },
+            ],
+            rows: performanceTableData,
+        }], `วิเคราะห์ต้นทุน_${thaiFileDate()}`);
     };
 
     const CLEAR_CROSS_FILTERS = () => {

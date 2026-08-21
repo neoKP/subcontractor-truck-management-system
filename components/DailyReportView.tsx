@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Job, JobStatus, JOB_STATUS_LABELS, UserRole } from '../types';
 import { FileSpreadsheet, Search, Calendar, Truck, User, MapPin, CheckCircle2, Clock, AlertCircle, Users, Eye, Phone, Package } from 'lucide-react';
 import { formatDate } from '../utils/format';
-import * as XLSX from 'xlsx';
+import { exportExcelReport, type ReportColumn, type ReportSheet } from '../utils/excelReport';
 import JobPreviewModal from './JobPreviewModal';
 import { db, ref, get, query, orderByChild, startAt, endAt } from '../firebaseConfig';
 
@@ -142,47 +142,43 @@ const DailyReportView: React.FC<DailyReportViewProps> = ({ jobs, currentUser }) 
     }, [filteredJobs]);
 
     // Handle Export to XLSX
-    const handleExport = () => {
-        const rows = filteredJobs.map(job => {
-            const extraTotal = getExtraTotal(job);
-            const totalCost = (job.cost || 0) + extraTotal;
+    const handleExport = async () => {
+        // คอลัมน์เงินเห็นเฉพาะฝ่ายการเงิน เหมือนกับที่แสดงบนหน้าจอ
+        const financeColumns: ReportColumn<Job>[] = isFinanceRole ? [
+            { header: 'ต้นทุนพื้นฐาน (บาท)', value: j => j.cost || 0, type: 'money', total: true },
+            { header: 'ค่าใช้จ่ายพิเศษ (บาท)', value: j => getExtraTotal(j), type: 'money', total: true },
+            { header: 'ต้นทุนรวม (บาท)', value: j => (j.cost || 0) + getExtraTotal(j), type: 'money', total: true },
+            { header: 'ธนาคาร', value: j => j.bankName || '-', type: 'text' },
+            { header: 'ชื่อบัญชี', value: j => j.bankAccountName || '-', type: 'text' },
+            { header: 'เลขที่บัญชี', value: j => j.bankAccountNo || '-', type: 'text' },
+            { header: 'เลขผู้เสียภาษี', value: j => j.taxId || '-', type: 'text' },
+            { header: 'หมายเหตุบัญชี', value: j => j.accountingRemark || '-', type: 'text' },
+        ] : [];
 
-            const base: Record<string, any> = {
-                'Job ID': job.id,
-                'วันที่ให้บริการ': formatDate(job.dateOfService),
-                'สถานะงาน': JOB_STATUS_LABELS[job.status],
-                'ต้นทาง': job.origin,
-                'ปลายทาง': job.destination,
-                'บริษัทรถร่วม': job.subcontractor || '-',
-                'คนขับ': job.driverName || '-',
-                'เบอร์โทรคนขับ': job.driverPhone || '-',
-                'ทะเบียนรถ': job.licensePlate || '-',
-                'ประเภทรถ': job.truckType || '-',
-                'รายละเอียดสินค้า': job.productDetail || '-',
-                'น้ำหนัก/ปริมาณ': job.weightVolume || '-',
-                'วันที่เสร็จงาน': job.actualArrivalTime ? formatDate(job.actualArrivalTime) : '-',
-                'ระยะทาง (km)': job.mileage || '-',
-                'หมายเหตุ': job.remark || '-',
-            };
-
-            if (isFinanceRole) {
-                base['ต้นทุนพื้นฐาน (Base Cost)'] = job.cost || 0;
-                base['ค่าใช้จ่ายพิเศษ (Extra)'] = extraTotal;
-                base['ต้นทุนรวม (Total Cost)'] = totalCost;
-                base['ธนาคาร'] = job.bankName || '-';
-                base['ชื่อบัญชี'] = job.bankAccountName || '-';
-                base['เลขที่บัญชี'] = job.bankAccountNo || '-';
-                base['เลขผู้เสียภาษี (Tax ID)'] = job.taxId || '-';
-                base['หมายเหตุบัญชี'] = job.accountingRemark || '-';
-            }
-
-            return base;
-        });
-
-        const worksheet = XLSX.utils.json_to_sheet(rows);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Daily Report');
-        XLSX.writeFile(workbook, `Daily_Report_${dateFrom}_to_${dateTo}.xlsx`);
+        await exportExcelReport([{
+            name: 'รายงานประจำวัน',
+            title: 'รายงานงานขนส่งประจำวัน',
+            subtitle: `ช่วง ${dateFrom} ถึง ${dateTo} · ${filteredJobs.length} งาน`,
+            columns: [
+                { header: 'Job ID', value: j => j.id, type: 'text' },
+                { header: 'วันที่ให้บริการ', value: j => formatDate(j.dateOfService), type: 'text' },
+                { header: 'สถานะงาน', value: j => JOB_STATUS_LABELS[j.status], type: 'text' },
+                { header: 'ต้นทาง', value: j => j.origin, type: 'text' },
+                { header: 'ปลายทาง', value: j => j.destination, type: 'text' },
+                { header: 'บริษัทรถร่วม', value: j => j.subcontractor || '-', type: 'text' },
+                { header: 'คนขับ', value: j => j.driverName || '-', type: 'text' },
+                { header: 'เบอร์โทรคนขับ', value: j => j.driverPhone || '-', type: 'text' },
+                { header: 'ทะเบียนรถ', value: j => j.licensePlate || '-', type: 'text' },
+                { header: 'ประเภทรถ', value: j => j.truckType || '-', type: 'text' },
+                { header: 'รายละเอียดสินค้า', value: j => j.productDetail || '-', type: 'text' },
+                { header: 'น้ำหนัก/ปริมาณ', value: j => j.weightVolume || '-', type: 'text' },
+                { header: 'วันที่เสร็จงาน', value: j => j.actualArrivalTime ? formatDate(j.actualArrivalTime) : '-', type: 'text' },
+                { header: 'ระยะทาง (กม.)', value: j => j.mileage ?? null, type: 'number' },
+                { header: 'หมายเหตุ', value: j => j.remark || '-', type: 'text' },
+                ...financeColumns,
+            ],
+            rows: filteredJobs,
+        }] as ReportSheet<Job>[], `รายงานประจำวัน_${dateFrom}_ถึง_${dateTo}`);
     };
 
     return (

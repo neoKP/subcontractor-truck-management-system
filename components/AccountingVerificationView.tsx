@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
-import * as XLSX from 'xlsx';
+import { exportExcelReport, thaiFileDate, type ReportSheet } from '../utils/excelReport';
 
 const dataURItoBlob = (dataURI: string) => {
     try {
@@ -245,65 +245,53 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
         setNewCharge({ type: '', amount: 0, reason: '' });
     };
 
-    const handleExportExcel = () => {
+    const handleExportExcel = async () => {
         if (accountingJobs.length === 0) {
             Swal.fire('ไม่มีข้อมูล', 'ไม่มีรายการที่ตรงกับตัวกรองปัจจุบัน', 'info');
             return;
         }
 
-        const rows = accountingJobs.map(job => {
-            const totalCost = (job.cost || 0) + (job.extraCharge || 0);
-            return {
-                'Job ID': job.id,
-                'วันที่ให้บริการ': job.dateOfService,
-                'สถานะงาน': job.accountingStatus || 'Pending Review',
-                'ต้นทาง': job.origin,
-                'ปลายทาง': job.destination,
-                'บริษัทรถร่วม (Subcontractor)': job.subcontractor || '',
-                'คนขับ': job.driverName || '',
-                'เบอร์โทรคนขับ': job.driverPhone || '',
-                'ทะเบียนรถ': job.licensePlate || '',
-                'ประเภทรถ': job.truckType,
-                'รายละเอียดสินค้า': job.productDetail,
-                'น้ำหนัก/ปริมาณ': job.weightVolume,
-                'ต้นทุนพื้นฐาน (Base Cost)': job.cost || 0,
-                'ค่าใช้จ่ายพิเศษ (Extra)': job.extraCharge || 0,
-                'ต้นทุนรวม (Total Cost)': totalCost,
-                'รายรับจากลูกค้า (Selling Price)': job.sellingPrice || 0,
-                'กำไร (Profit)': (job.sellingPrice || 0) - totalCost,
-                'ระยะเวลาชำระ': job.paymentType === 'CASH' ? 'เงินสด' : `เครดิต ${job.paymentType || ''}`,
-                'ธนาคาร': job.bankName || '',
-                'ชื่อบัญชี': job.bankAccountName || '',
-                'เลขที่บัญชี': job.bankAccountNo || '',
-                'เลขผู้เสียภาษี (Tax ID)': job.taxId || '',
-                'วันที่เสร็จงาน': job.actualArrivalTime ? formatDate(job.actualArrivalTime) : '',
-                'ระยะทาง (km)': job.mileage || '',
-                'หมายเหตุ': job.remark || '',
-                'หมายเหตุบัญชี': job.accountingRemark || '',
-            };
-        });
+        const statusLabel = filterStatus === 'ALL' ? 'ทั้งหมด' : filterStatus;
+        const totalCostOf = (j: Job) => (j.cost || 0) + (j.extraCharge || 0);
 
-        const worksheet = XLSX.utils.json_to_sheet(rows);
-
-        // Column widths
-        worksheet['!cols'] = [
-            { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 25 }, { wch: 25 },
-            { wch: 28 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
-            { wch: 22 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 14 },
-            { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 20 },
-            { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 25 }, { wch: 25 },
-        ];
-
-        const workbook = XLSX.utils.book_new();
-        const statusLabel = filterStatus === 'ALL' ? 'All' : filterStatus.replace(' ', '_');
-        XLSX.utils.book_append_sheet(workbook, worksheet, `Verification_${statusLabel}`);
-
-        const dateStr = new Date().toISOString().split('T')[0];
-        XLSX.writeFile(workbook, `Verification_${statusLabel}_${dateStr}.xlsx`);
+        await exportExcelReport([{
+            name: `ตรวจสอบบัญชี ${statusLabel}`,
+            title: 'รายงานตรวจสอบบัญชีงานขนส่ง',
+            subtitle: `สถานะ: ${statusLabel} · ${accountingJobs.length} งาน`,
+            columns: [
+                { header: 'Job ID', value: j => j.id, type: 'text' },
+                { header: 'วันที่ให้บริการ', value: j => j.dateOfService, type: 'text' },
+                { header: 'สถานะงาน', value: j => j.accountingStatus || 'Pending Review', type: 'text' },
+                { header: 'ต้นทาง', value: j => j.origin, type: 'text' },
+                { header: 'ปลายทาง', value: j => j.destination, type: 'text' },
+                { header: 'บริษัทรถร่วม', value: j => j.subcontractor || '', type: 'text' },
+                { header: 'คนขับ', value: j => j.driverName || '', type: 'text' },
+                { header: 'เบอร์โทรคนขับ', value: j => j.driverPhone || '', type: 'text' },
+                { header: 'ทะเบียนรถ', value: j => j.licensePlate || '', type: 'text' },
+                { header: 'ประเภทรถ', value: j => j.truckType, type: 'text' },
+                { header: 'รายละเอียดสินค้า', value: j => j.productDetail, type: 'text' },
+                { header: 'น้ำหนัก/ปริมาณ', value: j => j.weightVolume, type: 'text' },
+                { header: 'ต้นทุนพื้นฐาน (บาท)', value: j => j.cost || 0, type: 'money', total: true },
+                { header: 'ค่าใช้จ่ายพิเศษ (บาท)', value: j => j.extraCharge || 0, type: 'money', total: true },
+                { header: 'ต้นทุนรวม (บาท)', value: j => totalCostOf(j), type: 'money', total: true },
+                { header: 'รายรับจากลูกค้า (บาท)', value: j => j.sellingPrice || 0, type: 'money', total: true },
+                { header: 'กำไร (บาท)', value: j => (j.sellingPrice || 0) - totalCostOf(j), type: 'money', total: true },
+                { header: 'ระยะเวลาชำระ', value: j => j.paymentType === 'CASH' ? 'เงินสด' : `เครดิต ${j.paymentType || ''}`, type: 'text' },
+                { header: 'ธนาคาร', value: j => j.bankName || '', type: 'text' },
+                { header: 'ชื่อบัญชี', value: j => j.bankAccountName || '', type: 'text' },
+                { header: 'เลขที่บัญชี', value: j => j.bankAccountNo || '', type: 'text' },
+                { header: 'เลขผู้เสียภาษี', value: j => j.taxId || '', type: 'text' },
+                { header: 'วันที่เสร็จงาน', value: j => j.actualArrivalTime ? formatDate(j.actualArrivalTime) : '', type: 'text' },
+                { header: 'ระยะทาง (กม.)', value: j => j.mileage ?? null, type: 'number' },
+                { header: 'หมายเหตุ', value: j => j.remark || '', type: 'text' },
+                { header: 'หมายเหตุบัญชี', value: j => j.accountingRemark || '', type: 'text' },
+            ],
+            rows: accountingJobs,
+        }] as ReportSheet<Job>[], `รายงานตรวจสอบบัญชี_${statusLabel}_${thaiFileDate()}`);
 
         Swal.fire({
             title: 'Export สำเร็จ!',
-            text: `ส่งออก ${rows.length} รายการ`,
+            text: `ส่งออก ${accountingJobs.length} รายการ`,
             icon: 'success',
             timer: 1500,
             showConfirmButton: false,

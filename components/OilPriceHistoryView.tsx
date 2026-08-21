@@ -6,7 +6,7 @@ import {
     Fuel, TrendingUp, CalendarClock, ArrowUpDown, FileDown, Table2, History, Info,
     CheckCircle2, AlertTriangle
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { exportExcelReport, thaiFileDate } from '../utils/excelReport';
 import DIESEL_HISTORY from '../data/dieselHistory.json';
 import { buildOilRounds, todayIsoLocal } from '../utils/oilRounds';
 import { useOilPrice } from '../utils/useOilPrice';
@@ -94,32 +94,36 @@ const OilPriceHistoryView: React.FC = () => {
         return rows;
     }, [histMonths]);
 
-    const handleExportExcel = () => {
-        const wb = XLSX.utils.book_new();
-
-        const roundRows = filtered.map(r => ({
-            'ครั้งที่': r.seq === 0 ? 'ฐาน' : r.seq,
-            'วันเริ่มงวด': `${r.day} ${TH_MON_ABBR[r.month]} ${String(r.year + 543).slice(-2)}`,
-            'เดือน': TH_MONTH[r.month],
-            'ราคาดีเซล': r.diesel,
-            'ปรับครั้งนี้': r.seq === 0 ? '—' : r.delta,
-            'จำนวนวัน': r.days,
-        }));
-        const ws1 = XLSX.utils.json_to_sheet(roundRows);
-        ws1['!cols'] = [{ wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }];
-        XLSX.utils.book_append_sheet(wb, ws1, 'งวดปรับน้ำมัน');
-
-        const histRows = histMonths.map(m => ({
-            'เดือน': m.label,
-            'ราคาเฉลี่ย': m.avg,
-            'ต่ำสุด': m.min,
-            'สูงสุด': m.max,
-        }));
-        const ws2 = XLSX.utils.json_to_sheet(histRows);
-        ws2['!cols'] = [{ wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
-        XLSX.utils.book_append_sheet(wb, ws2, 'ราคาดีเซลตลาดย้อนหลัง');
-
-        XLSX.writeFile(wb, `ประวัติราคาน้ำมัน_${latest?.startIso || 'export'}.xlsx`);
+    const handleExportExcel = async () => {
+        await exportExcelReport([
+            {
+                name: 'งวดปรับน้ำมัน',
+                title: 'ประวัติงวดปรับราคาน้ำมันดีเซล',
+                subtitle: `${filtered.length} งวด`,
+                columns: [
+                    { header: 'ครั้งที่', value: r => r.seq === 0 ? 'ฐาน' : r.seq, type: 'text' },
+                    { header: 'วันเริ่มงวด', value: r => `${r.day} ${TH_MON_ABBR[r.month]} ${String(r.year + 543).slice(-2)}`, type: 'text' },
+                    { header: 'เดือน', value: r => TH_MONTH[r.month], type: 'text' },
+                    { header: 'ราคาดีเซล (บาท/ลิตร)', value: r => r.diesel, type: 'money' },
+                    // งวดฐานไม่มีการปรับ จึงเว้นว่าง ไม่ใส่ 0 ซึ่งจะอ่านเป็น "ปรับแล้วเท่าเดิม"
+                    { header: 'ปรับครั้งนี้ (บาท)', value: r => r.seq === 0 ? null : r.delta, type: 'money' },
+                    { header: 'จำนวนวัน', value: r => r.days, type: 'number', total: true },
+                ],
+                rows: filtered,
+            },
+            {
+                name: 'ราคาดีเซลตลาดย้อนหลัง',
+                title: 'ราคาดีเซลตลาดย้อนหลังรายเดือน',
+                subtitle: `${histMonths.length} เดือน`,
+                columns: [
+                    { header: 'เดือน', value: m => m.label, type: 'text' },
+                    { header: 'ราคาเฉลี่ย (บาท/ลิตร)', value: m => m.avg, type: 'money' },
+                    { header: 'ต่ำสุด (บาท/ลิตร)', value: m => m.min, type: 'money' },
+                    { header: 'สูงสุด (บาท/ลิตร)', value: m => m.max, type: 'money' },
+                ],
+                rows: histMonths,
+            },
+        ], `ประวัติราคาน้ำมัน_${latest?.startIso || thaiFileDate()}`);
     };
 
     const KPI_CARDS = [

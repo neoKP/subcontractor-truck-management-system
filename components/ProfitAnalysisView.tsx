@@ -22,7 +22,7 @@ import {
     BarChart3,
     PieChart as PieChartIcon
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { exportExcelReport, thaiFileDate } from '../utils/excelReport';
 import {
     AreaChart,
     Area,
@@ -162,18 +162,20 @@ const ProfitAnalysisView: React.FC<ProfitAnalysisViewProps> = ({ jobs, userRole 
     };
 
     // --- Export ---
-    const handleExportExcel = () => {
-        const data = performanceData.map(g => ({
-            "Label": g.name,
-            "Revenue": g.revenue,
-            "Gross Profit": g.profit,
-            "Margin %": ((g.profit / g.revenue) * 100 || 0).toFixed(2) + "%"
-        }));
-
-        const worksheet = XLSX.utils.json_to_sheet(data);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Performance");
-        XLSX.writeFile(workbook, `Dashboard_Export_${new Date().getTime()}.xlsx`);
+    const handleExportExcel = async () => {
+        await exportExcelReport([{
+            name: 'ผลประกอบการ',
+            title: 'รายงานผลประกอบการ',
+            subtitle: `แบ่งตาม${groupBy} · ${performanceData.length} รายการ`,
+            columns: [
+                { header: 'รายการ', value: g => g.name, type: 'text' },
+                { header: 'รายได้ (บาท)', value: g => g.revenue, type: 'money', total: true },
+                { header: 'กำไรขั้นต้น (บาท)', value: g => g.profit, type: 'money', total: true },
+                // รูปแบบ % ของ Excel คูณ 100 ให้เอง จึงส่งเป็นสัดส่วน ไม่ใช่ 12.34
+                { header: 'อัตรากำไร', value: g => (g.revenue ? g.profit / g.revenue : null), type: 'percent' },
+            ],
+            rows: performanceData,
+        }], `รายงานผลประกอบการ_${thaiFileDate()}`);
     };
 
     const CustomTooltip = ({ active, payload, label }: any) => {
