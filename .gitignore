@@ -43,3 +43,7 @@ price-audit.csv
 
 # Rate workbooks — subcontractor cost data, and this repo is public
 Excel/
+
+# AI session transcripts (local only, and Tailwind scans them otherwise)
+.claude-code-history/
+.codex-history/

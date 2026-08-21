@@ -116,6 +116,42 @@ function findFirstBandCol(grid: unknown[][], headerIdx: number, dataIdx: number,
 }
 
 /**
+ * ค่าขนส่งที่ต่ำกว่านี้ถือว่าไม่ใช่ราคา — ในไฟล์จริงราคาต่ำสุดคือ 101 บาท
+ * ส่วนตัวเลขที่ต่ำกว่านั้นเป็นตัวคูณหรือขอบช่วงราคาน้ำมันที่หลุดมา
+ */
+const MIN_FREIGHT_PRICE = 100;
+
+/**
+ * แถวหมายเหตุที่หน่วยงานแทรกไว้ท้ายตาราง — ไม่ใช่เส้นทางจริง
+ *
+ * เจอในไฟล์ "รถร่วม วสรรณ์" แถว 42:
+ *   "* ส่ง สินค้า อ.เมือง / ศูนย์กระจาย 1 จุด" พร้อมตัวเลข 0.94, 0.96, 1.02
+ * ตัวเลขเหล่านั้นเป็น "ตัวคูณ" ไม่ใช่ค่าขนส่ง ถ้านับเข้ามาจะได้แถวราคา 1.02 บาท
+ *
+ * ใช้สองเกณฑ์ประกอบกัน กันตัดเส้นทางจริงทิ้ง:
+ *   1. ขึ้นต้นด้วย * หรือมีคำว่า "หมายเหตุ" — เครื่องหมายที่หน่วยงานใช้กำกับหมายเหตุ
+ *   2. ไม่มีคอลัมน์ปลายทาง หรือค่าทุกช่องต่ำกว่าราคาขนส่งขั้นต่ำ
+ */
+function isNoteRow(
+    row: unknown[],
+    origin: string,
+    dest: string,
+    bandCols: { col: number }[]
+): boolean {
+    const marked = /^\s*\*/.test(origin) || /^\s*\*/.test(dest)
+        || origin.includes('หมายเหตุ') || dest.includes('หมายเหตุ');
+    if (!marked) return false;
+
+    // แถวหมายเหตุมักไม่มีปลายทาง — ถ้ามีครบทั้งคู่ อาจเป็นเส้นทางจริงที่ติดดอกจัน
+    if (!dest) return true;
+
+    const values = bandCols
+        .map(bc => toNum(row[bc.col]))
+        .filter((v): v is number => v !== null);
+    return values.length > 0 && values.every(v => v < MIN_FREIGHT_PRICE);
+}
+
+/**
  * อ่านไฟล์รูปแบบ "ตารางกว้าง" — หนึ่งคอลัมน์ = หนึ่งช่วงราคาน้ำมัน
  *
  * รองรับทั้งสองแบบที่หน่วยงานส่งมา:
@@ -200,6 +236,7 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
         const origin = toStr(cOrigin >= 0 ? r[cOrigin] : '');
         const dest = toStr(cDest >= 0 ? r[cDest] : '');
         if (!origin && !dest) continue;   // แถวหัวข้อ/แถวว่าง
+        if (isNoteRow(r, origin, dest, bandCols)) continue;
 
         // บริษัทเว้นว่างในแถวถัดมา = ใช้ค่าจากแถวก่อนหน้า (merge cell ใน Excel)
         const company = toStr(cCompany >= 0 ? r[cCompany] : '') || lastCompany;

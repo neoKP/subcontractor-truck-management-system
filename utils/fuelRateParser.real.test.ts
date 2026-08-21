@@ -98,3 +98,31 @@ describe.skipIf(!load(FILE_2))(`ไฟล์จริง — ${FILE_2}`, () => {
         expect(hit!.price).toBe(2040);   // ช่วง 36.99–38.98
     });
 });
+
+describe.skipIf(!load(FILE_2))('ข้ามแถวหมายเหตุที่ไม่ใช่เส้นทาง', () => {
+    const result = parseFuelRateWorkbook(load(FILE_2)!);
+
+    it('ไม่นับแถว "* ส่ง สินค้า อ.เมือง / ศูนย์กระจาย" เป็นเส้นทาง', () => {
+        const note = result.rows.find(r => r.origin.startsWith('*') || r.destination.startsWith('*'));
+        expect(note).toBeUndefined();
+    });
+
+    it('ไม่มีเส้นทางไหนที่ค่าขนส่งต่ำผิดปกติ (ต่ำกว่า 100 บาท)', () => {
+        for (const r of result.rows) {
+            const prices = r.bands.map(b => b.price).filter((p): p is number => p !== null && p > 0);
+            if (!prices.length) continue;
+            expect(Math.min(...prices)).toBeGreaterThanOrEqual(100);   // ทุกช่อง ไม่ใช่แค่ช่องสูงสุด
+        }
+    });
+
+    it('เส้นทางจริงยังอยู่ครบ', () => {
+        expect(result.rows.length).toBeGreaterThan(30);
+        expect(result.rows[0].bands[0].price).toBe(1880);
+    });
+});
+
+describe.skipIf(!load(FILE_1))('ไฟล์ที่ 1 ไม่ได้รับผลกระทบจากตัวกรองหมายเหตุ', () => {
+    it('ยังอ่านได้ 164 เส้นทางเท่าเดิม', () => {
+        expect(parseFuelRateWorkbook(load(FILE_1)!).rows.length).toBe(164);
+    });
+});
