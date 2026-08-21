@@ -35,10 +35,24 @@ if (in_array($origin, $ALLOWED_ORIGINS, true) || $isNetlify || $isLocalDev || $i
     header('Vary: Origin');
 }
 
-$filePath = isset($_GET['file']) ? $_GET['file'] : '';
-$filePath = preg_replace('/[^a-zA-Z0-9_\-\/\.]/', '_', $filePath);
+$rawFile = isset($_GET['file']) ? $_GET['file'] : '';
+if (!is_string($rawFile)) {
+    $rawFile = '';   // file[]=a&file[]=b ทำให้ค่าที่ได้เป็น array แล้วฟังก์ชันข้างล่างจะพัง
+}
+$filePath = preg_replace('/[^a-zA-Z0-9_\-\/\.]/', '_', $rawFile);
 
-if (empty($filePath)) {
+// ตัด segment ".." และสแลชนำหน้าทิ้งก่อน — ตัวกรองอักขระด้านบนยอมให้ "." กับ "/" ผ่าน
+// จึงยังส่ง ../ เข้ามาได้ · ด่าน realpath ด้านล่างยังอยู่ อันนี้เป็นชั้นแรก
+$segments = array();
+foreach (explode('/', $filePath) as $seg) {
+    if ($seg === '' || $seg === '.' || $seg === '..') {
+        continue;
+    }
+    $segments[] = $seg;
+}
+$filePath = implode('/', $segments);
+
+if ($filePath === '') {
     http_response_code(400);
     echo 'Missing file parameter';
     exit;
@@ -50,7 +64,11 @@ foreach ($UPLOAD_DIRS as $dir) {
     $candidate = $dir . '/' . $filePath;
     $realBase = realpath($dir);
     $realCandidate = realpath($candidate);
-    if ($realBase !== false && $realCandidate !== false && strpos($realCandidate, $realBase) === 0 && is_file($realCandidate)) {
+    // ต้องเทียบแบบมีตัวคั่นท้าย ไม่งั้น /tmp/nas-uploads-evil/x.jpg จะผ่าน
+    // เพราะขึ้นต้นด้วยข้อความ /tmp/nas-uploads เหมือนกัน
+    if ($realBase !== false && $realCandidate !== false
+        && strpos($realCandidate . DIRECTORY_SEPARATOR, $realBase . DIRECTORY_SEPARATOR) === 0
+        && is_file($realCandidate)) {
         $realFile = $realCandidate;
         break;
     }
