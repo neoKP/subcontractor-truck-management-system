@@ -10,6 +10,7 @@ import {
     deleteFuelRateVersion, type FuelRateVersionMeta,
 } from '../utils/fuelRateStore';
 import { buildFuelRateTemplate, checkAgainstMaster, TEMPLATE_VERSION } from '../utils/fuelRateTemplate';
+import { downloadWorkbook } from '../utils/excelReport';
 import { MASTER_DATA } from '../constants';
 import { useOilPrice } from '../utils/useOilPrice';
 
@@ -96,17 +97,9 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
         }
     }, []);
 
-    const handleDownloadTemplate = () => {
-        const buf = buildFuelRateTemplate(MASTER_DATA);
-        const blob = new Blob([buf], {
-            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `แบบฟอร์มตารางเรทค่าขนส่ง_${TEMPLATE_VERSION}.xlsx`;
-        a.click();
-        URL.revokeObjectURL(url);
+    const handleDownloadTemplate = async () => {
+        const buf = await buildFuelRateTemplate(MASTER_DATA);
+        downloadWorkbook(buf, `แบบฟอร์มตารางเรทค่าขนส่ง_${TEMPLATE_VERSION}`);
     };
 
     const onDrop = (e: React.DragEvent) => {

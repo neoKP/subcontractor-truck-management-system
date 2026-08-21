@@ -1,13 +1,18 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { buildFuelRateTemplate, checkAgainstMaster, TEMPLATE_SHEET, type RateMaster } from './fuelRateTemplate';
-import { parseFuelRateWorkbook, findRateAt } from './fuelRateParser';
+import { parseFuelRateWorkbook, findRateAt, type ParseResult } from './fuelRateParser';
 
 const MASTER: RateMaster = {
     subcontractors: ['KNN', 'YSK', 'รถร่วมคุณหนึ่ง'],
     truckTypes: ['4w', '6w', '10w'],
     locations: ['บางปะกง', 'เมืองนครสวรรค์', 'แม่สอด'],
 };
+
+/** แบบฟอร์มเปล่าใช้ซ้ำได้ทุกเทสต์ สร้างครั้งเดียวพอ */
+let TEMPLATE: ArrayBuffer;
+beforeAll(async () => { TEMPLATE = await buildFuelRateTemplate(MASTER); });
 
 /** จำลองคนกรอกแบบฟอร์ม: เปิดไฟล์ที่ระบบสร้าง แล้วเติมข้อมูลต่อจากหัวตาราง */
 const fillTemplate = (template: ArrayBuffer, dataRows: (string | number | null)[][]): ArrayBuffer => {
@@ -20,21 +25,31 @@ const fillTemplate = (template: ArrayBuffer, dataRows: (string | number | null)[
     return XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
 };
 
+const parseFilled = (dataRows: (string | number | null)[][]): ParseResult =>
+    parseFuelRateWorkbook(fillTemplate(TEMPLATE, dataRows));
+
 /** ค่าขนส่ง 16 ช่อง เริ่มที่ first แล้วเพิ่มทีละ step — เลียนตารางจริงที่ราคาไต่ขึ้นตามน้ำมัน */
 const prices = (first: number, step: number) => Array.from({ length: 16 }, (_, i) => first + step * i);
 
-describe('buildFuelRateTemplate — โครงของแบบฟอร์ม', () => {
-    const wb = XLSX.read(buildFuelRateTemplate(MASTER), { type: 'array' });
+/** เปิดแบบฟอร์มด้วย ExcelJS เพื่อตรวจสิ่งที่ xlsx อ่านไม่ได้ (รายการเลือก การล็อก) */
+const openWithExcelJS = async () => {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(TEMPLATE);
+    return wb;
+};
 
+describe('buildFuelRateTemplate — โครงของแบบฟอร์ม', () => {
     it('ชีตที่ใช้กรอกต้องอยู่หน้าสุด เพราะตัวอ่านอ่านชีตแรกเสมอ', () => {
-        expect(wb.SheetNames[0]).toBe(TEMPLATE_SHEET);
+        expect(XLSX.read(TEMPLATE, { type: 'array' }).SheetNames[0]).toBe(TEMPLATE_SHEET);
     });
 
     it('มีชีตประกอบครบ: ตัวอย่าง ทะเบียนชื่อ และวิธีใช้', () => {
-        expect(wb.SheetNames).toEqual([TEMPLATE_SHEET, 'ตัวอย่างการกรอก', 'รายการที่เลือกได้', 'วิธีใช้']);
+        expect(XLSX.read(TEMPLATE, { type: 'array' }).SheetNames)
+            .toEqual([TEMPLATE_SHEET, 'ตัวอย่างการกรอก', 'รายการที่เลือกได้', 'วิธีใช้']);
     });
 
-    it('แนบทะเบียนชื่อของระบบมาให้คัดลอก', () => {
+    it('แนบทะเบียนชื่อของระบบมาให้เลือก', () => {
+        const wb = XLSX.read(TEMPLATE, { type: 'array' });
         const text = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets['รายการที่เลือกได้'], { header: 1 })
             .flat().map(v => String(v ?? ''));
         for (const name of [...MASTER.subcontractors, ...MASTER.truckTypes, ...MASTER.locations]) {
@@ -43,6 +58,7 @@ describe('buildFuelRateTemplate — โครงของแบบฟอร์�
     });
 
     it('ช่องช่วงราคาในแถวหัวตารางต้องว่าง ไม่งั้นตัวอ่านจะนับเป็นขอบช่วง', () => {
+        const wb = XLSX.read(TEMPLATE, { type: 'array' });
         const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[TEMPLATE_SHEET], {
             header: 1, raw: true, defval: null,
         });
@@ -52,6 +68,7 @@ describe('buildFuelRateTemplate — โครงของแบบฟอร์�
     });
 
     it('ตัวอย่างการกรอกใช้ชื่อจากทะเบียนจริง ไม่ใช่ชื่อสมมติ', () => {
+        const wb = XLSX.read(TEMPLATE, { type: 'array' });
         const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets['ตัวอย่างการกรอก'], { header: 1 });
         const row = grid[7].map(v => String(v ?? ''));
         expect(MASTER.subcontractors).toContain(row[1]);
@@ -60,13 +77,60 @@ describe('buildFuelRateTemplate — โครงของแบบฟอร์�
     });
 });
 
+describe('buildFuelRateTemplate — กันกรอกผิดตั้งแต่ในไฟล์', () => {
+    it('ช่องชื่อทั้งสี่คอลัมน์มีรายการให้เลือก ชี้ไปที่ชีตทะเบียน', async () => {
+        const ws = (await openWithExcelJS()).getWorksheet(TEMPLATE_SHEET)!;
+        for (const [cell, sourceCol] of [['B8', 'A'], ['C8', 'C'], ['D8', 'C'], ['E8', 'B']]) {
+            const dv = ws.getCell(cell).dataValidation;
+            expect(dv?.type, cell).toBe('list');
+            expect((dv as { formulae?: string[] })?.formulae?.[0], cell)
+                .toContain(`'รายการที่เลือกได้'!$${sourceCol}$4`);
+        }
+    });
+
+    it('รายการเลือกครอบทุกแถวที่เตรียมไว้ให้กรอก ไม่ใช่แค่แถวแรก', async () => {
+        const ws = (await openWithExcelJS()).getWorksheet(TEMPLATE_SHEET)!;
+        expect(ws.getCell('B107').dataValidation?.type).toBe('list');
+    });
+
+    it('เตือนแต่ไม่บล็อก เผื่อหน่วยงานมีชื่อใหม่จริง ๆ', async () => {
+        const ws = (await openWithExcelJS()).getWorksheet(TEMPLATE_SHEET)!;
+        const dv = ws.getCell('B8').dataValidation as { errorStyle?: string; error?: string };
+        expect(dv.errorStyle).toBe('warning');
+        expect(dv.error).toContain('แจ้งนีโอสยาม');
+    });
+
+    it('ล็อกแถวหัวตารางไว้ แต่แถวข้อมูลยังกรอกได้', async () => {
+        const ws = (await openWithExcelJS()).getWorksheet(TEMPLATE_SHEET)!;
+        expect(ws.getCell('A7').protection?.locked).not.toBe(false);   // หัวตาราง = ล็อก
+        expect(ws.getCell('B8').protection?.locked).toBe(false);       // ช่องกรอก = ปลดล็อก
+    });
+
+    it('ช่องขอบช่วงราคาน้ำมันยังแก้ได้ ตามที่คู่มือบอกไว้', async () => {
+        const ws = (await openWithExcelJS()).getWorksheet(TEMPLATE_SHEET)!;
+        expect(ws.getCell('G5').protection?.locked).toBe(false);   // แถว "ตั้งแต่"
+        expect(ws.getCell('G6').protection?.locked).toBe(false);   // แถว "ถึง"
+        expect(ws.getCell('G7').protection?.locked).not.toBe(false);   // หัวตาราง = ยังล็อก
+        // ExcelJS ไม่ได้ประกาศ sheetProtection ไว้ในไฟล์ชนิดข้อมูล แต่มีจริงตอนรัน
+        const protection = (ws as unknown as { sheetProtection?: { insertColumns?: boolean } }).sheetProtection;
+        expect(protection?.insertColumns).toBe(true);
+    });
+
+    it('ตรึงหัวตารางและคอลัมน์ชื่อไว้ เลื่อนดูช่วงราคาไกล ๆ แล้วยังรู้ว่าแถวไหน', async () => {
+        const ws = (await openWithExcelJS()).getWorksheet(TEMPLATE_SHEET)!;
+        expect(ws.views[0]).toMatchObject({ state: 'frozen', xSplit: 6, ySplit: 7 });
+    });
+});
+
 describe('แบบฟอร์ม → กรอก → อ่านกลับ (round trip)', () => {
-    const filled = fillTemplate(buildFuelRateTemplate(MASTER), [
-        [1, 'KNN', 'บางปะกง', 'เมืองนครสวรรค์', '6w', 'บรรทุกไม่เกิน 5 ตัน', ...prices(5000, 100)],
-        [2, null, 'บางปะกง', 'แม่สอด', '10w', '', ...prices(9000, 250)],
-        [3, 'YSK', 'บางปะกง', 'แม่สอด', '4w', 'ยังไม่ตกลง 2 ช่วงแรก', null, null, ...prices(4000, 80).slice(2)],
-    ]);
-    const result = parseFuelRateWorkbook(filled);
+    let result: ParseResult;
+    beforeAll(() => {
+        result = parseFilled([
+            [1, 'KNN', 'บางปะกง', 'เมืองนครสวรรค์', '6w', 'บรรทุกไม่เกิน 5 ตัน', ...prices(5000, 100)],
+            [2, null, 'บางปะกง', 'แม่สอด', '10w', '', ...prices(9000, 250)],
+            [3, 'YSK', 'บางปะกง', 'แม่สอด', '4w', 'ยังไม่ตกลง 2 ช่วงแรก', null, null, ...prices(4000, 80).slice(2)],
+        ]);
+    });
 
     it('รู้ว่าไฟล์นี้มาจากแบบฟอร์มของระบบ', () => {
         expect(result.isTemplate).toBe(true);
@@ -115,21 +179,18 @@ describe('แบบฟอร์ม → กรอก → อ่านกลับ
 });
 
 describe('checkAgainstMaster — ตรวจชื่อกับทะเบียนของระบบ', () => {
-    const parse = (rows: (string | number | null)[][]) =>
-        parseFuelRateWorkbook(fillTemplate(buildFuelRateTemplate(MASTER), rows)).rows;
-
     it('ชื่อตรงทะเบียนทั้งหมด ไม่มีอะไรต้องเตือน', () => {
-        const rows = parse([[1, 'KNN', 'บางปะกง', 'แม่สอด', '6w', '', ...prices(5000, 100)]]);
+        const { rows } = parseFilled([[1, 'KNN', 'บางปะกง', 'แม่สอด', '6w', '', ...prices(5000, 100)]]);
         expect(checkAgainstMaster(rows, MASTER)).toEqual([]);
     });
 
     it('เว้นวรรคต่างกันถือว่าชื่อเดียวกัน ไม่เตือน', () => {
-        const rows = parse([[1, ' KNN ', 'บางปะกง', 'แม่ สอด', '6w', '', ...prices(5000, 100)]]);
+        const { rows } = parseFilled([[1, ' KNN ', 'บางปะกง', 'แม่ สอด', '6w', '', ...prices(5000, 100)]]);
         expect(checkAgainstMaster(rows, MASTER)).toEqual([]);
     });
 
     it('เตือนพร้อมบอกชื่อที่ใกล้เคียงเมื่อผู้รับจ้างไม่ตรงทะเบียน', () => {
-        const rows = parse([[1, 'KNN DYNAMIC', 'บางปะกง', 'แม่สอด', '6w', '', ...prices(5000, 100)]]);
+        const { rows } = parseFilled([[1, 'KNN DYNAMIC', 'บางปะกง', 'แม่สอด', '6w', '', ...prices(5000, 100)]]);
         const hit = checkAgainstMaster(rows, MASTER).find(i => i.kind === 'unknown-subcontractor');
         expect(hit).toBeDefined();
         expect(hit!.message).toContain('KNN DYNAMIC');
@@ -138,14 +199,14 @@ describe('checkAgainstMaster — ตรวจชื่อกับทะเบ�
     });
 
     it('เตือนเมื่อประเภทรถและสถานที่ไม่ตรงทะเบียน', () => {
-        const rows = parse([[1, 'KNN', 'บางปะกง', 'หาดใหญ่', '4wj (บรรทุก 3001 - 3500 กก.)', '', ...prices(5000, 100)]]);
+        const { rows } = parseFilled([[1, 'KNN', 'บางปะกง', 'หาดใหญ่', '4wj (บรรทุก 3001 - 3500 กก.)', '', ...prices(5000, 100)]]);
         const kinds = checkAgainstMaster(rows, MASTER).map(i => i.kind);
         expect(kinds).toContain('unknown-truck-type');
         expect(kinds).toContain('unknown-location');
     });
 
     it('รวมชื่อซ้ำเป็นรายการเดียว แต่บอกจำนวนแถวที่ได้รับผลกระทบ', () => {
-        const rows = parse([
+        const { rows } = parseFilled([
             [1, 'ขนส่งเจ้าใหม่', 'บางปะกง', 'แม่สอด', '6w', '', ...prices(5000, 100)],
             [2, 'ขนส่งเจ้าใหม่', 'บางปะกง', 'เมืองนครสวรรค์', '6w', '', ...prices(6000, 100)],
         ]);
@@ -157,17 +218,45 @@ describe('checkAgainstMaster — ตรวจชื่อกับทะเบ�
 
 describe('อัปโหลดแบบฟอร์มเปล่า', () => {
     it('บอกให้ไปกรอกก่อน ไม่ใช่ขึ้น error ที่คนอ่านไม่เข้าใจ', () => {
-        expect(() => parseFuelRateWorkbook(buildFuelRateTemplate(MASTER)))
-            .toThrow(/ยังไม่ได้กรอกข้อมูลเส้นทาง/);
+        expect(() => parseFuelRateWorkbook(TEMPLATE)).toThrow(/ยังไม่ได้กรอกข้อมูลเส้นทาง/);
     });
 });
 
-// เคสที่ Codex ทักไว้: ถ้าแถวแรกที่กรอกเว้นช่วงต้นว่าง ช่วงนั้นต้องไม่หายไปจากทั้งไฟล์
+// เคสที่ Codex ทักไว้: ปลายทางที่ชื่อมีคำว่า "ปลายทาง" และราคายังเป็น 0 หรือว่าง
+describe('ช่องที่ยังไม่ได้กรอก และหมายเหตุที่ใช้แยกเงื่อนไข', () => {
+    it('เตือนเมื่อเว้นช่องผู้รับจ้างหรือประเภทรถไว้ ไม่ใช่ปล่อยผ่าน', () => {
+        const { rows } = parseFilled([[1, '', 'บางปะกง', 'แม่สอด', '', '', ...prices(5000, 100)]]);
+        const issues = checkAgainstMaster(rows, MASTER);
+        expect(issues.find(i => i.kind === 'unknown-subcontractor')!.message).toContain('ยังไม่ได้กรอก');
+        expect(issues.find(i => i.kind === 'unknown-truck-type')!.message).toContain('ยังไม่ได้กรอก');
+    });
+
+    it('เส้นทางเดียวกันแต่หมายเหตุต่างกัน ไม่ถือว่าซ้ำ (แบบฟอร์มบอกให้แยกแบบนี้)', () => {
+        const { issues } = parseFilled([
+            [1, 'KNN', 'บางปะกง', 'แม่สอด', '6w', 'บรรทุกไม่เกิน 3 ตัน', ...prices(5000, 100)],
+            [2, 'KNN', 'บางปะกง', 'แม่สอด', '6w', 'บรรทุก 3-5 ตัน', ...prices(6000, 100)],
+        ]);
+        expect(issues.find(i => i.kind === 'duplicate-route')).toBeUndefined();
+    });
+
+    it('เส้นทางและหมายเหตุเหมือนกันทุกอย่าง ยังเตือนซ้ำเหมือนเดิม', () => {
+        const { issues } = parseFilled([
+            [1, 'KNN', 'บางปะกง', 'แม่สอด', '6w', '', ...prices(5000, 100)],
+            [2, 'KNN', 'บางปะกง', 'แม่สอด', '6w', '', ...prices(6000, 100)],
+        ]);
+        expect(issues.find(i => i.kind === 'duplicate-route')!.rows.length).toBe(2);
+    });
+});
+
+// เคสที่ Codex ทักไว้: แถวแรกที่กรอกเว้นช่วงต้นว่าง ช่วงนั้นต้องไม่หายไปจากทั้งไฟล์
 describe('แถวแรกเว้นช่วงต้นว่างไว้', () => {
-    const result = parseFuelRateWorkbook(fillTemplate(buildFuelRateTemplate(MASTER), [
-        [1, 'KNN', 'บางปะกง', 'แม่สอด', '6w', 'ยังไม่ตกลง 2 ช่วงแรก', null, null, ...prices(7000, 100).slice(2)],
-        [2, 'KNN', 'บางปะกง', 'เมืองนครสวรรค์', '6w', '', ...prices(5000, 100)],
-    ]));
+    let result: ParseResult;
+    beforeAll(() => {
+        result = parseFilled([
+            [1, 'KNN', 'บางปะกง', 'แม่สอด', '6w', 'ยังไม่ตกลง 2 ช่วงแรก', null, null, ...prices(7000, 100).slice(2)],
+            [2, 'KNN', 'บางปะกง', 'เมืองนครสวรรค์', '6w', '', ...prices(5000, 100)],
+        ]);
+    });
 
     it('ยังได้ช่วงราคาน้ำมันครบ 16 ช่วง เริ่มที่ 30 บาท', () => {
         expect(result.rows[0].bands.length).toBe(16);
@@ -183,33 +272,5 @@ describe('แถวแรกเว้นช่วงต้นว่างไว�
         expect(result.rows[0].bands[0].price).toBeNull();
         expect(result.rows[0].bands[1].price).toBeNull();
         expect(result.rows[0].bands[2].price).toBe(7200);
-    });
-});
-
-// สองเคสที่ Codex ทักไว้รอบสอง
-describe('ช่องที่ยังไม่ได้กรอก และหมายเหตุที่ใช้แยกเงื่อนไข', () => {
-    it('เตือนเมื่อเว้นช่องผู้รับจ้างหรือประเภทรถไว้ ไม่ใช่ปล่อยผ่าน', () => {
-        const rows = parseFuelRateWorkbook(fillTemplate(buildFuelRateTemplate(MASTER), [
-            [1, '', 'บางปะกง', 'แม่สอด', '', '', ...prices(5000, 100)],
-        ])).rows;
-        const issues = checkAgainstMaster(rows, MASTER);
-        expect(issues.find(i => i.kind === 'unknown-subcontractor')!.message).toContain('ยังไม่ได้กรอก');
-        expect(issues.find(i => i.kind === 'unknown-truck-type')!.message).toContain('ยังไม่ได้กรอก');
-    });
-
-    it('เส้นทางเดียวกันแต่หมายเหตุต่างกัน ไม่ถือว่าซ้ำ (แบบฟอร์มบอกให้แยกแบบนี้)', () => {
-        const { issues } = parseFuelRateWorkbook(fillTemplate(buildFuelRateTemplate(MASTER), [
-            [1, 'KNN', 'บางปะกง', 'แม่สอด', '6w', 'บรรทุกไม่เกิน 3 ตัน', ...prices(5000, 100)],
-            [2, 'KNN', 'บางปะกง', 'แม่สอด', '6w', 'บรรทุก 3-5 ตัน', ...prices(6000, 100)],
-        ]));
-        expect(issues.find(i => i.kind === 'duplicate-route')).toBeUndefined();
-    });
-
-    it('เส้นทางและหมายเหตุเหมือนกันทุกอย่าง ยังเตือนซ้ำเหมือนเดิม', () => {
-        const { issues } = parseFuelRateWorkbook(fillTemplate(buildFuelRateTemplate(MASTER), [
-            [1, 'KNN', 'บางปะกง', 'แม่สอด', '6w', '', ...prices(5000, 100)],
-            [2, 'KNN', 'บางปะกง', 'แม่สอด', '6w', '', ...prices(6000, 100)],
-        ]));
-        expect(issues.find(i => i.kind === 'duplicate-route')!.rows.length).toBe(2);
     });
 });

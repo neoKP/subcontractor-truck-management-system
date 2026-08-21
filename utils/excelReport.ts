@@ -15,7 +15,7 @@
  */
 
 /** สีที่ใช้ทั้งระบบ — ชุดเดียวกับหน้าเว็บ (Tailwind slate) */
-const COLOR = {
+export const COLOR = {
     titleBg: 'FF0F172A',      // slate-900 — แถบชื่อรายงาน
     headerBg: 'FF1E293B',     // slate-800 — หัวตาราง
     headerText: 'FFFFFFFF',
@@ -35,8 +35,8 @@ const COLOR = {
  * ฟอนต์ฝรั่งซึ่งตัวใหญ่กว่า ทำให้ดูตัวโตผิดสัดส่วน — กรณีนั้นให้สลับกลับไปใช้ Tahoma
  * (FONT = 'Tahoma' แล้วปรับ SIZE เป็น title 14 / header 10 / body 10 / note 9)
  */
-const FONT = 'Cordia New';
-const SIZE = { title: 20, subtitle: 14, header: 14, body: 14, note: 13 } as const;
+export const FONT = 'Cordia New';
+export const SIZE = { title: 20, subtitle: 14, header: 14, body: 14, note: 13 } as const;
 
 /** รูปแบบตัวเลขตามชนิดข้อมูล — ติดลบเป็นสีแดงอัตโนมัติในช่องเงิน */
 const NUM_FMT = {

@@ -1,18 +1,20 @@
-import * as XLSX from 'xlsx';
 import { TEMPLATE_MARKER, type FuelRateRow, type ParseIssue } from './fuelRateParser';
+import { COLOR, FONT, SIZE } from './excelReport';
 
 /**
  * แบบฟอร์มตารางเรทค่าขนส่งตามราคาน้ำมัน — ไฟล์ที่ให้หน่วยงานอัตราจ้างดาวน์โหลดไปกรอก
  *
  * ทำไมต้องมีแบบฟอร์ม: ไฟล์ที่หน่วยงานส่งมาเองเขียนชื่อคนละภาษากับระบบ
  * ("YSK TRANSPORT" กับ "YSK", "4wj (บรรทุก 3001 - 3500 กก.)" กับ "4w") ระบบจึงจับคู่
- * กับงานจริงไม่ได้ ถ้าเริ่มจากแบบฟอร์มที่มีทะเบียนชื่อแนบมาด้วย ปัญหานี้หายไปตั้งแต่ต้นทาง
+ * กับงานจริงไม่ได้ ถ้าเริ่มจากแบบฟอร์มที่มีทะเบียนชื่อในตัว ปัญหานี้หายไปตั้งแต่ต้นทาง
  *
- * ข้อจำกัดที่ต้องรู้: ไลบรารี xlsx รุ่นที่ใช้อยู่ "เขียน dropdown ในเซลล์ไม่ได้"
- * แบบฟอร์มจึงแนบทะเบียนชื่อมาเป็นชีตให้คัดลอก แล้วไปบังคับจริงตอนอัปโหลดด้วย
- * `checkAgainstMaster()` ซึ่งกันได้แน่นอนกว่า เพราะ dropdown ใน Excel ถูก paste ทับได้อยู่ดี
+ * กันชื่อผิดสองชั้น
+ *   1. ในไฟล์ — ช่องชื่อเป็นรายการให้เลือก (dropdown) และล็อกแถวหัวตารางไม่ให้เผลอลบ
+ *   2. ตอนอัปโหลด — `checkAgainstMaster()` ตรวจซ้ำ เพราะรายการเลือกใน Excel ถูก paste ทับได้
+ *      และคนกรอกปลดล็อกชีตเองได้ ชั้นที่สองจึงเป็นชั้นที่เชื่อถือได้จริง
  *
- * โครงของชีต "กรอกเรท" ต้องเข้ากับ `parseFuelRateWorkbook()` ได้โดยไม่ต้องมีตัวอ่านแยก:
+ * โครงของชีต "กรอกเรท" ต้องเข้ากับ `parseFuelRateWorkbook()` โดยไม่ต้องมีตัวอ่านแยก
+ * ห้ามสลับแถวเหล่านี้:
  *   แถว 1  ข้อความกำกับแบบฟอร์ม (ใช้ตรวจว่าไฟล์นี้มาจากแบบฟอร์มของเรา)
  *   แถว 2-3 วิธีกรอกโดยย่อ
  *   แถว 5  ช่วงราคาน้ำมัน — ตั้งแต่
@@ -23,7 +25,14 @@ import { TEMPLATE_MARKER, type FuelRateRow, type ParseIssue } from './fuelRatePa
 
 /** ชื่อชีตที่ใช้กรอก — `parseFuelRateWorkbook` อ่านชีตแรกเสมอ ชีตนี้จึงต้องอยู่หน้าสุด */
 export const TEMPLATE_SHEET = 'กรอกเรท';
-export const TEMPLATE_VERSION = 'v1';
+export const TEMPLATE_VERSION = 'v2';
+const LIST_SHEET = 'รายการที่เลือกได้';
+const EXAMPLE_SHEET = 'ตัวอย่างการกรอก';
+
+/** แถวแรกของข้อมูลในชีตกรอกเรท (นับแบบ Excel) — ตัวอ่านไฟล์ผูกกับโครงนี้ */
+const FIRST_DATA_ROW = 8;
+/** แถวแรกของรายชื่อในชีตทะเบียน (นับแบบ Excel) */
+const LIST_FIRST_ROW = 4;
 
 /** ทะเบียนชื่อของระบบที่แบบฟอร์มแนบไปให้เลือก */
 export interface RateMaster {
@@ -35,7 +44,7 @@ export interface RateMaster {
 export interface TemplateOptions {
     /** ช่วงราคาน้ำมันตั้งต้น — หน่วยงานแก้เองได้ ถ้าใช้ช่วงอื่น */
     bands?: { from: number; to: number }[];
-    /** จำนวนแถวเปล่าที่เตรียมไว้ให้กรอก */
+    /** จำนวนแถวเปล่าที่เตรียมไว้ให้กรอก (รายการเลือกครอบเท่านี้) */
     blankRows?: number;
 }
 
@@ -44,89 +53,232 @@ const defaultBands = (): { from: number; to: number }[] =>
     Array.from({ length: 16 }, (_, i) => ({ from: 30 + i * 2, to: 30 + i * 2 + 1.99 }));
 
 const LABELS = ['ลำดับ', 'บริษัท', 'ต้นทาง', 'ปลายทาง', 'ประเภทรถ', 'หมายเหตุ'];
-const PAD = LABELS.map(() => null);
+const LABEL_WIDTH = [7, 22, 26, 26, 14, 22];
 
 type Cell = string | number | null;
 
-/** แถวหัวของโซนกรอก (บรรทัดกำกับ + วิธีใช้ + ขอบช่วง + หัวตาราง) */
-const formHead = (bands: { from: number; to: number }[]): Cell[][] => [
-    [`${TEMPLATE_MARKER} (นีโอสยาม) ${TEMPLATE_VERSION}`],
-    ['กรอกช่วงราคาน้ำมันในแถวที่ 5 และ 6 · กรอกข้อมูลเส้นทางตั้งแต่แถวที่ 8 ลงไป'],
-    ['ชื่อผู้รับจ้าง สถานที่ และประเภทรถ ต้องคัดลอกจากชีต "รายการที่เลือกได้" · ช่วงที่ยังไม่ตกลงราคา ให้เว้นว่าง ห้ามใส่ 0'],
-    [],
-    ['ช่วงราคาน้ำมัน — ตั้งแต่ (บาท/ลิตร)', ...PAD.slice(1), ...bands.map(b => b.from)],
-    ['ช่วงราคาน้ำมัน — ถึง (บาท/ลิตร)', ...PAD.slice(1), ...bands.map(b => b.to)],
-    // ช่องช่วงราคาในแถวหัวตารางต้องว่าง — ตัวอ่านใช้ข้อนี้แยกว่าขอบช่วงอยู่สองแถวข้างบน
-    [...LABELS, ...bands.map(() => null)],
-];
+/** อ้างช่วงในชีตอื่นสำหรับสูตร Excel — ชื่อชีตภาษาไทยต้องอยู่ในเครื่องหมายคำพูดเดี่ยว */
+const listRange = (col: string, count: number): string =>
+    `'${LIST_SHEET}'!$${col}$${LIST_FIRST_ROW}:$${col}$${LIST_FIRST_ROW + Math.max(count, 1) - 1}`;
 
 /**
- * สร้างไฟล์แบบฟอร์มเปล่า พร้อมทะเบียนชื่อและตัวอย่างการกรอก
+ * สร้างไฟล์แบบฟอร์ม พร้อมทะเบียนชื่อ ตัวอย่างการกรอก และรายการให้เลือกในช่องชื่อ
  * คืนค่าเป็น ArrayBuffer เพื่อให้ฝั่งเว็บเอาไปสร้างลิงก์ดาวน์โหลดได้ทันที
  */
-export function buildFuelRateTemplate(master: RateMaster, options: TemplateOptions = {}): ArrayBuffer {
+export async function buildFuelRateTemplate(
+    master: RateMaster,
+    options: TemplateOptions = {},
+): Promise<ArrayBuffer> {
+    const ExcelJS = (await import('exceljs')).default;
     const bands = options.bands?.length ? options.bands : defaultBands();
-    const blankRows = options.blankRows ?? 40;
-    const wb = XLSX.utils.book_new();
+    const blankRows = options.blankRows ?? 100;
+    const lastRow = FIRST_DATA_ROW + blankRows - 1;
+    const lastCol = LABELS.length + bands.length;
 
-    const bandWidths = bands.map(() => ({ wch: 13 }));
-    const labelWidths = [{ wch: 7 }, { wch: 22 }, { wch: 26 }, { wch: 26 }, { wch: 14 }, { wch: 22 }];
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'ระบบจัดการรถร่วม';
+
+    /** วางหัวแบบฟอร์ม 7 แถวแรกให้เหมือนกันทั้งชีตกรอกจริงและชีตตัวอย่าง */
+    const writeHead = (ws: import('exceljs').Worksheet) => {
+        const marker = ws.addRow([`${TEMPLATE_MARKER} (นีโอสยาม) ${TEMPLATE_VERSION}`]);
+        ws.mergeCells(marker.number, 1, marker.number, lastCol);
+        marker.height = 26;
+        marker.getCell(1).font = { name: FONT, size: SIZE.title, bold: true, color: { argb: COLOR.headerText } };
+        marker.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.titleBg } };
+        marker.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+
+        for (const text of [
+            `กรอกช่วงราคาน้ำมันในแถวที่ 5 และ 6 · กรอกข้อมูลเส้นทางตั้งแต่แถวที่ ${FIRST_DATA_ROW} ลงไป`,
+            'ช่องชื่อมีรายการให้เลือก (คลิกที่ช่องแล้วกดลูกศร) · ช่วงที่ยังไม่ตกลงราคา ให้เว้นว่าง ห้ามใส่ 0',
+        ]) {
+            const row = ws.addRow([text]);
+            ws.mergeCells(row.number, 1, row.number, lastCol);
+            row.height = 18;
+            row.getCell(1).font = { name: FONT, size: SIZE.subtitle, color: { argb: COLOR.subtitleText } };
+            row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.titleBg } };
+            row.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+        }
+
+        ws.addRow([]);
+
+        const edgeStyle = (row: import('exceljs').Row) => {
+            row.height = 20;
+            row.eachCell({ includeEmpty: true }, (cell, i) => {
+                if (i > lastCol) return;
+                cell.font = { name: FONT, size: SIZE.body, bold: i <= LABELS.length, color: { argb: COLOR.text } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.totalBg } };
+                cell.alignment = { vertical: 'middle', horizontal: i <= LABELS.length ? 'left' : 'center' };
+                if (i > LABELS.length) {
+                    cell.numFmt = '0.00';
+                    // ปลดล็อกช่องขอบช่วง เพราะคู่มือข้อ 3 บอกให้หน่วยงานแก้ช่วงราคาน้ำมันเองได้
+                    // ถ้าล็อกไว้ วิธีใช้กับไฟล์จะขัดกันเอง คนกรอกจะแก้ไม่ได้จนกว่าจะปลดล็อกชีต
+                    cell.protection = { locked: false };
+                }
+            });
+        };
+        edgeStyle(ws.addRow(['ช่วงราคาน้ำมัน — ตั้งแต่ (บาท/ลิตร)', ...LABELS.slice(1).map(() => null), ...bands.map(b => b.from)]));
+        edgeStyle(ws.addRow(['ช่วงราคาน้ำมัน — ถึง (บาท/ลิตร)', ...LABELS.slice(1).map(() => null), ...bands.map(b => b.to)]));
+
+        // ช่องช่วงราคาในแถวหัวตารางต้องว่าง — ตัวอ่านใช้ข้อนี้แยกว่าขอบช่วงอยู่สองแถวข้างบน
+        const header = ws.addRow([...LABELS, ...bands.map(() => null)]);
+        header.height = 26;
+        header.eachCell({ includeEmpty: true }, (cell, i) => {
+            if (i > lastCol) return;
+            cell.font = { name: FONT, size: SIZE.header, bold: true, color: { argb: COLOR.headerText } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.headerBg } };
+            cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        });
+
+        ws.columns.forEach((col, i) => {
+            col.width = i < LABEL_WIDTH.length ? LABEL_WIDTH[i] : 13;
+        });
+        ws.views = [{ state: 'frozen', xSplit: LABELS.length, ySplit: FIRST_DATA_ROW - 1 }];
+    };
 
     // ── ชีต 1: กรอกเรท ──
-    const blanks: Cell[][] = Array.from({ length: blankRows }, (_, i) =>
-        [i + 1, ...PAD.slice(1), ...bands.map(() => null)]);
-    const form = XLSX.utils.aoa_to_sheet([...formHead(bands), ...blanks]);
-    form['!cols'] = [...labelWidths, ...bandWidths];
-    XLSX.utils.book_append_sheet(wb, form, TEMPLATE_SHEET);
+    const form = wb.addWorksheet(TEMPLATE_SHEET);
+    writeHead(form);
+    for (let i = 0; i < blankRows; i++) {
+        const row = form.addRow([i + 1, ...LABELS.slice(1).map(() => null), ...bands.map(() => null)]);
+        row.eachCell({ includeEmpty: true }, (cell, c) => {
+            if (c > lastCol) return;
+            cell.font = { name: FONT, size: SIZE.body, color: { argb: COLOR.text } };
+            cell.alignment = { vertical: 'middle', horizontal: c <= LABELS.length ? 'left' : 'right' };
+            if (c > LABELS.length) cell.numFmt = '#,##0.00';
+            // ปลดล็อกเฉพาะช่องที่ต้องกรอก แถวหัวด้านบนยังล็อกอยู่
+            cell.protection = { locked: false };
+        });
+    }
+
+    // ── รายการให้เลือกในช่องชื่อ — เลือกได้เฉพาะที่มีในทะเบียน ──
+    const validations: [string, string, number][] = [
+        ['B', 'A', master.subcontractors.length],   // บริษัท → ผู้รับจ้าง
+        ['C', 'C', master.locations.length],        // ต้นทาง → สถานที่
+        ['D', 'C', master.locations.length],        // ปลายทาง → สถานที่
+        ['E', 'B', master.truckTypes.length],       // ประเภทรถ → ประเภทรถ
+    ];
+    // ExcelJS รองรับการใส่รายการเลือกทีละช่วงตอนรันจริง แต่ไฟล์ .d.ts ไม่ได้ประกาศไว้
+    // (index.d.ts คอมเมนต์บรรทัด dataValidations ทิ้ง) จึงประกาศชนิดเท่าที่ใช้เอง
+    // ใช้แบบช่วงเพราะได้ 4 รายการ แทนที่จะเป็น 400 รายการถ้าไล่ใส่ทีละช่อง
+    const rangedValidations = (form as unknown as {
+        dataValidations: { add(range: string, validation: unknown): void };
+    }).dataValidations;
+
+    for (const [target, source, count] of validations) {
+        rangedValidations.add(`${target}${FIRST_DATA_ROW}:${target}${lastRow}`, {
+            type: 'list',
+            allowBlank: true,
+            formulae: [listRange(source, count)],
+            showErrorMessage: true,
+            // เตือนแต่ยังพิมพ์ต่อได้ ถ้าห้ามเด็ดขาดแล้วหน่วยงานมีชื่อใหม่จริง ๆ งานจะค้าง
+            errorStyle: 'warning',
+            errorTitle: 'ชื่อนี้ไม่มีในทะเบียนของระบบ',
+            error: `กรุณาเลือกจากรายการ หรือดูชื่อที่ใช้ได้ในชีต "${LIST_SHEET}" — ถ้าต้องเพิ่มชื่อใหม่ กรุณาแจ้งนีโอสยามก่อน`,
+        });
+    }
+
+    // ล็อกแถวหัว (1-7) ไม่ให้เผลอลบ ส่วนแถวข้อมูลปลดล็อกไว้แล้วด้านบน
+    // ไม่ใส่รหัสผ่าน — กันพลาด ไม่ได้กันคน ถ้าหน่วยงานต้องแก้จริงก็ปลดล็อกเองได้
+    await form.protect('', {
+        selectLockedCells: true,
+        selectUnlockedCells: true,
+        formatCells: true,
+        formatColumns: true,
+        formatRows: true,
+        insertRows: true,
+        deleteRows: true,
+        // เพิ่ม/ลดคอลัมน์ช่วงราคาน้ำมันได้ ตามที่คู่มือบอกไว้
+        insertColumns: true,
+        deleteColumns: true,
+        sort: true,
+        autoFilter: true,
+    });
 
     // ── ชีต 2: ตัวอย่างการกรอก ──
-    const sample = (seq: number, sub: string, from: string, to: string, truck: string, note: string, first: number, step: number): Cell[] =>
-        [seq, sub, from, to, truck, note, ...bands.map((_, i) => first + step * i)];
-    const example = XLSX.utils.aoa_to_sheet([
-        ...formHead(bands),
-        sample(1, master.subcontractors[0] ?? 'KNN', master.locations[0] ?? 'ต้นทาง ก', master.locations[1] ?? 'ปลายทาง ข', master.truckTypes[0] ?? '4w', '', 5000, 100),
-        sample(2, master.subcontractors[0] ?? 'KNN', master.locations[0] ?? 'ต้นทาง ก', master.locations[2] ?? 'ปลายทาง ค', master.truckTypes[1] ?? '6w', 'บรรทุกไม่เกิน 5 ตัน', 8000, 150),
-        [3, master.subcontractors[0] ?? 'KNN', master.locations[0] ?? 'ต้นทาง ก', master.locations[3] ?? 'ปลายทาง ง', master.truckTypes[1] ?? '6w', 'ยังไม่ตกลงราคา 2 ช่วงแรก',
-            null, null, ...bands.slice(2).map((_, i) => 9000 + 150 * i)],
-    ]);
-    example['!cols'] = [...labelWidths, ...bandWidths];
-    XLSX.utils.book_append_sheet(wb, example, 'ตัวอย่างการกรอก');
+    const example = wb.addWorksheet(EXAMPLE_SHEET);
+    writeHead(example);
+    const sampleRows: Cell[][] = [
+        [1, master.subcontractors[0] ?? 'KNN', master.locations[0] ?? 'ต้นทาง ก', master.locations[1] ?? 'ปลายทาง ข',
+            master.truckTypes[0] ?? '4w', '', ...bands.map((_, i) => 5000 + 100 * i)],
+        [2, master.subcontractors[0] ?? 'KNN', master.locations[0] ?? 'ต้นทาง ก', master.locations[2] ?? 'ปลายทาง ค',
+            master.truckTypes[1] ?? '6w', 'บรรทุกไม่เกิน 5 ตัน', ...bands.map((_, i) => 8000 + 150 * i)],
+        [3, master.subcontractors[0] ?? 'KNN', master.locations[0] ?? 'ต้นทาง ก', master.locations[3] ?? 'ปลายทาง ง',
+            master.truckTypes[1] ?? '6w', 'ยังไม่ตกลงราคา 2 ช่วงแรก', null, null,
+            ...bands.slice(2).map((_, i) => 9000 + 150 * i)],
+    ];
+    sampleRows.forEach((values, idx) => {
+        const row = example.addRow(values);
+        row.eachCell({ includeEmpty: true }, (cell, c) => {
+            if (c > lastCol) return;
+            cell.font = { name: FONT, size: SIZE.body, color: { argb: COLOR.text } };
+            cell.alignment = { vertical: 'middle', horizontal: c <= LABELS.length ? 'left' : 'right' };
+            if (c > LABELS.length) cell.numFmt = '#,##0.00';
+            if (idx % 2 === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.zebra } };
+        });
+    });
 
-    // ── ชีต 3: รายการที่เลือกได้ ──
+    // ── ชีต 3: รายการที่เลือกได้ (เป็นแหล่งข้อมูลของรายการเลือกด้วย ห้ามสลับคอลัมน์) ──
+    const lists = wb.addWorksheet(LIST_SHEET);
+    const listHead = lists.addRow([`ชีตนี้เป็นแหล่งข้อมูลของรายการเลือกในชีต "${TEMPLATE_SHEET}" — กรุณาอย่าแก้ไขหรือสลับคอลัมน์`]);
+    lists.mergeCells(listHead.number, 1, listHead.number, 3);
+    listHead.getCell(1).font = { name: FONT, size: SIZE.subtitle, bold: true, color: { argb: COLOR.headerText } };
+    listHead.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.titleBg } };
+    listHead.height = 24;
+    lists.addRow([]);
+    const listCols = lists.addRow(['ผู้รับจ้าง (คอลัมน์ "บริษัท")', 'ประเภทรถ', 'สถานที่ (ใช้ได้ทั้งต้นทางและปลายทาง)']);
+    listCols.height = 22;
+    listCols.eachCell(cell => {
+        cell.font = { name: FONT, size: SIZE.header, bold: true, color: { argb: COLOR.headerText } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.headerBg } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
     const depth = Math.max(master.subcontractors.length, master.truckTypes.length, master.locations.length);
-    const listRows: Cell[][] = [
-        ['คัดลอกชื่อจากชีตนี้ไปวางในชีต "กรอกเรท" เท่านั้น — ชื่อที่ไม่ตรงกับรายการนี้ ระบบจะเตือนตอนอัปโหลด'],
-        [],
-        ['ผู้รับจ้าง (คอลัมน์ "บริษัท")', 'ประเภทรถ', 'สถานที่ (ใช้ได้ทั้งต้นทางและปลายทาง)'],
-        ...Array.from({ length: depth }, (_, i) => [
+    for (let i = 0; i < depth; i++) {
+        const row = lists.addRow([
             master.subcontractors[i] ?? null,
             master.truckTypes[i] ?? null,
             master.locations[i] ?? null,
-        ]),
-    ];
-    const lists = XLSX.utils.aoa_to_sheet(listRows);
-    lists['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 44 }];
-    XLSX.utils.book_append_sheet(wb, lists, 'รายการที่เลือกได้');
+        ]);
+        row.eachCell({ includeEmpty: true }, cell => {
+            cell.font = { name: FONT, size: SIZE.body, color: { argb: COLOR.text } };
+        });
+    }
+    lists.columns.forEach((col, i) => { col.width = [30, 16, 44][i] ?? 16; });
+    lists.views = [{ state: 'frozen', ySplit: LIST_FIRST_ROW - 1 }];
 
     // ── ชีต 4: วิธีใช้ ──
-    const howto = XLSX.utils.aoa_to_sheet([
-        ['วิธีกรอกแบบฟอร์มตารางเรทค่าขนส่ง'],
-        [],
-        ['1.', 'กรอกเฉพาะชีต "กรอกเรท" ชีตอื่นเป็นข้อมูลประกอบ ไม่ต้องแก้'],
-        ['2.', 'ห้ามลบหรือสลับแถวที่ 1-7 และห้ามสลับลำดับคอลัมน์ ระบบใช้แถวเหล่านี้อ่านไฟล์'],
-        ['3.', 'ถ้าใช้ช่วงราคาน้ำมันแบบอื่น ให้แก้ตัวเลขในแถวที่ 5 และ 6 เพิ่มหรือลดคอลัมน์ได้'],
-        ['4.', 'ชื่อในคอลัมน์ บริษัท / ต้นทาง / ปลายทาง / ประเภทรถ ต้องคัดลอกจากชีต "รายการที่เลือกได้"'],
-        ['5.', 'ค่าขนส่งกรอกเป็นตัวเลขอย่างเดียว ไม่ต้องใส่เครื่องหมายจุลภาคหรือคำว่าบาท'],
-        ['6.', 'ช่วงที่ยังไม่ได้ตกลงราคา ให้เว้นว่างไว้ ห้ามใส่ 0 เพราะระบบจะคิดเป็นค่าขนส่ง 0 บาท'],
-        ['7.', 'เส้นทางเดียวกันแต่คนละเงื่อนไข (เช่น พิกัดน้ำหนัก) ให้แยกเป็นคนละแถว และเขียนเงื่อนไขในช่องหมายเหตุ'],
-        ['8.', 'ถ้าราคาลดลงเมื่อราคาน้ำมันสูงขึ้น ระบบจะเตือน เพราะปกติต้องเพิ่มขึ้นหรือเท่าเดิม'],
-        [],
-        ['ดูตัวอย่างที่กรอกแล้วได้ที่ชีต "ตัวอย่างการกรอก"'],
-    ]);
-    howto['!cols'] = [{ wch: 5 }, { wch: 110 }];
-    XLSX.utils.book_append_sheet(wb, howto, 'วิธีใช้');
+    const howto = wb.addWorksheet('วิธีใช้');
+    const howtoTitle = howto.addRow(['วิธีกรอกแบบฟอร์มตารางเรทค่าขนส่ง']);
+    howto.mergeCells(howtoTitle.number, 1, howtoTitle.number, 2);
+    howtoTitle.height = 26;
+    howtoTitle.getCell(1).font = { name: FONT, size: SIZE.title, bold: true, color: { argb: COLOR.headerText } };
+    howtoTitle.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.titleBg } };
+    howto.addRow([]);
+    const steps = [
+        `กรอกเฉพาะชีต "${TEMPLATE_SHEET}" ชีตอื่นเป็นข้อมูลประกอบ ไม่ต้องแก้`,
+        'ห้ามลบหรือสลับแถวที่ 1-7 และห้ามสลับลำดับคอลัมน์ ระบบใช้แถวเหล่านี้อ่านไฟล์ (ล็อกไว้ให้แล้ว)',
+        'ถ้าใช้ช่วงราคาน้ำมันแบบอื่น ให้แก้ตัวเลขในแถวที่ 5 และ 6 เพิ่มหรือลดคอลัมน์ได้',
+        'ช่อง บริษัท / ต้นทาง / ปลายทาง / ประเภทรถ ให้คลิกที่ช่องแล้วเลือกจากรายการที่ขึ้นมา',
+        'ค่าขนส่งกรอกเป็นตัวเลขอย่างเดียว ไม่ต้องใส่เครื่องหมายจุลภาคหรือคำว่าบาท',
+        'ช่วงที่ยังไม่ได้ตกลงราคา ให้เว้นว่างไว้ ห้ามใส่ 0 เพราะระบบจะคิดเป็นค่าขนส่ง 0 บาท',
+        'เส้นทางเดียวกันแต่คนละเงื่อนไข (เช่น พิกัดน้ำหนัก) ให้แยกเป็นคนละแถว และเขียนเงื่อนไขในช่องหมายเหตุ',
+        'ถ้าราคาลดลงเมื่อราคาน้ำมันสูงขึ้น ระบบจะเตือน เพราะปกติต้องเพิ่มขึ้นหรือเท่าเดิม',
+        `ถ้าต้องใช้ชื่อที่ไม่มีในชีต "${LIST_SHEET}" กรุณาแจ้งนีโอสยามเพื่อเพิ่มชื่อก่อน อย่าพิมพ์ชื่อใหม่เอง`,
+    ];
+    steps.forEach((text, i) => {
+        const row = howto.addRow([`${i + 1}.`, text]);
+        row.height = 20;
+        row.eachCell(cell => {
+            cell.font = { name: FONT, size: SIZE.body, color: { argb: COLOR.text } };
+            cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        });
+    });
+    howto.addRow([]);
+    const tail = howto.addRow(['', `ดูตัวอย่างที่กรอกแล้วได้ที่ชีต "${EXAMPLE_SHEET}"`]);
+    tail.getCell(2).font = { name: FONT, size: SIZE.note, italic: true, color: { argb: COLOR.muted } };
+    howto.columns.forEach((col, i) => { col.width = i === 0 ? 5 : 110; });
 
-    return XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+    return await wb.xlsx.writeBuffer() as ArrayBuffer;
 }
 
 /** ตัดช่องว่างและตัวพิมพ์เล็กใหญ่ทิ้ง เพื่อเทียบชื่อแบบไม่จู้จี้เรื่องการเว้นวรรค */
