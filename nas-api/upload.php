@@ -11,22 +11,38 @@
 // ยังทำงาน วันไหน PHP handler พังหรือถูกปิด เว็บจะส่งไฟล์นั้นเป็นข้อความธรรมดาทันที
 // และคีย์หลุดทั้งใบ · ตัวไฟล์มีบรรทัดเดียว: <?php return 'คีย์';
 // ดูวิธีทำที่ api-key.example.php · เปลี่ยนที่เก็บได้ด้วย env NAS_API_KEY_FILE
+// สำคัญ: ต้องเช็คว่าเป็น string ก่อน — `include` ของไฟล์ที่ไม่มี `return` จะคืน int 1
+// ถ้าแคสต์เป็น string ตรง ๆ คีย์จะกลายเป็น "1" แล้วใครส่ง X-API-Key: 1 ก็ผ่านหมด
 $KEY_FILE = getenv('NAS_API_KEY_FILE') ?: '/volume1/nas-secrets/api-key.php';
-$API_KEY = is_readable($KEY_FILE) ? trim((string) @include $KEY_FILE) : '';
+$rawKey = is_readable($KEY_FILE) ? @include $KEY_FILE : null;
+$API_KEY = is_string($rawKey) ? trim($rawKey) : '';
 $UPLOAD_DIR = '/tmp/nas-uploads';
 $PROJECT_KEY = 'subcontractor-truck-management';
 // Build BASE_URL dynamically based on the request scheme and host so that the returned
 // public URL matches the access endpoint that actually succeeded (neosiam / tunnel / local)
-$scheme = 'http';
-if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && !empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
-    $scheme = $_SERVER['HTTP_X_FORWARDED_PROTO'];
-} elseif (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+// URL ที่คืนกลับไปถูกเก็บลงฐานข้อมูลแล้วเอาไป render เป็น <img src> ทีหลัง
+// ถ้าปล่อยให้สร้างจาก Host header ตรง ๆ ผู้เรียกปลอม Host เป็นโดเมนตัวเองได้
+// แล้วรูปในระบบจะไปโหลดจากเครื่องเขาแทน · จึงรับเฉพาะโฮสต์ที่รู้จัก
+$scheme = 'https';
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'http') {
+    $scheme = 'http';
+} elseif (!isset($_SERVER['HTTP_X_FORWARDED_PROTO'])
+    && (!isset($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off')) {
+    $scheme = 'http';
+}
+$rawHost = isset($_SERVER['HTTP_HOST']) ? (string) $_SERVER['HTTP_HOST'] : '';
+$hostOnly = preg_replace('/:\d+\z/', '', $rawHost);
+$isKnownHost = in_array($hostOnly, array('neosiam.dscloud.biz', 'localhost'), true)
+    || (bool) preg_match('#^(10\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+|192\.168\.[0-9.]+|127\.0\.0\.1)\z#', $hostOnly);
+if (!$isKnownHost) {
+    $rawHost = 'neosiam.dscloud.biz';
     $scheme = 'https';
 }
-$host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
-$BASE_URL = $scheme . '://' . $host . '/api/serve.php?file=';
+$BASE_URL = $scheme . '://' . $rawHost . '/api/serve.php?file=';
 $MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-$ALLOWED_TYPES = array('image/webp', 'image/jpeg', 'image/jpg', 'image/png', 'image/x-png', 'image/pjpeg', 'image/gif', 'application/pdf', 'application/octet-stream');
+// ถอด application/octet-stream ออกจากรายการ — เดิมมันคือ "ผ่านทุกอย่างที่ระบุชนิดไม่ได้"
+// ตอนนี้ถ้า finfo ระบุไม่ได้ ให้ตกไปใช้ตารางนามสกุลไฟล์แทน ไม่ใช่ปล่อยผ่าน
+$ALLOWED_TYPES = array('image/webp', 'image/jpeg', 'image/jpg', 'image/png', 'image/x-png', 'image/pjpeg', 'image/gif', 'application/pdf');
 
 // ===== CORS =====
 // ตอบเฉพาะโดเมนที่รู้จัก · CORS กันได้แค่เบราว์เซอร์ ไม่กัน curl หรือสคริปต์
@@ -43,17 +59,19 @@ $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
 // เว็บจริงโฮสต์บน Netlify (ดู netlify.toml) แต่ยังไม่ได้ระบุชื่อไซต์ไว้ในโปรเจกต์
 // จึงยอมรับ *.netlify.app ไว้ก่อน ไม่งั้นการอัปโหลดรูป POD จากเว็บจริงจะพังทันทีที่ deploy
 // เมื่อรู้ชื่อโดเมนแน่นอนแล้ว ให้ใส่ในรายการข้างบนแล้วลบเงื่อนไขนี้ทิ้ง
-$isNetlify = (bool) preg_match('#^https://[a-z0-9-]+\.netlify\.app$#i', $origin);
+$isNetlify = (bool) preg_match('#^https://[a-z0-9-]+\.netlify\.app\z#i', $origin);
 // เครื่องนักพัฒนา: ยอมทุกพอร์ตของ localhost/127.0.0.1
 // (vite.config ตั้งไว้ 3000 แต่ถ้าพอร์ตชนจะเลื่อนเป็น 3001 เอง และ 127.0.0.1 นับเป็นคนละ origin)
-$isLocalDev = (bool) preg_match('#^http://(localhost|127\.0\.0\.1)(:[0-9]+)?$#i', $origin);
+$isLocalDev = (bool) preg_match('#^http://(localhost|127\.0\.0\.1)(:[0-9]+)?\z#i', $origin);
 // เครื่องในวงแลนเดียวกัน เช่น เปิดเว็บจากมือถือเพื่อถ่ายรูป POD (http://192.168.x.x:3000)
 // ยอมเฉพาะช่วง IP ส่วนตัวเท่านั้น เว็บสาธารณะยังเรียกไม่ได้
-$isPrivateLan = (bool) preg_match('#^http://(10\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+|192\.168\.[0-9.]+)(:[0-9]+)?$#', $origin);
+$isPrivateLan = (bool) preg_match('#^http://(10\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+|192\.168\.[0-9.]+)(:[0-9]+)?\z#', $origin);
 if (in_array($origin, $ALLOWED_ORIGINS, true) || $isNetlify || $isLocalDev || $isPrivateLan) {
     header('Access-Control-Allow-Origin: ' . $origin);
-    header('Vary: Origin');
 }
+// ต้องส่ง Vary ทุกครั้ง ไม่ใช่เฉพาะตอนอนุญาต ไม่งั้น cache กลางทางอาจจำคำตอบของ origin หนึ่ง
+// ไปตอบให้อีก origin หนึ่ง
+header('Vary: Origin');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
 header('Content-Type: application/json; charset=utf-8');
@@ -107,43 +125,68 @@ if ($file['size'] > $MAX_FILE_SIZE) {
     exit;
 }
 
+// ===== ทำความสะอาด path ก่อน แล้วค่อยใช้ต่อทั้งเรื่องชนิดไฟล์และตอนบันทึก =====
+// path มาจากผู้เรียก ถือเป็นข้อมูลที่เชื่อไม่ได้ทั้งหมด
+//
+// ของเดิมกรองด้วย preg_replace ชุดเดียว ซึ่งอนุญาต "." และ "/" ผ่าน แปลว่า "../" รอดทั้งดุ้น
+// ส่งมาเป็น ../../volume1/nas-secrets/api-key.php ก็เขียนทับไฟล์คีย์ของเซิร์ฟเวอร์ได้เลย
+// (อัปรูป JPEG จริงทับไป → include คืน 1 → คีย์กลายเป็น "1" → ใครส่ง X-API-Key: 1 ก็ผ่าน)
+// จึงต้องตัด segment ".." ทิ้ง แล้วยืนยันด้วย realpath อีกชั้นก่อนเขียนจริง
+$rawPath = isset($_POST['path']) ? $_POST['path'] : '';
+// path[]=a&path[]=b ทำให้ค่าที่ได้เป็น array แล้วฟังก์ชันข้างล่างจะโยน TypeError → HTTP 500
+// ซึ่งผิดกฎ "ต้องตอบ 200 เสมอ" ของ NAS ตัวนี้ จึงตัดทิ้งตั้งแต่ต้น
+if (!is_string($rawPath)) {
+    $rawPath = '';
+}
+
+$cleanPath = preg_replace('/[^a-zA-Z0-9_\-\/\.]/', '_', $rawPath);
+$segments = array();
+foreach (explode('/', $cleanPath) as $seg) {
+    if ($seg === '' || $seg === '.' || $seg === '..') {
+        continue;   // ตัดสแลชนำหน้า จุดเดี่ยว และการถอยขึ้นไดเรกทอรีแม่
+    }
+    $segments[] = $seg;
+}
+$subPath = implode('/', $segments);
+
+// ชนิดไฟล์: เชื่อผลตรวจจากเนื้อไฟล์เป็นหลัก
+// ของเดิมถ้า finfo ตอบไม่ได้จะไปเชื่อ $file['type'] ซึ่งผู้เรียกกำหนดเองได้ = ด่านนี้ถูกข้ามได้
+// ตอนนี้ใช้ได้แค่ 2 ทาง: ผลจาก finfo หรือมาจากนามสกุลไฟล์ที่เรากำหนดรายการเอง
 $mimeType = '';
 if (function_exists('finfo_open')) {
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mimeType = finfo_file($finfo, $file['tmp_name']);
+    $mimeType = (string) finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
-} else {
-    $mimeType = $file['type'];
 }
 
-$clientType = isset($file['type']) ? $file['type'] : '';
-if ((!$mimeType || $mimeType === 'application/octet-stream') && $clientType) {
-    $mimeType = $clientType;
-}
-if (!in_array($mimeType, $ALLOWED_TYPES)) {
-    $ext = strtolower(pathinfo($_POST['path'] ?? ($file['name'] ?? ''), PATHINFO_EXTENSION));
-    $map = array(
-        'webp' => 'image/webp',
-        'jpg'  => 'image/jpeg',
-        'jpeg' => 'image/jpeg',
-        'png'  => 'image/png',
-        'gif'  => 'image/gif',
-        'pdf'  => 'application/pdf'
-    );
-    if (isset($map[$ext])) {
-        $mimeType = $map[$ext];
+$EXT_MIME = array(
+    'webp' => 'image/webp',
+    'jpg'  => 'image/jpeg',
+    'jpeg' => 'image/jpeg',
+    'png'  => 'image/png',
+    'gif'  => 'image/gif',
+    'pdf'  => 'application/pdf'
+);
+
+if (!in_array($mimeType, $ALLOWED_TYPES, true)) {
+    // ใช้นามสกุลจาก path ที่สะอาดแล้ว (หรือชื่อไฟล์) เป็นทางสำรองทางเดียว
+    $extSource = $subPath;
+    if ($extSource === '') {
+        $extSource = isset($file['name']) && is_string($file['name']) ? $file['name'] : '';
+    }
+    $ext = strtolower(pathinfo($extSource, PATHINFO_EXTENSION));
+    if (isset($EXT_MIME[$ext])) {
+        $mimeType = $EXT_MIME[$ext];
     }
 }
-if (!in_array($mimeType, $ALLOWED_TYPES)) {
-    echo json_encode(array('success' => false, 'error' => 'File type not allowed', 'type' => $mimeType, 'clientType' => $clientType));
+
+if (!in_array($mimeType, $ALLOWED_TYPES, true)) {
+    echo json_encode(array('success' => false, 'error' => 'File type not allowed', 'type' => $mimeType));
     exit;
 }
 
 // ===== SAVE FILE =====
-$subPath = isset($_POST['path']) ? $_POST['path'] : '';
-$subPath = preg_replace('/[^a-zA-Z0-9_\-\/\.]/', '_', $subPath);
-
-if (empty($subPath)) {
+if ($subPath === '') {
     $extMap = array(
         'image/webp' => 'webp',
         'image/jpeg' => 'jpg',
@@ -152,7 +195,14 @@ if (empty($subPath)) {
         'application/pdf' => 'pdf'
     );
     $ext = isset($extMap[$mimeType]) ? $extMap[$mimeType] : 'bin';
-    $subPath = 'misc/' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    try {
+        $rand = bin2hex(random_bytes(4));
+    } catch (Exception $e) {
+        // random_bytes โยน exception ได้ถ้าระบบหาแหล่งสุ่มไม่ได้ — ห้ามปล่อยให้กลายเป็น HTTP 500
+        echo json_encode(array('success' => false, 'error' => 'Cannot generate file name'));
+        exit;
+    }
+    $subPath = 'misc/' . time() . '_' . $rand . '.' . $ext;
 }
 
 $fullPath = $UPLOAD_DIR . '/' . $subPath;
@@ -160,6 +210,17 @@ $dir = dirname($fullPath);
 
 if (!is_dir($dir)) {
     mkdir($dir, 0755, true);
+}
+
+// ด่านสุดท้ายก่อนเขียนจริง — ยืนยันว่าโฟลเดอร์ปลายทางอยู่ใต้ $UPLOAD_DIR จริง
+// ตัดกรองด้วยข้อความอย่างเดียวไม่พอ เพราะ symlink พาออกนอกได้โดยที่ path ดูปกติ
+// (บน Synology /tmp เองก็เป็น symlink ไป /volume1/@tmp — realpath จึงคลี่ให้ตรงกันทั้งสองฝั่ง)
+$realBase = realpath($UPLOAD_DIR);
+$realDir = realpath($dir);
+if ($realBase === false || $realDir === false
+    || strpos($realDir . DIRECTORY_SEPARATOR, $realBase . DIRECTORY_SEPARATOR) !== 0) {
+    echo json_encode(array('success' => false, 'error' => 'Invalid path'));
+    exit;
 }
 
 if (!move_uploaded_file($file['tmp_name'], $fullPath)) {

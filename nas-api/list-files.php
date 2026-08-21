@@ -3,10 +3,13 @@
 //
 // เดิมเปิดให้ใครเปิด URL นี้ก็เห็นรายการไฟล์ทั้งหมด รวมรูป POD ของงานจริง
 // พร้อมลิงก์เปิดดูได้ทันที โดยไม่ต้องยืนยันตัวตนเลย
-// ตอนนี้ต้องแนบคีย์มาด้วย: list-files.php?key=<คีย์เดียวกับ upload.php>
+// ตอนนี้ต้องส่งคีย์เดียวกับ upload.php มาด้วย ทาง header หรือฟอร์ม POST เท่านั้น
 // คีย์อ่านจากไฟล์นอก web root ไม่ฝังในโค้ด — ดูคำอธิบายใน upload.php
+// ต้องเช็ค is_string ก่อน — `include` ของไฟล์ที่ไม่มี `return` คืน int 1
+// ถ้าแคสต์ตรง ๆ คีย์จะกลายเป็น "1" (บั๊กเดียวกับที่เจอใน upload.php)
 $KEY_FILE = getenv('NAS_API_KEY_FILE') ?: '/volume1/nas-secrets/api-key.php';
-$API_KEY = is_readable($KEY_FILE) ? trim((string) @include $KEY_FILE) : '';
+$rawKey = is_readable($KEY_FILE) ? @include $KEY_FILE : null;
+$API_KEY = is_string($rawKey) ? trim($rawKey) : '';
 
 // รับคีย์ทาง header หรือ POST เท่านั้น — **ห้ามรับผ่าน ?key=**
 // เพราะ query string จะถูกบันทึกลง access log ของ Nginx และหลุดไปกับ Referer
@@ -58,12 +61,17 @@ function listFilesRecursive($dir, $base, $baseUrl) {
         if ($item === '.' || $item === '..') continue;
         $path = $dir . '/' . $item;
         $rel = $base . '/' . $item;
+        if (is_link($path)) {
+            continue;   // ไม่เดินตาม symlink — ลิงก์อาจพาออกไปนอกโฟลเดอร์อัปโหลด
+        }
         if (is_dir($path)) {
             $files = array_merge($files, listFilesRecursive($path, $rel, $baseUrl));
         } else {
             $size = filesize($path);
             $date = date('Y-m-d H:i:s', filemtime($path));
-            $url = $baseUrl . $rel;
+            // ชื่อไฟล์ที่มี # หรือ & ทำให้ query string เพี้ยน ต้อง encode ทีละส่วน
+            // (ไม่ encode สแลชคั่นโฟลเดอร์ เพราะ serve.php ต้องเห็นโครงสร้าง path)
+            $url = $baseUrl . implode('/', array_map('rawurlencode', explode('/', ltrim($rel, '/'))));
             $isImage = preg_match('/\.(webp|jpg|jpeg|png|gif)$/i', $item);
             $files[] = array(
                 'path' => $rel,
