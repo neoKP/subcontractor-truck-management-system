@@ -40,7 +40,12 @@ export type IssueKind =
     | 'missing-band'      // ช่องว่างกลางตาราง
     | 'duplicate-route'   // เส้นทาง+ประเภทรถซ้ำ แต่ราคาต่างกัน
     | 'no-bands'         // แถวไม่มีราคาเลยสักช่อง
-    | 'side-table-unreadable';   // เจอตารางย่อยแต่อ่านช่วงราคาน้ำมันไม่ได้
+    | 'side-table-unreadable'    // เจอตารางย่อยแต่อ่านช่วงราคาน้ำมันไม่ได้
+    // สามอย่างนี้ไม่ได้มาจากตัวอ่านไฟล์ แต่มาจาก `fuelRateTemplate.checkAgainstMaster()`
+    // ซึ่งเทียบชื่อในไฟล์กับทะเบียนของระบบ — ใช้ชนิดเดียวกันเพื่อให้แสดงผลรวมกันได้
+    | 'unknown-subcontractor'    // ชื่อผู้รับจ้างไม่ตรงทะเบียน
+    | 'unknown-truck-type'       // ชื่อประเภทรถไม่ตรงทะเบียน
+    | 'unknown-location';        // ชื่อต้นทาง/ปลายทางไม่ตรงทะเบียน
 
 export interface ParseIssue {
     kind: IssueKind;
@@ -55,7 +60,16 @@ export interface ParseResult {
     /** รูปแบบไฟล์ที่ตรวจพบ */
     layout: 'wide-1baht' | 'wide-2baht';
     sheetName: string;
+    /** true = ไฟล์นี้มาจากแบบฟอร์มที่ระบบสร้างให้ (มีบรรทัดกำกับอยู่หัวชีต) */
+    isTemplate: boolean;
 }
+
+/**
+ * ข้อความกำกับหัวแบบฟอร์มที่ระบบสร้างให้ — ต้องตรงกับที่ `fuelRateTemplate.ts` เขียนลงไฟล์
+ * ใช้แยกว่า "ไฟล์นี้กรอกจากแบบฟอร์มของเรา" (ตรวจชื่อกับทะเบียนได้)
+ * หรือ "ไฟล์ต้นฉบับของหน่วยงาน" (ชื่อยังเป็นภาษาของเขา ตรวจแล้วจะเตือนพร่ำเพรื่อ)
+ */
+export const TEMPLATE_MARKER = 'แบบฟอร์มตารางเรทค่าขนส่งตามราคาน้ำมัน';
 
 const toNum = (v: unknown): number | null => {
     if (v === null || v === undefined || v === '') return null;
@@ -95,7 +109,7 @@ function findFirstDataRow(grid: unknown[][], headerIdx: number, cOrigin: number,
         // ต้องเป็นข้อความ ไม่ใช่ตัวเลขขอบช่วง
         if ((o && toNum(r[cOrigin]) === null) || (d && toNum(r[cDest]) === null)) return i;
     }
-    return headerIdx + 1;
+    return -1;   // ไม่มีแถวข้อมูลเลย เช่น แบบฟอร์มเปล่าที่ยังไม่ได้กรอก
 }
 
 /**
@@ -292,6 +306,10 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
         defval: null,
     });
 
+    // บรรทัดกำกับของแบบฟอร์มอยู่เหนือหัวตาราง — ใช้บอกว่าควรตรวจชื่อกับทะเบียนของระบบไหม
+    const isTemplate = grid.slice(0, 6)
+        .some(r => (r || []).some(v => toStr(v).includes(TEMPLATE_MARKER)));
+
     const headerIdx = findHeaderRow(grid);
     if (headerIdx === -1) {
         throw new Error('ไม่พบหัวตาราง — ไฟล์ต้องมีคอลัมน์ "ต้นทาง" และ "ปลายทาง"');
@@ -306,6 +324,7 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
     const cOrigin = colOf('ต้นทาง');
     const cDest = colOf('ปลายทาง');
     const cSeq = colOf('ลำดับ');
+    const cNote = colOf('หมายเหตุ');
 
     // "ประเภทรถ" อาจอยู่คนละแถวกับ "ต้นทาง" — ไฟล์แบบที่สองวางไว้ใต้ลงมา 2 แถว
     let cTruck = colOf('ประเภทรถ');
@@ -323,8 +342,18 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
     const genericSheet = /^(sheet|worksheet|แผ่นงาน|แผ่น|ชีต|ชีท)\s*\d*$/i.test(sheetName);
     const sheetCompany = cCompany === -1 && !genericSheet ? sheetName : '';
 
+    // ไม่นับคอลัมน์หมายเหตุเป็นขอบของโซนป้าย เพราะบางไฟล์วางหมายเหตุไว้ "ท้ายสุด"
+    // ถ้านับด้วย จุดเริ่มหาช่วงราคาจะกระโดดข้ามช่วงราคาไปหมด แล้วอ่านไฟล์ไม่ได้เลย
+    // ส่วนหมายเหตุที่อยู่กลางตาราง (เช่นในแบบฟอร์ม) ไม่กวน เพราะช่องนั้นเป็นข้อความ
+    // และแถวขอบช่วงด้านบนก็ว่าง — findFirstBandCol จึงข้ามไปเอง
     const labelCols = Math.max(cCompany, cOrigin, cDest, cTruck, cSeq) + 1;
     const dataIdx = findFirstDataRow(grid, headerIdx + truckRowOffset, cOrigin, cDest);
+    if (dataIdx === -1) {
+        // แยกข้อความให้ตรงกับสิ่งที่ผู้ใช้ทำผิด — อัปโหลดแบบฟอร์มเปล่าเป็นเรื่องที่เกิดได้บ่อย
+        throw new Error(isTemplate
+            ? 'แบบฟอร์มนี้ยังไม่ได้กรอกข้อมูลเส้นทาง — กรอกในชีต "กรอกเรท" ตั้งแต่แถวที่ 8 ก่อนอัปโหลด'
+            : 'ไม่พบแถวข้อมูลเส้นทางในไฟล์ — ตรวจสอบว่าเลือกไฟล์ถูกหรือไม่');
+    }
     const firstBand = findFirstBandCol(grid, headerIdx, dataIdx, labelCols);
     if (firstBand === -1) {
         throw new Error('ไม่พบคอลัมน์ช่วงราคาน้ำมันในไฟล์');
@@ -333,7 +362,16 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
     // ขอบช่วงอาจอยู่แถวหัว หรือแถวรอบ ๆ (บางไฟล์แยกพื้น/เพดานคนละแถว)
     // ต้องอยู่ "เหนือแถวข้อมูลแรก" เท่านั้น — ถ้าเผลอรวมแถวข้อมูลเข้ามา ค่าขนส่ง
     // (เช่น 13500) จะถูกอ่านเป็นเพดานช่วง แล้วช่วงนั้นจะครอบคลุมราคาน้ำมันทุกค่า
-    const edgeRows = [headerIdx - 1, headerIdx, headerIdx + 1, dataIdx - 2, dataIdx - 1]
+    //
+    // แบบฟอร์มที่ระบบสร้างให้วางแถวพื้นและแถวเพดานไว้เหนือหัวตารางทั้งคู่ (คนกรอกอ่านง่ายกว่า)
+    // แถวหัวตารางจึงไม่มีตัวเลขในช่องช่วงราคาเลย — กรณีนั้นค่อยนับแถว headerIdx-2 เข้ามาด้วย
+    // ไม่นับพร่ำเพรื่อ เพราะไฟล์อื่นอาจมีตัวเลขอย่างปี พ.ศ. ลอยอยู่เหนือหัวตาราง
+    const headerHasEdges = (grid[headerIdx] || [])
+        .some((v, c) => c >= firstBand && toNum(v) !== null);
+    const edgeRowIdx = headerHasEdges
+        ? [headerIdx - 1, headerIdx, headerIdx + 1, dataIdx - 2, dataIdx - 1]
+        : [headerIdx - 2, headerIdx - 1, headerIdx, headerIdx + 1, dataIdx - 2, dataIdx - 1];
+    const edgeRows = edgeRowIdx
         .filter(i => i >= 0 && i < dataIdx)
         .map(i => grid[i])
         .filter(Boolean) as unknown[][];
@@ -349,6 +387,17 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
         if (prev && from <= prev.from) break;
         bandCols.push({ col: c, from, to: Math.max(...edges) });
     }
+    // แถวข้อมูลแรกอาจเว้นช่วงต้น ๆ ว่างไว้ (แบบฟอร์มอนุญาตให้เว้นช่วงที่ยังไม่ตกลงราคา)
+    // ทำให้ firstBand ที่หาจากแถวนั้นเริ่มช้าไป แล้วช่วงแรกจะหายไปทั้งไฟล์ รวมถึงแถวอื่นที่มีราคา
+    // จึงถอยกลับไปเก็บคอลัมน์ซ้ายมือที่ยังมีขอบช่วงครบทั้งพื้นและเพดาน และค่าน้อยกว่าช่วงแรก
+    for (let c = firstBand - 1; c >= labelCols; c--) {
+        const edges = edgeRows.map(r => toNum(r[c])).filter((x): x is number => x !== null);
+        if (edges.length < 2) break;              // ไม่ใช่คอลัมน์ช่วงราคา
+        const from = Math.min(...edges);
+        if (!bandCols.length || from >= bandCols[0].from) break;
+        bandCols.unshift({ col: c, from, to: Math.max(...edges) });
+    }
+
     if (!bandCols.length) throw new Error('ไม่พบช่วงราคาน้ำมันในไฟล์');
 
     // ระยะห่างระหว่างช่วง บอกว่าเป็นไฟล์แบบ 1 บาท หรือ 2 บาท
@@ -384,7 +433,7 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
             origin,
             destination: dest,
             truckType: toStr(cTruck >= 0 ? r[cTruck] : ''),
-            note: '',
+            note: toStr(cNote >= 0 ? r[cNote] : ''),
             bands,
         });
     }
@@ -426,10 +475,12 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
         }
     });
 
-    // รวมชื่อตารางย่อยไว้ในกุญแจด้วย — ตารางย่อยคนละตารางมีปลายทางซ้ำกันได้ตามปกติ
-    // (คนละลูกค้า คนละใบวางบิล) ถ้าไม่แยกจะขึ้นเตือนซ้ำทั้งที่ไม่ใช่ปัญหา
+    // กุญแจตรวจซ้ำต้องรวมสองอย่างนี้ด้วย ไม่งั้นจะเตือนทั้งที่ไม่ใช่ปัญหา
+    //   - ชื่อตารางย่อย: คนละใบวางบิลมีปลายทางซ้ำกันได้ตามปกติ
+    //   - หมายเหตุ: แบบฟอร์มบอกให้แยกแถวแล้วเขียนเงื่อนไขที่ต่างกันไว้ในช่องนี้
+    //     (เช่น พิกัดน้ำหนัก) หมายเหตุจึงเป็นตัวแยกที่ตั้งใจ ไม่ใช่ข้อมูลซ้ำ
     const routeKey = (r: FuelRateRow) =>
-        `${r.section ?? ''}|${r.company}|${r.origin}|${r.destination}|${r.truckType}`;
+        `${r.section ?? ''}|${r.company}|${r.origin}|${r.destination}|${r.truckType}|${r.note}`;
     const byRoute = new Map<string, number[]>();
     rows.forEach((r, i) => {
         const k = routeKey(r);
@@ -482,7 +533,7 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
         });
     }
 
-    return { rows, issues, layout, sheetName };
+    return { rows, issues, layout, sheetName, isTemplate };
 }
 
 /**

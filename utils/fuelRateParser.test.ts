@@ -322,3 +322,23 @@ describe('parseFuelRateWorkbook — ชื่อบริษัทเมื่�
         expect(side[0].section).toContain('ตารางย่อย');   // ป้ายไว้ดูว่ามาจากตารางไหนเท่านั้น
     });
 });
+
+// เคสที่ Codex ทักไว้: บางไฟล์วางคอลัมน์หมายเหตุไว้ท้ายสุด ต่อจากช่วงราคาน้ำมัน
+const NOTE_COLUMN_LAST = [
+    [null, null, null, null, null, 29.01, 30.01, 31.01, 32.01, null],
+    ['ลำดับ', 'บริษัท', 'ต้นทาง', 'ปลายทาง', 'ประเภทรถ', 30, 31, 32, 33, 'หมายเหตุ'],
+    [1, 'KNN DYNAMIC', 'นิคมสมุทรสาคร', 'แม่สอด', '6W', 13500, 13500, 13905, 13905, 'ต่อรองแล้ว'],
+];
+
+describe('parseFuelRateWorkbook — คอลัมน์หมายเหตุอยู่ท้ายตาราง', () => {
+    const result = parseFuelRateWorkbook(makeWorkbook(NOTE_COLUMN_LAST));
+
+    it('ยังอ่านช่วงราคาน้ำมันได้ครบ ไม่ถูกหมายเหตุบังจุดเริ่ม', () => {
+        expect(result.rows.length).toBe(1);
+        expect(result.rows[0].bands.map(b => b.price)).toEqual([13500, 13500, 13905, 13905]);
+    });
+
+    it('อ่านหมายเหตุเข้ามาด้วย', () => {
+        expect(result.rows[0].note).toBe('ต่อรองแล้ว');
+    });
+});

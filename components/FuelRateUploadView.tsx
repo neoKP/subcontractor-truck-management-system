@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Upload, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2,
-    History, RotateCcw, Trash2, Info,
+    History, RotateCcw, Trash2, Info, Download,
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { parseFuelRateWorkbook, findRateAt, type ParseResult } from '../utils/fuelRateParser';
@@ -9,6 +9,8 @@ import {
     saveFuelRateVersion, listFuelRateVersions, activateFuelRateVersion,
     deleteFuelRateVersion, type FuelRateVersionMeta,
 } from '../utils/fuelRateStore';
+import { buildFuelRateTemplate, checkAgainstMaster, TEMPLATE_VERSION } from '../utils/fuelRateTemplate';
+import { MASTER_DATA } from '../constants';
 import { useOilPrice } from '../utils/useOilPrice';
 
 interface Props {
@@ -23,6 +25,9 @@ const ISSUE_LABEL: Record<string, string> = {
     'duplicate-route': 'เส้นทางและประเภทรถซ้ำกัน',
     'no-bands': 'แถวที่ไม่มีค่าขนส่งเลย',
     'side-table-unreadable': 'เจอตารางย่อยแต่อ่านไม่ได้ (ยังไม่ได้นำเข้า)',
+    'unknown-subcontractor': 'ตรวจชื่อผู้รับจ้าง (คอลัมน์บริษัท)',
+    'unknown-truck-type': 'ตรวจชื่อประเภทรถ',
+    'unknown-location': 'ตรวจชื่อต้นทาง/ปลายทาง',
 };
 
 const formatDateTime = (iso: string): string => {
@@ -79,7 +84,10 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                 setError('อ่านไฟล์ได้ แต่ไม่พบเส้นทางเลยสักรายการ — ตรวจสอบว่าเลือกไฟล์ถูกหรือไม่');
                 return;
             }
-            setPreview(result);
+            // ไฟล์ที่กรอกจากแบบฟอร์มของเราควรใช้ชื่อชุดเดียวกับระบบ จึงตรวจให้ตั้งแต่ตอนพรีวิว
+            // ไฟล์ต้นฉบับของหน่วยงานไม่ตรวจ เพราะเขาใช้ชื่อคนละชุด จะเตือนทุกแถวจนอ่านไม่รู้เรื่อง
+            const nameIssues = result.isTemplate ? checkAgainstMaster(result.rows, MASTER_DATA) : [];
+            setPreview({ ...result, issues: [...result.issues, ...nameIssues] });
             setFileName(file.name);
         } catch (e) {
             setError((e as Error).message || 'อ่านไฟล์ไม่สำเร็จ');
@@ -87,6 +95,19 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
             setParsing(false);
         }
     }, []);
+
+    const handleDownloadTemplate = () => {
+        const buf = buildFuelRateTemplate(MASTER_DATA);
+        const blob = new Blob([buf], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `แบบฟอร์มตารางเรทค่าขนส่ง_${TEMPLATE_VERSION}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
 
     const onDrop = (e: React.DragEvent) => {
         e.preventDefault();
@@ -240,6 +261,25 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                     ระบบจะ<b>บันทึกตัวเลขตามไฟล์ทุกช่อง ไม่คำนวณและไม่เติมเอง</b> เพราะเรทนี้หน่วยงานเป็นผู้กำหนด ·
                     หากพบจุดที่ดูผิดปกติ ระบบจะแจ้งเตือนให้ตรวจสอบ แต่จะไม่แก้ไขค่าให้
                 </p>
+            </div>
+
+            {/* แบบฟอร์มสำหรับให้หน่วยงานกรอก */}
+            <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                        <Download size={18} className="text-blue-600" /> แบบฟอร์มสำหรับหน่วยงาน
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium mt-1.5 leading-relaxed max-w-2xl">
+                        ส่งไฟล์นี้ให้หน่วยงานอัตราจ้างกรอกแทนรูปแบบเดิม · ในไฟล์มี<b>ทะเบียนชื่อผู้รับจ้าง สถานที่ และประเภทรถ</b>ของระบบแนบไว้ให้คัดลอก
+                        พร้อมตัวอย่างการกรอกและวิธีใช้ · เมื่ออัปโหลดกลับ ระบบจะตรวจให้ทันทีว่าชื่อตรงทะเบียนหรือไม่
+                    </p>
+                </div>
+                <button
+                    onClick={handleDownloadTemplate}
+                    className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-[1.5rem] text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:scale-105 active:scale-95 flex items-center gap-2"
+                >
+                    <Download size={15} /> ดาวน์โหลดแบบฟอร์ม
+                </button>
             </div>
 
             {/* Dropzone */}
