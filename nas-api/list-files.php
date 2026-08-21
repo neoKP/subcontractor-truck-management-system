@@ -67,6 +67,11 @@ function listFilesRecursive($dir, $base, $baseUrl) {
         if (is_dir($path)) {
             $files = array_merge($files, listFilesRecursive($path, $rel, $baseUrl));
         } else {
+            // ข้ามไฟล์ .json ที่ upload.php เขียนคู่กับรูป — serve.php ไม่เสิร์ฟให้แล้ว
+            // (ในนั้นมีชื่อไฟล์ต้นฉบับกับ sha256 และไม่มีการยืนยันตัวตน) ลิงก์จึงจะ 404
+            if (strtolower(pathinfo($item, PATHINFO_EXTENSION)) === 'json') {
+                continue;
+            }
             $size = filesize($path);
             $date = date('Y-m-d H:i:s', filemtime($path));
             // ชื่อไฟล์ที่มี # หรือ & ทำให้ query string เพี้ยน ต้อง encode ทีละส่วน

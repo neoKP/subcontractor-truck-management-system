@@ -81,18 +81,29 @@ if ($realFile === false) {
 }
 
 // MIME type
+// เสิร์ฟเฉพาะนามสกุลที่รู้จักเท่านั้น อะไรที่ไม่อยู่ในรายการนี้ให้ 404 ไปเลย
+// ไม่ fallback เป็น octet-stream เพราะเท่ากับยอมส่งไฟล์อะไรก็ได้ที่หลุดเข้ามาในโฟลเดอร์
+//
+// ถอด json ออกด้วย — upload.php เขียนไฟล์ .json คู่กับรูปทุกครั้ง ในนั้นมี originalName
+// (ชื่อไฟล์ต้นฉบับ ซึ่งมักมีชื่อลูกค้า/เลขงาน) และ sha256 · ไฟล์นี้ไม่มีการยืนยันตัวตน
+// ใครเดา URL ถูกก็อ่านได้หมด และฝั่งเว็บของโปรเจกต์นี้ไม่ได้เรียกใช้เลย (grep แล้วไม่เจอ)
+// ถ้าโปรเจกต์อื่นจำเป็นต้องอ่าน ให้เปิดเฉพาะหลังการยืนยันตัวตน อย่าเปิดทั้งโฟลเดอร์
 $mimeMap = array(
     'webp' => 'image/webp',
     'jpg' => 'image/jpeg',
     'jpeg' => 'image/jpeg',
     'png' => 'image/png',
     'gif' => 'image/gif',
-    'pdf' => 'application/pdf',
-    'json' => 'application/json'
+    'pdf' => 'application/pdf'
 );
 
 $ext = strtolower(pathinfo($realFile, PATHINFO_EXTENSION));
-$mime = isset($mimeMap[$ext]) ? $mimeMap[$ext] : 'application/octet-stream';
+if (!isset($mimeMap[$ext])) {
+    http_response_code(404);
+    echo 'File not found';
+    exit;
+}
+$mime = $mimeMap[$ext];
 
 // Cache 30 days
 header('Content-Type: ' . $mime);

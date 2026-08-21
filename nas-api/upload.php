@@ -134,9 +134,10 @@ if ($file['size'] > $MAX_FILE_SIZE) {
 // จึงต้องตัด segment ".." ทิ้ง แล้วยืนยันด้วย realpath อีกชั้นก่อนเขียนจริง
 $rawPath = isset($_POST['path']) ? $_POST['path'] : '';
 // path[]=a&path[]=b ทำให้ค่าที่ได้เป็น array แล้วฟังก์ชันข้างล่างจะโยน TypeError → HTTP 500
-// ซึ่งผิดกฎ "ต้องตอบ 200 เสมอ" ของ NAS ตัวนี้ จึงตัดทิ้งตั้งแต่ต้น
+// ซึ่งผิดกฎ "ต้องตอบ 200 เสมอ" ของ NAS ตัวนี้ · ตอบกลับไปเลยว่าผิด อย่ากลืนเงียบ
 if (!is_string($rawPath)) {
-    $rawPath = '';
+    echo json_encode(array('success' => false, 'error' => 'Invalid path'));
+    exit;
 }
 
 $cleanPath = preg_replace('/[^a-zA-Z0-9_\-\/\.]/', '_', $rawPath);
@@ -148,6 +149,28 @@ foreach (explode('/', $cleanPath) as $seg) {
     $segments[] = $seg;
 }
 $subPath = implode('/', $segments);
+
+// ถ้าโดนตัดอะไรออก แปลว่า path ที่ส่งมาไม่ปกติ — ตอบกลับไปเลย อย่าเขียนเงียบ ๆ
+// (เดิมแค่ตัด ".." ทิ้งแล้วเขียนต่อ ทำให้ไม่มีสัญญาณว่ามีคนยิง exploit เข้ามา
+//  และยังสร้างโฟลเดอร์ขยะที่ Task Scheduler จะ rsync ตามไป Synology Drive ด้วย)
+if ($subPath !== trim($cleanPath, '/')) {
+    echo json_encode(array('success' => false, 'error' => 'Invalid path'));
+    exit;
+}
+
+// นามสกุลของ "ไฟล์ที่จะเขียนลงดิสก์" ต้องอยู่ในรายการนี้เท่านั้น
+// ด่านตรวจชนิดไฟล์ด้านล่างดูแค่ "เนื้อไฟล์" ไม่ได้ดูชื่อไฟล์ปลายทาง
+// ไฟล์ polyglot (ขึ้นต้นด้วย GIF89a แต่มีโค้ด PHP ต่อท้าย) จึงผ่าน finfo ได้
+// แล้วถูกเขียนเป็น x.php · ตอนนี้ /tmp/nas-uploads ไม่ถูกเสิร์ฟก็จริง แต่ไฟล์ถูก rsync
+// ไป Synology Drive ต่อ ถ้าวันไหนมี Web Station ชี้เข้าโฟลเดอร์นั้น = รันโค้ดได้ทันที
+if ($subPath !== '') {
+    $ALLOWED_EXT = array('webp', 'jpg', 'jpeg', 'png', 'gif', 'pdf');
+    $outExt = strtolower(pathinfo($subPath, PATHINFO_EXTENSION));
+    if (!in_array($outExt, $ALLOWED_EXT, true)) {
+        echo json_encode(array('success' => false, 'error' => 'Extension not allowed', 'ext' => $outExt));
+        exit;
+    }
+}
 
 // ชนิดไฟล์: เชื่อผลตรวจจากเนื้อไฟล์เป็นหลัก
 // ของเดิมถ้า finfo ตอบไม่ได้จะไปเชื่อ $file['type'] ซึ่งผู้เรียกกำหนดเองได้ = ด่านนี้ถูกข้ามได้
