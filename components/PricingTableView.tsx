@@ -5,7 +5,7 @@ import { PriceMatrix, MasterData, UserRole } from '../types';
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 import { MASTER_DATA } from '../constants';
 import { Search, MapPin, Truck, Building2, CircleDollarSign, Plus, Edit, Trash2, X, Save, AlertTriangle, Download, FileSpreadsheet } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { exportExcelReport, thaiFileDate } from '../utils/excelReport';
 
 interface PricingTableViewProps {
   priceMatrix: PriceMatrix[];
@@ -240,40 +240,23 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
     setEditingIndex(null);
   };
 
-  const handleExportExcel = () => {
-    // Prepare data for export - use filteredPricing to export what the user sees
-    const dataForExport = filteredPricing.map(p => ({
-      'ต้นทาง (Origin)': p.origin,
-      'ปลายทาง (Destination)': p.destination,
-      'บริษัทรถร่วม (Subcontractor)': p.subcontractor,
-      'ประเภทรถ (Truck Type)': p.truckType,
-      'ราคาทุนรถ (Base Cost)': p.basePrice,
-      'ราคาจ้างงาน (Selling Price)': p.sellingBasePrice,
-      'ค่าจุดดรอป (Drop Fee)': p.dropOffFee || 0
-    }));
-
-    // Create worksheet
-    const worksheet = XLSX.utils.json_to_sheet(dataForExport);
-
-    // Set column widths
-    const wscols = [
-      { wch: 30 }, // Origin
-      { wch: 30 }, // Destination
-      { wch: 25 }, // Subcontractor
-      { wch: 15 }, // Truck Type
-      { wch: 15 }, // Base Cost
-      { wch: 15 }, // Selling Price
-      { wch: 15 }  // Drop Fee
-    ];
-    worksheet['!cols'] = wscols;
-
-    // Create workbook and append worksheet
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Master Pricing');
-
-    // Generate Excel file and trigger download
-    const dateStr = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(workbook, `Subcontractor_Price_Matrix_${dateStr}.xlsx`);
+  const handleExportExcel = async () => {
+    // ส่งออกเฉพาะที่ผู้ใช้กรองอยู่บนหน้าจอ ไม่ใช่ทั้งตาราง จะได้ตรงกับที่เห็น
+    await exportExcelReport([{
+      name: 'ตารางราคารถร่วม',
+      title: 'ตารางราคารถร่วม (Master Pricing)',
+      subtitle: `${filteredPricing.length} เส้นทาง`,
+      columns: [
+        { header: 'ต้นทาง', value: p => p.origin, type: 'text' },
+        { header: 'ปลายทาง', value: p => p.destination, type: 'text' },
+        { header: 'บริษัทรถร่วม', value: p => p.subcontractor, type: 'text' },
+        { header: 'ประเภทรถ', value: p => p.truckType, type: 'text' },
+        { header: 'ราคาทุนรถ (บาท)', value: p => p.basePrice, type: 'money' },
+        { header: 'ราคาจ้างงาน (บาท)', value: p => p.sellingBasePrice, type: 'money' },
+        { header: 'ค่าจุดดรอป (บาท)', value: p => p.dropOffFee || 0, type: 'money' },
+      ],
+      rows: filteredPricing,
+    }], `ตารางราคารถร่วม_${thaiFileDate()}`);
 
     Swal.fire({
       title: 'Export สำเร็จ!',

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Job, JobStatus, AccountingStatus } from '../types';
 import { Calendar, CheckCircle, Clock, AlertCircle, TrendingUp, Filter, FileText, ChevronRight, DollarSign, Wallet, Search, X, Download } from 'lucide-react';
 import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
-import { utils, writeFile } from 'xlsx';
+import { exportExcelReport } from '../utils/excelReport';
 
 interface BillingReportViewProps {
     jobs: Job[];
@@ -92,22 +92,23 @@ const BillingReportView: React.FC<BillingReportViewProps> = ({ jobs }) => {
 
     const [selectedPendingSub, setSelectedPendingSub] = useState<string | null>(null);
 
-    const handleExportExcel = () => {
-        const data = searchedJobs.map(j => ({
-            'Billing Date': j.billingDate || j.dateOfService,
-            'Doc No': j.billingDocNo || '-',
-            'Subcontractor': j.subcontractor,
-            'Origin': j.origin,
-            'Destination': j.destination,
-            'Base Cost': j.cost || 0,
-            'Extra Charge': j.extraCharge || 0,
-            'Total Amount': (j.cost || 0) + (j.extraCharge || 0)
-        }));
-
-        const ws = utils.json_to_sheet(data);
-        const wb = utils.book_new();
-        utils.book_append_sheet(wb, ws, "Billing History");
-        writeFile(wb, `Billing_History_${searchRange.start}_to_${searchRange.end}.xlsx`);
+    const handleExportExcel = async () => {
+        await exportExcelReport([{
+            name: 'ประวัติการวางบิล',
+            title: 'รายงานประวัติการวางบิล',
+            subtitle: `ช่วง ${searchRange.start} ถึง ${searchRange.end} · ${searchedJobs.length} งาน`,
+            columns: [
+                { header: 'วันที่วางบิล', value: j => (j.billingDate || j.dateOfService || '').split('T')[0], type: 'text' },
+                { header: 'เลขที่เอกสาร', value: j => j.billingDocNo || '-', type: 'text' },
+                { header: 'ผู้รับจ้าง', value: j => j.subcontractor || '-', type: 'text' },
+                { header: 'ต้นทาง', value: j => j.origin, type: 'text' },
+                { header: 'ปลายทาง', value: j => j.destination, type: 'text' },
+                { header: 'ค่าขนส่ง (บาท)', value: j => j.cost || 0, type: 'money', total: true },
+                { header: 'ค่าใช้จ่ายเพิ่ม (บาท)', value: j => j.extraCharge || 0, type: 'money', total: true },
+                { header: 'รวม (บาท)', value: j => (j.cost || 0) + (j.extraCharge || 0), type: 'money', total: true },
+            ],
+            rows: searchedJobs,
+        }], `ประวัติการวางบิล_${searchRange.start}_ถึง_${searchRange.end}`);
     };
 
     return (

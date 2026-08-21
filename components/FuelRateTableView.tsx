@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
     Table2, Search, Fuel, Loader2, FileDown, AlertTriangle, Info, Upload,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { exportExcelReport, thaiFileDate, type ReportSheet } from '../utils/excelReport';
 import { findRateAt, type FuelRateRow } from '../utils/fuelRateParser';
 import { loadActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
 import { useOilPrice } from '../utils/useOilPrice';
@@ -74,24 +74,35 @@ const FuelRateTableView: React.FC = () => {
         [rows, live.diesel]
     );
 
-    const handleExport = () => {
-        const data = filtered.map(r => {
-            const hit = findRateAt(r, live.diesel);
-            return {
-                'ตาราง': r.section || 'ตารางหลัก',
-                'บริษัท': r.company,
-                'ต้นทาง': r.origin,
-                'ปลายทาง': r.destination,
-                'ประเภทรถ': r.truckType,
-                [`ค่าขนส่งที่น้ำมัน ${live.diesel.toFixed(2)} บาท`]: hit?.price ?? 'ไม่มีเรท',
-                'ช่วงราคาน้ำมันที่ใช้': hit ? `${hit.fuelFrom}–${hit.fuelTo}` : '-',
-            };
-        });
-        const ws = XLSX.utils.json_to_sheet(data);
-        ws['!cols'] = [{ wch: 22 }, { wch: 20 }, { wch: 26 }, { wch: 26 }, { wch: 12 }, { wch: 22 }, { wch: 18 }];
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'เรทค่าขนส่ง');
-        XLSX.writeFile(wb, `เรทค่าขนส่ง_ณ_${live.diesel.toFixed(2)}บาท.xlsx`);
+    const handleExport = async () => {
+        await exportExcelReport([{
+            name: 'เรทค่าขนส่ง',
+            title: 'ตารางเรทค่าขนส่งตามราคาน้ำมัน',
+            subtitle: `ราคาดีเซลที่ใช้คิด ${live.diesel.toFixed(2)} บาท/ลิตร · ${filtered.length} เส้นทาง`,
+            columns: [
+                { header: 'บริษัท', value: r => r.company || '-', type: 'text' },
+                { header: 'ตาราง', value: r => r.section ?? 'ตารางหลัก', type: 'text' },
+                { header: 'ต้นทาง', value: r => r.origin || '-', type: 'text' },
+                { header: 'ปลายทาง', value: r => r.destination || '-', type: 'text' },
+                { header: 'ประเภทรถ', value: r => r.truckType || '-', type: 'text' },
+                { header: 'หมายเหตุ', value: r => r.note || '', type: 'text' },
+                {
+                    header: 'ช่วงราคาน้ำมันที่ใช้',
+                    value: r => { const hit = findRateAt(r, live.diesel); return hit ? `${hit.fuelFrom}–${hit.fuelTo}` : '-'; },
+                    type: 'text',
+                },
+                {
+                    // ปล่อยว่างเมื่อไม่มีเรท ไม่ใส่ 0 — คนอ่านไฟล์ต้องแยกออกว่า "ไม่มีเรท" ไม่ใช่ "ฟรี"
+                    header: `ค่าขนส่งที่น้ำมัน ${live.diesel.toFixed(2)} บาท`,
+                    value: r => findRateAt(r, live.diesel)?.price ?? null,
+                    type: 'money',
+                },
+            ],
+            rows: filtered,
+            footnotes: [
+                'ช่องค่าขนส่งที่เว้นว่าง = หน่วยงานยังไม่ได้กำหนดราคาในช่วงราคาน้ำมันนี้ ไม่ใช่ค่าขนส่ง 0 บาท',
+            ],
+        }] as ReportSheet<FuelRateRow>[], `เรทค่าขนส่ง_ณ_${live.diesel.toFixed(2)}บาท_${thaiFileDate()}`);
     };
 
     if (loading) {
