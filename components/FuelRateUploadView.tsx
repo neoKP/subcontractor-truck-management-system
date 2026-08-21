@@ -22,6 +22,7 @@ const ISSUE_LABEL: Record<string, string> = {
     'missing-band': 'มีช่วงราคาน้ำมันที่ไม่ได้ระบุค่าขนส่ง',
     'duplicate-route': 'เส้นทางและประเภทรถซ้ำกัน',
     'no-bands': 'แถวที่ไม่มีค่าขนส่งเลย',
+    'side-table-unreadable': 'เจอตารางย่อยแต่อ่านไม่ได้ (ยังไม่ได้นำเข้า)',
 };
 
 const formatDateTime = (iso: string): string => {
@@ -357,7 +358,12 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                                             <tr key={i} className={`border-b border-slate-100 ${i % 2 ? 'bg-slate-50/60' : ''}`}>
                                                 <td className="px-3 py-2 text-slate-700 font-bold">{r.company || '-'}</td>
                                                 <td className="px-3 py-2 text-slate-600">{r.origin || '-'}</td>
-                                                <td className="px-3 py-2 text-slate-600">{r.destination || '-'}</td>
+                                                <td className="px-3 py-2 text-slate-600">
+                                                    {r.destination || '-'}
+                                                    {r.section && (
+                                                        <span className="ml-2 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black whitespace-nowrap">{r.section}</span>
+                                                    )}
+                                                </td>
                                                 <td className="px-3 py-2 text-center text-slate-500 font-bold">{r.truckType || '-'}</td>
                                                 <td className={`px-3 py-2 text-right tabular-nums font-black ${hit ? 'text-slate-900' : 'text-amber-600'}`}>
                                                     {hit ? hit.price!.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'ไม่มีเรท'}

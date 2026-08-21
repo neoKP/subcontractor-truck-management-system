@@ -155,3 +155,133 @@ describe('findRateAt', () => {
         expect(findRateAt(row, 60)).toBeNull();
     });
 });
+
+// เลียนไฟล์ "รถร่วม วสรรณ์" ที่มีตารางที่สองวางอยู่ทางขวาของตารางหลักในชีตเดียวกัน
+// คอลัมน์ 12 = ปลายทางของตารางย่อย, คอลัมน์ 13-14 = ช่วงราคาน้ำมัน 2 ช่วง
+const WITH_SIDE_TABLE = [
+    [null, null, null, null, null, 29.01, 30.01, 31.01, 32.01, null, null, null, null, 0.94, 0.97],
+    ['ลำดับ', 'บริษัท', 'ต้นทาง', 'ปลายทาง', 'ประเภทรถ', 30, 31, 32, 33, null, null, null, 'บิลลูกค้า A', 30, 32],
+    [1, 'KNN DYNAMIC', 'นิคมสมุทรสาคร', 'แม่สอด', '6W', 13500, 13500, 13905, 13905, null, null, null, null, 31.99, 33.99],
+    [2, 'YSK TRANSPORT', 'บางปะกง', 'นครสวรรค์', '10W', 5500, 5500, 5610, 5610, null, null, null, 'ปลายทาง', '6w', '6w'],
+    [null, null, null, null, null, null, null, null, null, null, null, null, 'สาขาบางนา', 5000, 5200],
+    [null, null, null, null, null, null, null, null, null, null, null, null, 'ปลายทางพิเศษ ระยอง', 6000, 6200],
+];
+
+describe('parseFuelRateWorkbook — ตารางย่อยทางขวาของชีต', () => {
+    const result = parseFuelRateWorkbook(makeWorkbook(WITH_SIDE_TABLE));
+    const main = result.rows.filter(r => !r.section);
+    const side = result.rows.filter(r => r.section);
+
+    it('อ่านทั้งตารางหลักและตารางย่อย', () => {
+        expect(main.length).toBe(2);
+        expect(side.length).toBe(2);
+    });
+
+    it('ตารางหลักยังอ่านได้เหมือนเดิม ไม่โดนตารางย่อยกวน', () => {
+        expect(main[0].destination).toBe('แม่สอด');
+        expect(main[0].bands.map(b => b.price)).toEqual([13500, 13500, 13905, 13905]);
+    });
+
+    it('ติดชื่อตารางย่อยไว้ที่แถว เพื่อให้รู้ว่ามาจากตารางไหน', () => {
+        expect(side[0].section).toBe('บิลลูกค้า A');
+        expect(side[0].destination).toBe('สาขาบางนา');
+        expect(side[0].truckType).toBe('6w');
+    });
+
+    it('ไม่เดาต้นทางและบริษัทที่ไฟล์ไม่ได้ระบุ', () => {
+        expect(side[0].origin).toBe('');
+        expect(side[0].company).toBe('');
+    });
+
+    it('เก็บราคาและช่วงน้ำมันตามไฟล์', () => {
+        expect(side[0].bands.map(b => b.price)).toEqual([5000, 5200]);
+        expect(side[0].bands[0]).toMatchObject({ fuelFrom: 30, fuelTo: 31.99 });
+        expect(side[0].bands[1]).toMatchObject({ fuelFrom: 32, fuelTo: 33.99 });
+    });
+
+    it('ไม่นับแถวตัวคูณ (0.94 / 0.97) เป็นเส้นทาง', () => {
+        expect(result.rows.some(r => r.bands.some(b => b.price !== null && b.price < 100))).toBe(false);
+    });
+
+    it('ปลายทางที่มีคำว่า "ปลายทาง" อยู่ในชื่อ ไม่ถูกมองว่าเป็นหัวตาราง', () => {
+        const hit = side.find(r => r.destination === 'ปลายทางพิเศษ ระยอง');
+        expect(hit).toBeDefined();
+        expect(hit!.bands.map(b => b.price)).toEqual([6000, 6200]);
+    });
+
+    it('หาค่าขนส่งของตารางย่อยที่ราคาน้ำมันหนึ่ง ๆ ได้', () => {
+        expect(findRateAt(side[0], 33)!.price).toBe(5200);
+        expect(findRateAt(side[0], 40)).toBeNull();   // นอกช่วงที่ไฟล์ระบุ ไม่เดาให้
+    });
+});
+
+describe('parseFuelRateWorkbook — ตารางย่อยที่อ่านไม่ได้', () => {
+    it('รายงานไว้ ไม่เดาช่วงราคาน้ำมันให้ และไม่นำเข้าแถวนั้น', () => {
+        const rows = JSON.parse(JSON.stringify(WITH_SIDE_TABLE));
+        rows[2][13] = null;   // ลบแถวเพดานช่วง เหลือแต่พื้นช่วง → ไม่รู้ว่าช่วงกว้างเท่าไร
+        rows[2][14] = null;
+        const result = parseFuelRateWorkbook(makeWorkbook(rows));
+        expect(result.rows.every(r => !r.section)).toBe(true);
+        const hit = result.issues.find(i => i.kind === 'side-table-unreadable');
+        expect(hit).toBeDefined();
+        expect(hit!.message).toContain('บิลลูกค้า A');
+    });
+});
+
+// เคสที่ Codex ทักไว้: ปลายทางที่ชื่อมีคำว่า "ปลายทาง" และราคายังเป็น 0 หรือว่าง
+// ต้องไม่ถูกเข้าใจผิดว่าเป็นหัวตารางบล็อกใหม่ ไม่งั้นแถวจะหาย และบล็อกจะถูกหั่นกลางคัน
+describe('parseFuelRateWorkbook — แถวตารางย่อยที่ราคายังไม่ตกลง', () => {
+    it('แถวราคา 0 ยังถูกนำเข้าและถูกรายงาน ไม่ถูกตัดทิ้ง', () => {
+        const rows = JSON.parse(JSON.stringify(WITH_SIDE_TABLE));
+        rows[5][13] = 0;
+        rows[5][14] = 0;
+        const result = parseFuelRateWorkbook(makeWorkbook(rows));
+        const hit = result.rows.find(r => r.destination === 'ปลายทางพิเศษ ระยอง');
+        expect(hit).toBeDefined();
+        expect(hit!.section).toBe('บิลลูกค้า A');
+        expect(hit!.bands.map(b => b.price)).toEqual([0, 0]);
+        expect(result.issues.find(i => i.kind === 'zero-price')).toBeDefined();
+    });
+
+    it('แถวที่ยังไม่มีราคาเลย ไม่ทำให้บล็อกถูกหั่นและแถวถัดไปเพี้ยน', () => {
+        const rows = JSON.parse(JSON.stringify(WITH_SIDE_TABLE));
+        rows[5][13] = null;
+        rows[5][14] = null;
+        rows.push([null, null, null, null, null, null, null, null, null, null, null, null, 'สาขาชลบุรี', 7000, 7200]);
+        const result = parseFuelRateWorkbook(makeWorkbook(rows));
+        const last = result.rows.find(r => r.destination === 'สาขาชลบุรี');
+        expect(last).toBeDefined();
+        expect(last!.section).toBe('บิลลูกค้า A');
+        // ช่วงราคาน้ำมันต้องยังเป็น 30–31.99 ตามหัวตารางเดิม ไม่ใช่ค่าที่เดามาจากแถวราคา
+        expect(last!.bands[0]).toMatchObject({ fuelFrom: 30, fuelTo: 31.99 });
+        expect(last!.bands.map(b => b.price)).toEqual([7000, 7200]);
+    });
+});
+
+// เคสที่ Codex ทักไว้รอบสอง: ตารางย่อยคนละใบวางบิล มีปลายทางซ้ำกันได้ตามปกติ
+const twoSideTables = (secondTitle: string) => {
+    const rows = JSON.parse(JSON.stringify(WITH_SIDE_TABLE));
+    const blank = () => [null, null, null, null, null, null, null, null, null, null, null, null];
+    rows.push([...blank().slice(0, 12), secondTitle, 30, 32]);
+    rows.push([...blank().slice(0, 12), null, 31.99, 33.99]);
+    rows.push([...blank().slice(0, 12), 'ปลายทาง', '6w', '6w']);
+    rows.push([...blank().slice(0, 12), 'สาขาบางนา', 5100, 5300]);
+    return rows;
+};
+
+describe('parseFuelRateWorkbook — ตารางย่อยหลายใบในชีตเดียว', () => {
+    it('ปลายทางซ้ำกันข้ามตาราง ไม่ถือว่าซ้ำ', () => {
+        const result = parseFuelRateWorkbook(makeWorkbook(twoSideTables('บิลลูกค้า B')));
+        const bangna = result.rows.filter(r => r.destination === 'สาขาบางนา');
+        expect(bangna.map(r => r.section)).toEqual(['บิลลูกค้า A', 'บิลลูกค้า B']);
+        expect(bangna.map(r => r.bands[0].price)).toEqual([5000, 5100]);
+        expect(result.issues.find(i => i.kind === 'duplicate-route')).toBeUndefined();
+    });
+
+    it('ปลายทางซ้ำกันในตารางเดียวกัน ยังเตือนเหมือนเดิม', () => {
+        const result = parseFuelRateWorkbook(makeWorkbook(twoSideTables('บิลลูกค้า A')));
+        const hit = result.issues.find(i => i.kind === 'duplicate-route');
+        expect(hit).toBeDefined();
+        expect(hit!.rows.length).toBe(2);
+    });
+});

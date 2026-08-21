@@ -63,7 +63,7 @@ const FuelRateTableView: React.FC = () => {
             if (truckType && r.truckType !== truckType) return false;
             if (onlyMissing && findRateAt(r, live.diesel) !== null) return false;
             if (!q) return true;
-            return [r.company, r.origin, r.destination, r.truckType, r.note]
+            return [r.company, r.origin, r.destination, r.truckType, r.note, r.section]
                 .some(f => (f || '').toLowerCase().includes(q));
         });
     }, [rows, search, company, truckType, onlyMissing, live.diesel]);
@@ -78,6 +78,7 @@ const FuelRateTableView: React.FC = () => {
         const data = filtered.map(r => {
             const hit = findRateAt(r, live.diesel);
             return {
+                'ตาราง': r.section || 'ตารางหลัก',
                 'บริษัท': r.company,
                 'ต้นทาง': r.origin,
                 'ปลายทาง': r.destination,
@@ -87,7 +88,7 @@ const FuelRateTableView: React.FC = () => {
             };
         });
         const ws = XLSX.utils.json_to_sheet(data);
-        ws['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 26 }, { wch: 12 }, { wch: 22 }, { wch: 18 }];
+        ws['!cols'] = [{ wch: 22 }, { wch: 20 }, { wch: 26 }, { wch: 26 }, { wch: 12 }, { wch: 22 }, { wch: 18 }];
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'เรทค่าขนส่ง');
         XLSX.writeFile(wb, `เรทค่าขนส่ง_ณ_${live.diesel.toFixed(2)}บาท.xlsx`);
@@ -301,7 +302,13 @@ const FuelRateTableView: React.FC = () => {
                                         >
                                             <td className="px-3 py-2.5 text-slate-700 font-bold">{r.company || '-'}</td>
                                             <td className="px-3 py-2.5 text-slate-600">{r.origin || '-'}</td>
-                                            <td className="px-3 py-2.5 text-slate-600">{r.destination || '-'}</td>
+                                            <td className="px-3 py-2.5 text-slate-600">
+                                                {r.destination || '-'}
+                                                {/* แถวจากตารางย่อยไม่มีต้นทาง/บริษัท ติดป้ายไว้จะได้ไม่สับสนกับตารางหลัก */}
+                                                {r.section && (
+                                                    <span className="ml-2 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black whitespace-nowrap">{r.section}</span>
+                                                )}
+                                            </td>
                                             <td className="px-3 py-2.5 text-center text-slate-500 font-bold">{r.truckType || '-'}</td>
                                             <td className="px-3 py-2.5 text-center text-[11px] text-slate-500 font-bold tabular-nums">
                                                 {hit ? `${hit.fuelFrom}–${hit.fuelTo}` : '—'}

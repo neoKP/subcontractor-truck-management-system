@@ -26,6 +26,11 @@ export interface FuelRateRow {
     truckType: string;
     /** หมายเหตุแยกแถวที่เส้นทางซ้ำกัน (เช่น พิกัดน้ำหนัก) — ว่างได้ */
     note: string;
+    /**
+     * ชื่อตารางย่อยที่แถวนี้มาจาก (เช่น "นีโอสยาม วางบิล sunlee")
+     * ไม่มีค่า = มาจากตารางหลักของชีต
+     */
+    section?: string;
     bands: RateBand[];
 }
 
@@ -34,7 +39,8 @@ export type IssueKind =
     | 'price-decreases'   // น้ำมันแพงขึ้นแต่ค่าขนส่งถูกลง
     | 'missing-band'      // ช่องว่างกลางตาราง
     | 'duplicate-route'   // เส้นทาง+ประเภทรถซ้ำ แต่ราคาต่างกัน
-    | 'no-bands';         // แถวไม่มีราคาเลยสักช่อง
+    | 'no-bands'         // แถวไม่มีราคาเลยสักช่อง
+    | 'side-table-unreadable';   // เจอตารางย่อยแต่อ่านช่วงราคาน้ำมันไม่ได้
 
 export interface ParseIssue {
     kind: IssueKind;
@@ -152,6 +158,122 @@ function isNoteRow(
 }
 
 /**
+ * อ่าน "ตารางย่อย" ที่หน่วยงานวางไว้ทางขวาของตารางหลักในชีตเดียวกัน
+ *
+ * ไฟล์ "รถร่วม วสรรณ์" มีตารางที่สองเริ่มที่คอลัมน์ W หัวเรื่อง "นีโอสยาม วางบิล sunlee"
+ * แบ่งเป็นบล็อกตามประเภทรถ (4w / 6w / 10w) บล็อกละ 11 ปลายทาง ช่วงน้ำมัน 30–61.99 บาท
+ * โครงหนึ่งบล็อก (ตัวเลขคือระยะจากแถว "ปลายทาง"):
+ *   -3  แถวตัวคูณ           |            | 0.94 | 0.97 | ...   ← ไม่ใช่ค่าขนส่ง ไม่เก็บ
+ *   -2  ชื่อตาราง + พื้นช่วง  | นีโอสยาม... | 30   | 32   | ...
+ *   -1  เพดานช่วง           |            | 31.99| 33.99| ...
+ *    0  หัวตาราง            | ปลายทาง    | 4w   | 4w   | ...
+ *   +1  ข้อมูล              | 7-11 บางบัวทอง | 2350 | 2425 | ...
+ *
+ * ตารางหลักอ่านไม่ถึงโซนนี้ เพราะ bandCols หยุดเมื่อขอบช่วงถอยหลัง (30 < 60.98)
+ * จึงต้องอ่านแยก — และเก็บตามไฟล์เหมือนเดิม ไม่เดาต้นทาง ไม่เติมราคา
+ *
+ * บล็อกหนึ่งอาจมีแถวว่างคั่นกลาง (บล็อก 6w ในไฟล์จริงเว้น 14 แถว แล้วต่อปลายทางที่เหลือ)
+ * จึงไม่หยุดที่แถวว่าง แต่หยุดเมื่อถึงหัวบล็อกถัดไป
+ */
+function parseSideTables(
+    grid: unknown[][],
+    minCol: number,
+    seqStart: number
+): { rows: FuelRateRow[]; issues: ParseIssue[] } {
+    const rows: FuelRateRow[] = [];
+    const issues: ParseIssue[] = [];
+
+    // หาแถว "ปลายทาง" ที่อยู่ขวาของตารางหลัก — หนึ่งแถว = หัวของหนึ่งบล็อก
+    //
+    // ต้องแยกให้ออกจาก "แถวข้อมูลที่ชื่อปลายทางบังเอิญมีคำว่าปลายทาง" ใช้สองข้อคู่กัน:
+    //   1. ช่องขวามือต้องมีข้อความ (ชื่อประเภทรถ เช่น 4w) — แถวข้อมูลมีแต่ตัวเลข
+    //   2. ต้องไม่มีตัวเลขที่หน้าตาเป็นค่าขนส่ง คือค่าตั้งแต่ 100 บาทขึ้นไป หรือ 0
+    //      (0 = ช่วงที่ยังไม่ตกลงราคา ต้องเก็บไว้รายงาน ไม่ใช่ตัดทิ้งเพราะนึกว่าเป็นหัวตาราง)
+    const headers: { row: number; col: number }[] = [];
+    grid.forEach((r, i) => {
+        if (!r) return;
+        for (let c = minCol; c < r.length; c++) {
+            if (!toStr(r[c]).includes('ปลายทาง')) continue;
+            const right = r.slice(c + 1);
+            const hasText = right.some(v => toStr(v) !== '' && toNum(v) === null);
+            const looksLikeData = right.some(v => {
+                const n = toNum(v);
+                return n !== null && (n === 0 || n >= MIN_FREIGHT_PRICE);
+            });
+            if (hasText && !looksLikeData) headers.push({ row: i, col: c });
+            break;
+        }
+    });
+
+    headers.forEach((h, hi) => {
+        const endRow = hi + 1 < headers.length ? headers[hi + 1].row : grid.length;
+
+        // ขอบช่วงราคาน้ำมันอยู่สองแถวเหนือหัวตาราง (แถวพื้น และแถวเพดาน)
+        const edgeRows = [h.row - 2, h.row - 1]
+            .filter(i => i >= 0)
+            .map(i => grid[i])
+            .filter(Boolean) as unknown[][];
+
+        const bandCols: { col: number; from: number; to: number }[] = [];
+        const width = Math.max(...edgeRows.map(r => r.length), (grid[h.row] || []).length, 0);
+        for (let c = h.col + 1; c < width; c++) {
+            const edges = edgeRows.map(r => toNum(r[c])).filter((x): x is number => x !== null);
+            // ต้องมีทั้งพื้นและเพดาน ถ้ามีค่าเดียวจะไม่รู้ว่าช่วงกว้างแค่ไหน — ข้าม ดีกว่าเดา
+            if (edges.length < 2) continue;
+            const from = Math.min(...edges);
+            const prev = bandCols[bandCols.length - 1];
+            if (prev && from <= prev.from) break;   // เข้าโซนตารางถัดไปแล้ว
+            bandCols.push({ col: c, from, to: Math.max(...edges) });
+        }
+
+        // ชื่อตารางอยู่ในคอลัมน์ปลายทางของแถวพื้นช่วง
+        const title = toStr(grid[h.row - 2]?.[h.col]) || toStr(grid[h.row - 1]?.[h.col]);
+        const label = title || `ตารางย่อย แถว ${h.row + 1}`;
+
+        if (bandCols.length < 2) {
+            issues.push({
+                kind: 'side-table-unreadable',
+                message: `พบตารางย่อย "${label}" (แถว ${h.row + 1} คอลัมน์ ${h.col + 1}) แต่อ่านช่วงราคาน้ำมันไม่ได้ จึงยังไม่ได้นำเข้า`,
+                rows: [],
+            });
+            return;
+        }
+
+        // ประเภทรถเขียนซ้ำทุกคอลัมน์ในแถวหัวตาราง เอาช่องแรกที่มีข้อความ
+        const truckType = bandCols.map(bc => toStr(grid[h.row]?.[bc.col])).find(Boolean) ?? '';
+
+        for (let i = h.row + 1; i < endRow; i++) {
+            const r = grid[i];
+            if (!r) continue;
+
+            const dest = toStr(r[h.col]);
+            if (!dest || dest === title) continue;   // แถวว่าง หรือแถวชื่อตารางของบล็อกถัดไป
+
+            const values = bandCols.map(bc => toNum(r[bc.col])).filter((v): v is number => v !== null);
+            // แถวตัวคูณ (0.94) และแถวขอบช่วง (30, 31.99) ของบล็อกถัดไปมีแต่เลขเล็ก ๆ ไม่ใช่ค่าขนส่ง
+            // ปล่อยแถวที่เป็น 0 ผ่านไป เพราะ 0 = ยังไม่ตกลงราคา ต้องถูกรายงาน ไม่ใช่ถูกทิ้ง
+            if (values.length && values.every(v => v > 0 && v < MIN_FREIGHT_PRICE)) continue;
+
+            rows.push({
+                seq: seqStart + rows.length,
+                company: '',        // ตารางย่อยไม่มีคอลัมน์บริษัท — ไม่เดาให้
+                origin: '',         // ไฟล์ไม่ได้ระบุต้นทางไว้
+                destination: dest,
+                truckType,
+                note: '',
+                section: label,
+                bands: bandCols.map(bc => {
+                    const v = toNum(r[bc.col]);
+                    return { fuelFrom: bc.from, fuelTo: bc.to, price: v === null ? null : cleanPrice(v) };
+                }),
+            });
+        }
+    });
+
+    return { rows, issues };
+}
+
+/**
  * อ่านไฟล์รูปแบบ "ตารางกว้าง" — หนึ่งคอลัมน์ = หนึ่งช่วงราคาน้ำมัน
  *
  * รองรับทั้งสองแบบที่หน่วยงานส่งมา:
@@ -258,6 +380,13 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
         });
     }
 
+    // ── ตารางย่อยที่วางไว้ทางขวาของตารางหลัก (ถ้ามี) ──
+    // เริ่มไล่หาจากคอลัมน์ถัดจากช่วงราคาสุดท้ายของตารางหลัก จะได้ไม่อ่านตารางหลักซ้ำ
+    const lastMainCol = bandCols[bandCols.length - 1].col;
+    const side = parseSideTables(grid, lastMainCol + 1, rows.length + 1);
+    rows.push(...side.rows);
+    issues.push(...side.issues);
+
     // ── ตรวจคุณภาพข้อมูล — รายงานอย่างเดียว ไม่แก้ให้ ──
     const decreasing: number[] = [];
     const missing: number[] = [];
@@ -288,7 +417,10 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
         }
     });
 
-    const routeKey = (r: FuelRateRow) => `${r.company}|${r.origin}|${r.destination}|${r.truckType}`;
+    // รวมชื่อตารางย่อยไว้ในกุญแจด้วย — ตารางย่อยคนละตารางมีปลายทางซ้ำกันได้ตามปกติ
+    // (คนละลูกค้า คนละใบวางบิล) ถ้าไม่แยกจะขึ้นเตือนซ้ำทั้งที่ไม่ใช่ปัญหา
+    const routeKey = (r: FuelRateRow) =>
+        `${r.section ?? ''}|${r.company}|${r.origin}|${r.destination}|${r.truckType}`;
     const byRoute = new Map<string, number[]>();
     rows.forEach((r, i) => {
         const k = routeKey(r);
@@ -298,7 +430,10 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
 
     const describe = (idx: number) => {
         const r = rows[idx];
-        return `${r.company} | ${r.origin} → ${r.destination} | ${r.truckType}`;
+        // แถวจากตารางย่อยไม่มีบริษัทและต้นทาง จึงใช้ชื่อตารางนำ เพื่อให้รู้ว่าปัญหาอยู่ตารางไหน
+        const head = r.section || r.company;
+        const route = r.origin ? `${r.origin} → ${r.destination}` : r.destination;
+        return [head, route, r.truckType].filter(Boolean).join(' | ');
     };
 
     if (zeroPriced.length) {

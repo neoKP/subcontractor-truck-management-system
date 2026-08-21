@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import * as XLSX from 'xlsx';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -124,5 +125,81 @@ describe.skipIf(!load(FILE_2))('ข้ามแถวหมายเหตุท
 describe.skipIf(!load(FILE_1))('ไฟล์ที่ 1 ไม่ได้รับผลกระทบจากตัวกรองหมายเหตุ', () => {
     it('ยังอ่านได้ 164 เส้นทางเท่าเดิม', () => {
         expect(parseFuelRateWorkbook(load(FILE_1)!).rows.length).toBe(164);
+    });
+});
+
+describe.skipIf(!load(FILE_2))('ตารางย่อย "นีโอสยาม วางบิล sunlee" ในไฟล์ที่ 2', () => {
+    const result = parseFuelRateWorkbook(load(FILE_2)!);
+    const main = result.rows.filter(r => !r.section);
+    const side = result.rows.filter(r => r.section);
+    const pick = (truck: string, dest: string) =>
+        side.find(r => r.truckType === truck && r.destination === dest)!;
+
+    it('อ่านได้ 3 บล็อก (4w / 6w / 10w) บล็อกละ 11 ปลายทาง', () => {
+        expect(main.length).toBe(38);
+        expect(side.length).toBe(33);
+        const perTruck = new Map<string, number>();
+        for (const r of side) perTruck.set(r.truckType, (perTruck.get(r.truckType) ?? 0) + 1);
+        expect([...perTruck.entries()].sort()).toEqual([['10w', 11], ['4w', 11], ['6w', 11]]);
+    });
+
+    it('ติดชื่อตารางตามที่เขียนไว้ในไฟล์', () => {
+        expect([...new Set(side.map(r => r.section))]).toEqual(['นีโอสยาม วางบิล sunlee']);
+    });
+
+    it('ช่วงราคาน้ำมัน 16 ช่วง ตั้งแต่ 30 ถึง 61.99 บาท', () => {
+        const b = side[0].bands;
+        expect(b.length).toBe(16);
+        expect(b[0]).toMatchObject({ fuelFrom: 30, fuelTo: 31.99 });
+        expect(b[15]).toMatchObject({ fuelFrom: 60, fuelTo: 61.99 });
+    });
+
+    it('ราคาตรงกับไฟล์ในจุดที่สุ่มตรวจ', () => {
+        expect(pick('4w', '7-11 บางบัวทอง').bands[0].price).toBe(2350);
+        expect(pick('6w', '7-11 บุรีรัมย์').bands[0].price).toBe(13160);
+        expect(pick('10w', '7-11 หาดใหญ่').bands[0].price).toBe(26790);
+        expect(pick('10w', '7-11 นครสวรรค์').bands[15].price).toBe(19460);
+    });
+
+    it('หาค่าขนส่งที่ราคาน้ำมันปัจจุบัน 38.39 บาทได้ครบทุกแถว', () => {
+        expect(side.every(r => findRateAt(r, 38.39) !== null)).toBe(true);
+        expect(findRateAt(pick('4w', '7-11 บางบัวทอง'), 38.39)!.price).toBe(2650);
+    });
+
+    it('ไม่เดาต้นทาง/บริษัทที่ไฟล์ไม่ได้เขียนไว้', () => {
+        expect(side.every(r => r.origin === '' && r.company === '')).toBe(true);
+    });
+
+    it('แถวของตารางหลักไม่ถูกติดชื่อตารางย่อย', () => {
+        expect(main.every(r => r.section === undefined)).toBe(true);
+        expect(main[0].bands[0].price).toBe(1880);
+    });
+
+    it('คัดลอกครบทุกช่อง ไม่ขาดไม่เกิน — เทียบกับไฟล์ Excel ตรง ๆ', () => {
+        const wb = XLSX.read(load(FILE_2)!, { type: 'array' });
+        const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], {
+            header: 1, raw: true, defval: null,
+        });
+        // โซนตารางย่อยเริ่มที่คอลัมน์ 23 (W) — ตารางหลักกว้างถึงคอลัมน์ 19 เท่านั้น
+        const inFile: number[] = [];
+        for (const r of grid) {
+            (r || []).forEach((v, c) => {
+                if (c >= 23 && typeof v === 'number' && v >= 100) inFile.push(Math.round(v * 100) / 100);
+            });
+        }
+        const parsed = side.flatMap(r => r.bands.map(b => b.price))
+            .filter((p): p is number => p !== null && p >= 100);
+
+        expect(parsed.length).toBe(inFile.length);
+        expect(parsed.reduce((a, b) => a + b, 0)).toBeCloseTo(inFile.reduce((a, b) => a + b, 0), 2);
+    });
+});
+
+describe.skipIf(!load(FILE_1))('ไฟล์ที่ 1 ไม่มีตารางย่อย', () => {
+    it('ไม่มีแถวไหนถูกติดชื่อตารางย่อย และยังได้ 164 เส้นทางเท่าเดิม', () => {
+        const result = parseFuelRateWorkbook(load(FILE_1)!);
+        expect(result.rows.length).toBe(164);
+        expect(result.rows.some(r => r.section)).toBe(false);
+        expect(result.issues.some(i => i.kind === 'side-table-unreadable')).toBe(false);
     });
 });
