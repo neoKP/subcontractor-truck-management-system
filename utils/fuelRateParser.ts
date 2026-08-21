@@ -256,7 +256,10 @@ function parseSideTables(
 
             rows.push({
                 seq: seqStart + rows.length,
-                company: '',        // ตารางย่อยไม่มีคอลัมน์บริษัท — ไม่เดาให้
+                // ตารางย่อยไม่มีคอลัมน์บริษัท ใช้ "หัวเรื่องที่เขียนไว้ในไฟล์" แทน
+                // จะได้กรอง/จับคู่ได้ และแยกจากตารางหลักที่เป็นคนละคู่สัญญา
+                // ถ้าไฟล์ไม่ได้เขียนหัวเรื่องไว้ ปล่อยว่าง — ป้ายที่ parser ตั้งเองใช้ได้แค่ section
+                company: title,
                 origin: '',         // ไฟล์ไม่ได้ระบุต้นทางไว้
                 destination: dest,
                 truckType,
@@ -314,6 +317,12 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
         }
     }
 
+    // ไฟล์ที่ไม่มีคอลัมน์ "บริษัท" (เช่น รถร่วม วสรรณ์) เขียนชื่อคู่สัญญาไว้ที่ชื่อชีตแทน
+    // เช่นชีต "รถร่วมคุณหนึ่ง" — ใช้ค่านั้นเป็นชื่อบริษัท ยกเว้นชื่อชีตเริ่มต้นของ Excel
+    // ที่ไม่ได้บอกอะไร (Sheet1 / แผ่นงาน1 / ชีต1) กรณีนั้นปล่อยว่างไว้เหมือนเดิม
+    const genericSheet = /^(sheet|worksheet|แผ่นงาน|แผ่น|ชีต|ชีท)\s*\d*$/i.test(sheetName);
+    const sheetCompany = cCompany === -1 && !genericSheet ? sheetName : '';
+
     const labelCols = Math.max(cCompany, cOrigin, cDest, cTruck, cSeq) + 1;
     const dataIdx = findFirstDataRow(grid, headerIdx + truckRowOffset, cOrigin, cDest);
     const firstBand = findFirstBandCol(grid, headerIdx, dataIdx, labelCols);
@@ -361,7 +370,7 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
         if (isNoteRow(r, origin, dest, bandCols)) continue;
 
         // บริษัทเว้นว่างในแถวถัดมา = ใช้ค่าจากแถวก่อนหน้า (merge cell ใน Excel)
-        const company = toStr(cCompany >= 0 ? r[cCompany] : '') || lastCompany;
+        const company = toStr(cCompany >= 0 ? r[cCompany] : '') || lastCompany || sheetCompany;
         if (company) lastCompany = company;
 
         const bands: RateBand[] = bandCols.map(bc => {

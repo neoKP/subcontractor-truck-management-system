@@ -3,10 +3,10 @@ import * as XLSX from 'xlsx';
 import { parseFuelRateWorkbook, findRateAt, type FuelRateRow } from './fuelRateParser';
 
 /** สร้างไฟล์ Excel ในหน่วยความจำจากตาราง 2 มิติ เพื่อทดสอบตัวอ่านจริง */
-const makeWorkbook = (rows: (string | number | null)[][]): ArrayBuffer => {
+const makeWorkbook = (rows: (string | number | null)[][], sheetName = 'Sheet1'): ArrayBuffer => {
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
     return XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
 };
 
@@ -188,9 +188,9 @@ describe('parseFuelRateWorkbook — ตารางย่อยทางขว�
         expect(side[0].truckType).toBe('6w');
     });
 
-    it('ไม่เดาต้นทางและบริษัทที่ไฟล์ไม่ได้ระบุ', () => {
+    it('ไม่เดาต้นทางที่ไฟล์ไม่ได้ระบุ แต่ใช้ชื่อตารางเป็นชื่อบริษัท', () => {
         expect(side[0].origin).toBe('');
-        expect(side[0].company).toBe('');
+        expect(side[0].company).toBe('บิลลูกค้า A');   // ชื่อที่เขียนไว้ในไฟล์ ไม่ใช่ชื่อที่คิดขึ้นเอง
     });
 
     it('เก็บราคาและช่วงน้ำมันตามไฟล์', () => {
@@ -283,5 +283,42 @@ describe('parseFuelRateWorkbook — ตารางย่อยหลายใ�
         const hit = result.issues.find(i => i.kind === 'duplicate-route');
         expect(hit).toBeDefined();
         expect(hit!.rows.length).toBe(2);
+    });
+});
+
+
+// ไฟล์บางไฟล์ไม่มีคอลัมน์ "บริษัท" แต่เขียนชื่อคู่สัญญาไว้ที่ชื่อชีต
+const NO_COMPANY_COL = [
+    [null, null, null, 29.01, 30.01],
+    ['ต้นทาง', 'ปลายทาง', 'ประเภทรถ', 30, 31],
+    ['บางปะกง', 'นครสวรรค์', '6W', 5500, 5610],
+];
+
+describe('parseFuelRateWorkbook — ชื่อบริษัทเมื่อไฟล์ไม่มีคอลัมน์บริษัท', () => {
+    it('ใช้ชื่อชีตเป็นชื่อบริษัท', () => {
+        const { rows } = parseFuelRateWorkbook(makeWorkbook(NO_COMPANY_COL, 'รถร่วมคุณหนึ่ง'));
+        expect(rows[0].company).toBe('รถร่วมคุณหนึ่ง');
+    });
+
+    it('ไม่ใช้ชื่อชีตโหลที่โปรแกรม Excel ตั้งให้เอง', () => {
+        for (const generic of ['Sheet1', 'แผ่นงาน1', 'ชีต1', 'Worksheet 2']) {
+            const { rows } = parseFuelRateWorkbook(makeWorkbook(NO_COMPANY_COL, generic));
+            expect(rows[0].company, generic).toBe('');
+        }
+    });
+
+    it('ไฟล์ที่มีคอลัมน์บริษัทอยู่แล้ว ใช้ค่าจากคอลัมน์ ไม่ใช่ชื่อชีต', () => {
+        const { rows } = parseFuelRateWorkbook(makeWorkbook(WIDE_1BAHT, 'ชื่อชีตอะไรก็ตาม'));
+        expect(rows[0].company).toBe('KNN DYNAMIC');
+    });
+
+    it('ตารางย่อยที่ไม่มีหัวเรื่อง ไม่เอาป้ายที่ระบบตั้งเองมาเป็นชื่อบริษัท', () => {
+        const rows = JSON.parse(JSON.stringify(WITH_SIDE_TABLE));
+        rows[1][12] = null;   // ลบหัวเรื่อง "บิลลูกค้า A" ออก
+        const result = parseFuelRateWorkbook(makeWorkbook(rows));
+        const side = result.rows.filter(r => r.section);
+        expect(side.length).toBeGreaterThan(0);
+        expect(side[0].company).toBe('');
+        expect(side[0].section).toContain('ตารางย่อย');   // ป้ายไว้ดูว่ามาจากตารางไหนเท่านั้น
     });
 });
