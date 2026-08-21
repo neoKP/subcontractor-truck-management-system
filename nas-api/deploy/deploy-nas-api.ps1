@@ -34,6 +34,16 @@ Get-ChildItem $Src -Filter *.txt -ErrorAction SilentlyContinue | ForEach-Object 
   Write-Warning "พบไฟล์ .txt ในโฟลเดอร์ต้นทาง: $($_.Name) — ตรวจว่าไม่มีคีย์อยู่ข้างใน"
 }
 
+
+# โดเมนของหน้าเว็บต้องเป็นค่าจริง ไม่ใช่ตัวยึด — ถ้ายังไม่ได้ใส่ การอัปโหลดจากเว็บจริง
+# จะถูกเบราว์เซอร์บล็อกทันทีหลัง deploy และจะหาสาเหตุยากเพราะข้อความที่เห็นคือ CORS error
+foreach ($f in @('upload.php', 'serve.php', 'diag.php', 'list-files.php')) {
+  $p = Join-Path $Src $f
+  if (-not (Test-Path $p)) { continue }
+  if ((Get-Content $p -Raw) -match 'REPLACE-ME') {
+    throw "$f ยังมี REPLACE-ME.vercel.app อยู่ — ต้องใส่โดเมน Vercel จริงใน `$ALLOWED_ORIGINS ก่อน deploy"
+  }
+}
 $target = "$NasUser@$NasHost"
 Write-Host "`n== ส่งไฟล์ขึ้น staging บน NAS ==" -ForegroundColor Cyan
 ssh $target "rm -rf /tmp/nas-api-deploy && mkdir -p /tmp/nas-api-deploy && chmod 700 /tmp/nas-api-deploy"
