@@ -106,8 +106,8 @@ const UserManagementView: React.FC<UserManagementViewProps> = ({
             <span class="font-mono font-bold text-slate-700 ml-2">${user.username}</span>
           </div>
           <div>
-            <label class="text-xs font-bold text-slate-500">Password (ตั้งรหัสผ่านใหม่)</label>
-            <input id="swal-password" type="text" class="swal2-input w-full m-0 mt-1" value="${user.password}">
+            <label class="text-xs font-bold text-slate-500">Password (เว้นว่างไว้ = ใช้รหัสเดิม)</label>
+            <input id="swal-password" type="password" class="swal2-input w-full m-0 mt-1" placeholder="ตั้งรหัสใหม่เฉพาะเมื่อต้องการเปลี่ยน">
           </div>
           <div>
             <label class="text-xs font-bold text-slate-500">Full Name (ชื่อ-นามสกุล)</label>
@@ -135,12 +135,14 @@ const UserManagementView: React.FC<UserManagementViewProps> = ({
                 const name = (document.getElementById('swal-name') as HTMLInputElement).value;
                 const role = (document.getElementById('swal-role') as HTMLSelectElement).value as UserRole;
 
-                if (!password || !name) {
+                if (!name) {
                     Swal.showValidationMessage('กรุณากรอกข้อมูลให้ครบถ้วน');
                     return false;
                 }
 
-                return { ...user, password, name, role };
+                // เว้นช่องรหัสผ่านไว้ = ไม่เปลี่ยน — ช่องนี้ไม่แสดงรหัสเดิมแล้ว
+                // จึงต้องคงค่าเดิมไว้เอง ไม่งั้นการแก้ชื่อจะล้างรหัสผ่านทิ้ง
+                return { ...user, password: password || user.password, name, role };
             }
         }).then((result: any) => {
             if (result.isConfirmed) {
@@ -260,8 +262,10 @@ const UserManagementView: React.FC<UserManagementViewProps> = ({
                                                 <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400">
                                                     <Key size={14} />
                                                 </div>
-                                                <code className="px-2 py-1 rounded bg-slate-50 border border-slate-100 text-xs font-mono font-bold text-slate-600 group-hover/pass:bg-white group-hover/pass:border-blue-200 transition-colors">
-                                                    {user.password}
+                                                {/* ไม่แสดงรหัสผ่านของผู้ใช้คนอื่นบนหน้าจอ — ใครเดินผ่านก็เห็นและจดไปได้
+                                                    ถ้าลืมรหัส ให้กดแก้ไขแล้วตั้งรหัสใหม่แทนการเปิดดูของเดิม */}
+                                                <code className="px-2 py-1 rounded bg-slate-50 border border-slate-100 text-xs font-mono font-bold text-slate-400 tracking-widest">
+                                                    ••••••••
                                                 </code>
                                             </div>
                                         </td>

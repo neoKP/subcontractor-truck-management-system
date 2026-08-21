@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS } from '../types';
 import { Calendar, MapPin, Package, Hash, Lock, CheckCircle, Edit3, Filter, Truck, Printer, LayoutDashboard, Receipt, XCircle, Search, Trash2, ShieldAlert, ExternalLink, TrendingUp, Activity, BarChart3, Clock, AlertCircle, User } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { ADMIN_CONFIRM_CODE } from '../constants';
 import DispatcherActionModal from './DispatcherActionModal';
 import ConfirmationModal from './ConfirmationModal';
 import JobPreviewModal from './JobPreviewModal';
@@ -746,7 +747,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
                                   cancelButtonText: 'ยกเลิก',
                                   customClass: { popup: 'rounded-[2rem]' },
                                   preConfirm: (value) => {
-                                    if (value !== 'sansan856') {
+                                    if (value !== ADMIN_CONFIRM_CODE) {
                                       Swal.showValidationMessage('รหัสผ่านไม่ถูกต้อง (Incorrect Password)');
                                     }
                                   }
@@ -936,7 +937,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
                           cancelButtonText: 'ยกเลิก',
                           customClass: { popup: 'rounded-[2rem]' },
                           preConfirm: (value) => {
-                            if (value !== 'sansan856') {
+                            if (value !== ADMIN_CONFIRM_CODE) {
                               Swal.showValidationMessage('รหัสผ่านไม่ถูกต้อง (Incorrect Password)');
                             }
                           }

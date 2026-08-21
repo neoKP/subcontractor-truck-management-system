@@ -1,7 +1,7 @@
 <?php
 /**
  * คัดลอกรูปเก่าจาก /tmp/nas-uploads → Synology Drive folder
- * รัน: https://neosiam.dscloud.biz/api/copy-to-drive.php?key=NAS_UPLOAD_KEY_sansan856
+ * รัน: https://neosiam.dscloud.biz/api/copy-to-drive.php?key=<คีย์ในไฟล์ api-key.txt>
  * ลบไฟล์นี้หลังใช้งานเสร็จ
  */
 
@@ -9,14 +9,16 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 set_time_limit(300);
 
-$API_KEY = 'NAS_UPLOAD_KEY_sansan856';
+// คีย์อ่านจากไฟล์บน NAS (api-key.php) ไม่ฝังในโค้ด — ดูคำอธิบายใน upload.php
+$KEY_FILE = __DIR__ . '/api-key.php';
+$API_KEY = is_readable($KEY_FILE) ? trim((string) @include $KEY_FILE) : '';
 $SOURCE = '/tmp/nas-uploads';
 $DEST = '/volume1/Operation/paweewat/subcontractor-truck-management';
 
 header('Content-Type: text/plain; charset=utf-8');
 
 // Auth
-if (!isset($_GET['key']) || $_GET['key'] !== $API_KEY) {
+if ($API_KEY === '' || !isset($_GET['key']) || !hash_equals($API_KEY, (string) $_GET['key'])) {
     http_response_code(401);
     echo "Unauthorized\n";
     exit;

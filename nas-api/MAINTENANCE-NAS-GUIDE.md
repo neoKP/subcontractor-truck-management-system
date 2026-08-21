@@ -15,12 +15,19 @@
 | Domain | `neosiam.dscloud.biz` |
 | Upload Endpoint | `https://neosiam.dscloud.biz/api/upload.php` |
 | Serve Endpoint | `https://neosiam.dscloud.biz/api/serve.php?file={path}` |
-| API Key | `NAS_UPLOAD_KEY_sansan856` |
+| API Key | `&lt;คีย์จากไฟล์ api-key.php บน NAS&gt;` |
 | PHP Upload Dir (NAS) | `/tmp/nas-uploads/` |
 | PHP Web Dir (NAS) | `/volume1/web/api/` |
 
+> **เปลี่ยนวิธีเก็บคีย์แล้วเมื่อ 2026-08-21** — `upload.php` ไม่ได้เขียนคีย์ไว้ในโค้ดอีกต่อไป
+> แต่อ่านจากไฟล์ `api-key.php` ที่วางไว้โฟลเดอร์เดียวกันบน NAS (ไฟล์นี้ไม่ขึ้น git)
+> วิธีสร้างดูที่ `nas-api/api-key.example.php`
+>
+> ⚠️ **upload.php ตัวนี้ใช้ร่วมกันหลายโปรเจกต์** (truck-maintenance และ subcontractor-truck-management)
+> เวลาเปลี่ยนคีย์ ต้องเปลี่ยนให้ครบทุกโปรเจกต์ที่เรียกใช้ ไม่งั้นฝั่งที่ยังใช้คีย์เก่าจะอัปโหลดไม่ได้
+>
 > ⚠️ API Key ต้องตรงกับที่กำหนดใน `/web/api/upload.php` บน NAS เสมอ
-> ปัจจุบัน upload.php ใช้ Key: `NAS_UPLOAD_KEY_sansan856`
+> ปัจจุบัน upload.php ใช้ Key: `&lt;คีย์จากไฟล์ api-key.php บน NAS&gt;`
 
 ---
 
@@ -62,7 +69,7 @@ compressImageFile(file)           ← บีบอัดเป็น WebP 800px/
 uploadToNAS(compressedFile, path) ← utils/nasUpload.ts
     ↓
 POST {BASE}/upload.php   ← BASE จะถูกเลือกอัตโนมัติ (fallback) จาก `utils/nasUpload.ts`
-    Headers: X-API-Key: NAS_UPLOAD_KEY_sansan856
+    Headers: X-API-Key: &lt;คีย์จากไฟล์ api-key.php บน NAS&gt;
     Body (FormData):
       file = [ไฟล์ WebP]
       path = "truck-maintenance/vehicle/VEH-001/1740000000_photo.webp"
@@ -85,7 +92,7 @@ NAS ส่ง URL กลับ (Dynamic ตาม host/scheme ที่เรี
 ### Endpoints และ Auth
 
 - Upload: `POST {BASE}/upload.php`
-- Headers: `X-API-Key: NAS_UPLOAD_KEY_sansan856`
+- Headers: `X-API-Key: &lt;คีย์จากไฟล์ api-key.php บน NAS&gt;`
 - Body (FormData): `file`, `path`
 - Response ตัวอย่างจริง:
 
@@ -279,7 +286,7 @@ CREATE INDEX idx_nas_files_sha ON nas_files(sha256);
 ### `utils/nasUpload.ts` (เพิ่มการ fallback endpoint + cache 10 นาที)
 
 ```typescript
-const NAS_API_KEY = import.meta.env.VITE_NAS_API_KEY || 'NAS_UPLOAD_KEY_sansan856';
+const NAS_API_KEY = import.meta.env.VITE_NAS_API_KEY || '&lt;คีย์จากไฟล์ api-key.php บน NAS&gt;';
 
 let cachedBase: string | null = null;
 const getCandidates = (): string[] => {

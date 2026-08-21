@@ -8,7 +8,13 @@
 
 const DB_URL = 'https://subtruckmanagementsystem-default-rtdb.asia-southeast1.firebasedatabase.app';
 const NAS_UPLOAD_URL = 'https://neosiam.dscloud.biz/api/upload.php';
-const NAS_API_KEY = 'NAS_UPLOAD_KEY_sansan856';
+// อ่านจาก environment เท่านั้น ไม่ฝังคีย์ในโค้ด (repo นี้เป็น public)
+// รันแบบ: NAS_API_KEY=<คีย์> node migrate-cli.mjs
+const NAS_API_KEY = process.env.NAS_API_KEY || '';
+if (!NAS_API_KEY) {
+    console.error('ต้องตั้ง NAS_API_KEY ก่อน เช่น  NAS_API_KEY=<คีย์> node migrate-cli.mjs');
+    process.exit(1);
+}
 
 const isFirebaseUrl = (url) => typeof url === 'string' && url.includes('firebasestorage.googleapis.com');
 const isNASUrl = (url) => typeof url === 'string' && url.includes('neosiam.dscloud.biz');

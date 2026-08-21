@@ -1,5 +1,21 @@
 <?php
-// แสดงรายการไฟล์ที่อัปโหลดบน NAS — ลบไฟล์นี้ทิ้งหลังใช้งาน!
+// แสดงรายการไฟล์ที่อัปโหลดบน NAS — เครื่องมือของผู้ดูแลระบบเท่านั้น
+//
+// เดิมเปิดให้ใครเปิด URL นี้ก็เห็นรายการไฟล์ทั้งหมด รวมรูป POD ของงานจริง
+// พร้อมลิงก์เปิดดูได้ทันที โดยไม่ต้องยืนยันตัวตนเลย
+// ตอนนี้ต้องแนบคีย์มาด้วย: list-files.php?key=<คีย์เดียวกับ upload.php>
+// คีย์อ่านจากไฟล์บน NAS (api-key.php) ไม่ฝังในโค้ด — ดูคำอธิบายใน upload.php
+$KEY_FILE = __DIR__ . '/api-key.php';
+$API_KEY = is_readable($KEY_FILE) ? trim((string) @include $KEY_FILE) : '';
+
+$key = isset($_GET['key']) ? $_GET['key'] : '';
+if ($API_KEY === '' || !hash_equals($API_KEY, $key)) {
+    http_response_code(401);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Unauthorized';
+    exit;
+}
+
 header('Content-Type: text/html; charset=utf-8');
 
 $dir = '/tmp/nas-uploads';

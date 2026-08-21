@@ -1,7 +1,17 @@
 // NAS Upload Utility — อัปโหลดไฟล์ไป Synology NAS ผ่าน PHP API
 // แทนที่ Firebase Storage
 
-const NAS_API_KEY = 'NAS_UPLOAD_KEY_sansan856';
+/**
+ * คีย์สำหรับเรียก NAS — อ่านจาก environment ไม่ฝังในโค้ดอีกแล้ว
+ *
+ * ที่ต้องเข้าใจให้ตรงกัน: ตัวแปรที่ขึ้นต้นด้วย VITE_ จะถูกฝังลงไฟล์ JS ตอน build
+ * ดังนั้น **ผู้ใช้ที่เปิดหน้าเว็บยังอ่านคีย์นี้ได้อยู่** การย้ายมาที่นี่แก้ได้แค่
+ * "ไม่ให้คีย์อยู่ใน GitHub สาธารณะ" เท่านั้น ไม่ได้ทำให้คีย์เป็นความลับจริง
+ * ความลับจริงเกิดขึ้นเมื่อย้ายการอัปโหลดไปหลัง Cloud Function (ระยะที่ 4 ของแผนความปลอดภัย)
+ *
+ * ตั้งค่าที่ไฟล์ .env (เครื่องตัวเอง) และที่ Netlify environment variables (ตอน deploy)
+ */
+const NAS_API_KEY = import.meta.env.VITE_NAS_API_KEY ?? '';
 
 let cachedBase: string | null = null;
 
@@ -68,6 +78,11 @@ export const uploadToNAS = async (
     fileOrBlob: File | Blob,
     path: string
 ): Promise<string> => {
+    // ล้มให้ชัดตั้งแต่ต้น ดีกว่าปล่อยไปแล้วได้ 401 จาก NAS ซึ่งอ่านไม่ออกว่าเกิดอะไรขึ้น
+    if (!NAS_API_KEY) {
+        throw new Error('ยังไม่ได้ตั้งค่า VITE_NAS_API_KEY — ใส่ในไฟล์ .env (เครื่องตัวเอง) หรือ environment variables ของ Netlify ก่อนใช้งานการอัปโหลดไฟล์');
+    }
+
     const formData = new FormData();
     formData.append('file', fileOrBlob, path.split('/').pop() || 'file');
     formData.append('path', path);

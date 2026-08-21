@@ -8,7 +8,7 @@ import Header from './components/Header';
 import BillingView from './components/BillingView';
 import PricingTableView from './components/PricingTableView';
 import LoginPage from './components/LoginPage';
-import { PRICE_MATRIX } from './constants';
+import { PRICE_MATRIX, ADMIN_CONFIRM_CODE } from './constants';
 import AccountingReportsView from './components/AccountingReportsView';
 import AccountingVerificationView from './components/AccountingVerificationView';
 import UserManagementView from './components/UserManagementView';
@@ -808,7 +808,7 @@ const App: React.FC = () => {
                         customClass: { popup: 'rounded-[1.5rem]', input: 'rounded-xl' },
                         inputValidator: (value: string) => { if (!value) return 'กรุณาใส่รหัสผ่าน'; return null; }
                       });
-                      if (password === 'sansan856') {
+                      if (password === ADMIN_CONFIRM_CODE) {
                         setShowMigrationTool(true);
                       } else if (password) {
                         Swal.fire({

@@ -20,9 +20,17 @@ const DB_URL =
   process.env.RTDB_URL ||
   'https://subtruckmanagementsystem-default-rtdb.asia-southeast1.firebasedatabase.app';
 const NAS_BASE = process.env.NAS_BASE || 'https://neosiam.dscloud.biz/api';
-const NAS_API_KEY = process.env.NAS_API_KEY || 'NAS_UPLOAD_KEY_sansan856';
+// อ่านจาก environment เท่านั้น ไม่ฝังคีย์ในโค้ด (repo นี้เป็น public)
+// รันแบบ: NAS_API_KEY=<คีย์> node scripts/migrateDropPodImages.mjs
+const NAS_API_KEY = process.env.NAS_API_KEY || '';
 
 const APPLY = process.argv.includes('--apply');
+// โหมดดูอย่างเดียว (ไม่มี --apply) ไม่ได้อัปโหลดอะไร จึงไม่ต้องมีคีย์
+// จะบังคับเฉพาะตอนสั่งเขียนจริง คนจะได้ลองดูผลก่อนได้โดยไม่ต้องหาคีย์มาก่อน
+if (APPLY && !NAS_API_KEY) {
+    console.error('โหมด --apply ต้องตั้ง NAS_API_KEY ก่อน เช่น  NAS_API_KEY=<คีย์> node scripts/migrateDropPodImages.mjs --apply');
+    process.exit(1);
+}
 const isData = (v) => typeof v === 'string' && v.startsWith('data:');
 const mb = (n) => (n / 1024 / 1024).toFixed(2);
 

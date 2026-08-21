@@ -2,7 +2,28 @@
 // Diagnostic v2 — ค้นหา path จริงบน NAS
 // ลบไฟล์นี้ทิ้งหลังใช้งาน!
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+// CORS — ตอบเฉพาะโดเมนที่รู้จัก (กันเบราว์เซอร์เว็บอื่นเรียกแทนผู้ใช้)
+$ALLOWED_ORIGINS = array(
+    'http://localhost:3000',
+    'http://192.168.1.82',
+    'https://neosiam.dscloud.biz',
+    // ⚠️ ก่อน deploy ขึ้นใช้งานจริง ต้องเพิ่มโดเมนของหน้าเว็บที่นี่ด้วย ให้ตรงกับ upload.php
+);
+$origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
+// เว็บจริงโฮสต์บน Netlify (ดู netlify.toml) แต่ยังไม่ได้ระบุชื่อไซต์ไว้ในโปรเจกต์
+// จึงยอมรับ *.netlify.app ไว้ก่อน ไม่งั้นการอัปโหลดรูป POD จากเว็บจริงจะพังทันทีที่ deploy
+// เมื่อรู้ชื่อโดเมนแน่นอนแล้ว ให้ใส่ในรายการข้างบนแล้วลบเงื่อนไขนี้ทิ้ง
+$isNetlify = (bool) preg_match('#^https://[a-z0-9-]+\.netlify\.app$#i', $origin);
+// เครื่องนักพัฒนา: ยอมทุกพอร์ตของ localhost/127.0.0.1
+// (vite.config ตั้งไว้ 3000 แต่ถ้าพอร์ตชนจะเลื่อนเป็น 3001 เอง และ 127.0.0.1 นับเป็นคนละ origin)
+$isLocalDev = (bool) preg_match('#^http://(localhost|127\.0\.0\.1)(:[0-9]+)?$#i', $origin);
+// เครื่องในวงแลนเดียวกัน เช่น เปิดเว็บจากมือถือเพื่อถ่ายรูป POD (http://192.168.x.x:3000)
+// ยอมเฉพาะช่วง IP ส่วนตัวเท่านั้น เว็บสาธารณะยังเรียกไม่ได้
+$isPrivateLan = (bool) preg_match('#^http://(10\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+|192\.168\.[0-9.]+)(:[0-9]+)?$#', $origin);
+if (in_array($origin, $ALLOWED_ORIGINS, true) || $isNetlify || $isLocalDev || $isPrivateLan) {
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Vary: Origin');
+}
 
 // ค้นหาทุก path ที่เป็นไปได้
 $dirs = array(

@@ -479,7 +479,7 @@ const url = await uploadToNAS(file, 'project-c/avatars/user123.webp');
 ### Endpoints และ Auth
 
 - Upload: `POST {BASE}/upload.php`
-- Headers: `X-API-Key: NAS_UPLOAD_KEY_sansan856`
+- Headers: `X-API-Key: &lt;คีย์จากไฟล์ api-key.php บน NAS&gt;`
 - Body (FormData): `file`, `path`
 - Response ตัวอย่างจริง:
 

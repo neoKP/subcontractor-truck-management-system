@@ -5,7 +5,13 @@
  */
 
 // ===== CONFIG =====
-$API_KEY = 'NAS_UPLOAD_KEY_sansan856';
+// คีย์อ่านจากไฟล์ที่วางไว้บน NAS เท่านั้น ไม่ฝังในโค้ดแล้ว (repo นี้เป็น public)
+//
+// ทำไมเป็นไฟล์ .php ไม่ใช่ .txt: ไฟล์นี้อยู่ในโฟลเดอร์เว็บ ถ้าเป็น .txt ใครก็เปิด
+// https://<โดเมน>/api/api-key.txt แล้วโหลดคีย์ไปตรง ๆ ได้ ส่วน .php จะถูกรันไม่ใช่ถูกส่ง
+// ตัวไฟล์มีแค่บรรทัดเดียว: <?php return 'คีย์'; · ดูวิธีทำที่ api-key.example.php
+$KEY_FILE = __DIR__ . '/api-key.php';
+$API_KEY = is_readable($KEY_FILE) ? trim((string) @include $KEY_FILE) : '';
 $UPLOAD_DIR = '/tmp/nas-uploads';
 $PROJECT_KEY = 'subcontractor-truck-management';
 // Build BASE_URL dynamically based on the request scheme and host so that the returned
@@ -22,7 +28,31 @@ $MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 $ALLOWED_TYPES = array('image/webp', 'image/jpeg', 'image/jpg', 'image/png', 'image/x-png', 'image/pjpeg', 'image/gif', 'application/pdf', 'application/octet-stream');
 
 // ===== CORS =====
-header('Access-Control-Allow-Origin: *');
+// ตอบเฉพาะโดเมนที่รู้จัก · CORS กันได้แค่เบราว์เซอร์ ไม่กัน curl หรือสคริปต์
+// ด่านที่กันได้จริงคือ API key ด้านล่าง — ตอน deploy ขึ้นโดเมนจริงต้องเพิ่มโดเมนนั้นที่นี่
+$ALLOWED_ORIGINS = array(
+    'http://localhost:3000',
+    'http://192.168.1.82',
+    'https://neosiam.dscloud.biz',
+    // ⚠️ ก่อน deploy ขึ้นใช้งานจริง ต้องเพิ่มโดเมนของหน้าเว็บที่นี่ด้วย
+    // (เช่น 'https://ชื่อไซต์.netlify.app') ไม่งั้นการอัปโหลดรูป POD จากเครื่องผู้ใช้จะถูกบล็อก
+    // ต้องเพิ่มให้ครบทั้ง upload.php · serve.php · diag.php
+);
+$origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
+// เว็บจริงโฮสต์บน Netlify (ดู netlify.toml) แต่ยังไม่ได้ระบุชื่อไซต์ไว้ในโปรเจกต์
+// จึงยอมรับ *.netlify.app ไว้ก่อน ไม่งั้นการอัปโหลดรูป POD จากเว็บจริงจะพังทันทีที่ deploy
+// เมื่อรู้ชื่อโดเมนแน่นอนแล้ว ให้ใส่ในรายการข้างบนแล้วลบเงื่อนไขนี้ทิ้ง
+$isNetlify = (bool) preg_match('#^https://[a-z0-9-]+\.netlify\.app$#i', $origin);
+// เครื่องนักพัฒนา: ยอมทุกพอร์ตของ localhost/127.0.0.1
+// (vite.config ตั้งไว้ 3000 แต่ถ้าพอร์ตชนจะเลื่อนเป็น 3001 เอง และ 127.0.0.1 นับเป็นคนละ origin)
+$isLocalDev = (bool) preg_match('#^http://(localhost|127\.0\.0\.1)(:[0-9]+)?$#i', $origin);
+// เครื่องในวงแลนเดียวกัน เช่น เปิดเว็บจากมือถือเพื่อถ่ายรูป POD (http://192.168.x.x:3000)
+// ยอมเฉพาะช่วง IP ส่วนตัวเท่านั้น เว็บสาธารณะยังเรียกไม่ได้
+$isPrivateLan = (bool) preg_match('#^http://(10\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+|192\.168\.[0-9.]+)(:[0-9]+)?$#', $origin);
+if (in_array($origin, $ALLOWED_ORIGINS, true) || $isNetlify || $isLocalDev || $isPrivateLan) {
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Vary: Origin');
+}
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
 header('Content-Type: application/json; charset=utf-8');
@@ -33,8 +63,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // ===== AUTH =====
+if ($API_KEY === '') {
+    // ห้ามตั้ง http_response_code ที่ไม่ใช่ 200 — Nginx ของ Synology จะแทน response
+    // ด้วยหน้า error ของตัวเอง ทำให้ CORS header หายและเบราว์เซอร์เห็นเป็น CORS error
+    // แทนข้อความจริง (ดู nas-api/NAS-UPLOAD-GUIDE.md ข้อ 2)
+    echo json_encode(array('success' => false, 'error' => 'Server key not configured (api-key.php)'));
+    exit;
+}
 $apiKey = isset($_SERVER['HTTP_X_API_KEY']) ? $_SERVER['HTTP_X_API_KEY'] : '';
-if ($apiKey !== $API_KEY) {
+if (!hash_equals($API_KEY, $apiKey)) {
     echo json_encode(array('success' => false, 'error' => 'Unauthorized'));
     exit;
 }
@@ -45,73 +82,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// ===== PROXY DOWNLOAD MODE =====
-// ถ้าส่ง FormData มี action=proxy_download → download จาก URL แล้วบันทึกลง NAS
-if (isset($_POST['action']) && $_POST['action'] === 'proxy_download' && isset($_POST['sourceUrl']) && isset($_POST['path'])) {
-    $sourceUrl = $_POST['sourceUrl'];
-    $destPath = preg_replace('/[^a-zA-Z0-9_\-\/\.]/', '_', $_POST['path']);
-
-    $ctx = stream_context_create(array(
-        'http' => array('timeout' => 30, 'follow_location' => true),
-        'ssl' => array('verify_peer' => false, 'verify_peer_name' => false)
-    ));
-    $fileData = @file_get_contents($sourceUrl, false, $ctx);
-
-    if ($fileData === false) {
-        echo json_encode(array('success' => false, 'error' => 'Download failed from source URL'));
-        exit;
-    }
-
-    $dlType = 'application/octet-stream';
-    if (isset($http_response_header)) {
-        foreach ($http_response_header as $h) {
-            if (stripos($h, 'Content-Type:') === 0) {
-                $dlType = trim(substr($h, 13));
-                break;
-            }
-        }
-    }
-
-    $fullPath = $UPLOAD_DIR . '/' . $destPath;
-    $dir = dirname($fullPath);
-    if (!is_dir($dir)) mkdir($dir, 0755, true);
-
-    if (file_put_contents($fullPath, $fileData) === false) {
-        echo json_encode(array('success' => false, 'error' => 'Failed to save file'));
-        exit;
-    }
-
-    $sha256 = @hash_file('sha256', $fullPath);
-    $parts = explode('/', $destPath);
-    $kind = isset($parts[0]) ? $parts[0] : '';
-    $jobId = ($kind === 'pod-images' && isset($parts[1])) ? $parts[1] : null;
-    $publicUrl = $BASE_URL . '/' . $destPath;
-
-    $meta = array(
-        'project' => $PROJECT_KEY,
-        'kind' => $kind,
-        'jobId' => $jobId,
-        'originalName' => basename($destPath),
-        'mime' => $dlType,
-        'size' => strlen($fileData),
-        'sha256' => $sha256 ? $sha256 : '',
-        'createdAt' => gmdate('c'),
-        'serveUrl' => $publicUrl,
-        'source' => 'proxy_download'
-    );
-    $metaPath = preg_replace('/\.[^.]+$/', '', $fullPath) . '.json';
-    @file_put_contents($metaPath, json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-
-    echo json_encode(array(
-        'success' => true,
-        'url' => $publicUrl,
-        'path' => $destPath,
-        'size' => strlen($fileData),
-        'type' => $dlType,
-        'sha256' => $sha256 ? $sha256 : ''
-    ));
-    exit;
-}
+// ===== โหมด proxy_download ถูกถอดออกแล้ว (2026-08-21) =====
+// เดิมโหมดนี้รับ URL อะไรก็ได้จากผู้เรียก แล้วให้ NAS ไปดึงไฟล์จาก URL นั้นมาเก็บ
+// โดยปิดการตรวจใบรับรอง SSL ด้วย (verify_peer = false)
+// ผลคือใครมีคีย์ก็สั่งให้ NAS ยิงไปที่เครื่องใดก็ได้ในวงแลนแทนตัวเอง (SSRF)
+// ตรวจแล้วว่าไม่มีโค้ดฝั่งเว็บเรียกโหมดนี้เลย จึงถอดออกทั้งก้อน ไม่ใช่แค่ปิดไว้
+// ถ้าวันหนึ่งต้องใช้จริง ให้ทำเป็น allowlist ของโดเมนต้นทาง และเปิด verify_peer เสมอ
 
 if (!isset($_FILES['file'])) {
     echo json_encode(array('success' => false, 'error' => 'No file uploaded'));

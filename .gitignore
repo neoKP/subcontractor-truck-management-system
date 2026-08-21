@@ -47,3 +47,6 @@ Excel/
 # AI session transcripts (local only, and Tailwind scans them otherwise)
 .claude-code-history/
 .codex-history/
+
+# คีย์ของ NAS API — อยู่บน NAS เท่านั้น ห้ามขึ้น git (ดู nas-api/api-key.example.txt)
+nas-api/api-key.php
