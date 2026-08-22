@@ -360,12 +360,52 @@ const App: React.FC = () => {
   };
 
   // Invoice handlers
-  const handleCreateInvoice = (invoice: SubcontractorInvoice) => {
-    set(ref(db, `invoices/${invoice.id}`), invoice);
+  /**
+   * ออกใบแจ้งหนี้ — ต้องทำเครื่องหมายบนใบงานด้วย
+   *
+   * เดิมเขียนแค่ใบแจ้งหนี้ ใบงานยังอยู่สถานะเดิม จึงโผล่ให้ออกใบซ้ำได้อีก
+   * ทั้งในหน้านี้และในแท็บ "รอวางบิล" ของหน้า Billing = นับเงินสองรอบ
+   */
+  const handleCreateInvoice = async (invoice: SubcontractorInvoice) => {
+    await set(ref(db, `invoices/${invoice.id}`), invoice);
+
+    const inInvoice = new Set(invoice.jobIds || []);
+    await Promise.all(
+      jobs.filter(j => inInvoice.has(j.id)).map(j =>
+        set(ref(db, `jobs/${j.id}`), cleanJob({
+          ...j,
+          status: JobStatus.BILLED,
+          billingDocNo: invoice.invoiceNo,
+          // ต้องมีวันที่ด้วย ไม่งั้นตอนเปิดใบซ้ำจะใช้วันที่ปัจจุบันแทนวันที่ออกเอกสารจริง
+          billingDate: invoice.createdAt,
+          // ผูกกับใบแจ้งหนี้ เพื่อกันไม่ให้ไปจ่ายซ้ำที่หน้า Billing ซึ่งไม่รู้จักรายการหัก
+          subcontractorInvoiceId: invoice.id,
+        }))
+      )
+    );
   };
 
-  const handleUpdateInvoice = (invoice: SubcontractorInvoice) => {
-    set(ref(db, `invoices/${invoice.id}`), invoice);
+  /**
+   * อัปเดตใบแจ้งหนี้ — เมื่อจ่ายแล้วต้องปิดงานในใบด้วย
+   *
+   * ถ้าไม่ปิด งานจะยังโผล่ในแท็บ "รอจ่าย" ของหน้า Billing ให้จ่ายซ้ำได้อีกรอบ
+   */
+  const handleUpdateInvoice = async (invoice: SubcontractorInvoice) => {
+    await set(ref(db, `invoices/${invoice.id}`), invoice);
+
+    if (invoice.status !== InvoiceStatus.PAID) return;
+
+    const inInvoice = new Set(invoice.jobIds || []);
+    await Promise.all(
+      jobs.filter(j => inInvoice.has(j.id)).map(j =>
+        set(ref(db, `jobs/${j.id}`), cleanJob({
+          ...j,
+          accountingStatus: AccountingStatus.PAID,
+          paymentDate: invoice.paidDate,
+          paymentSlipUrl: invoice.paymentSlipUrl,
+        }))
+      )
+    );
   };
   const stripUndefinedDeep = (v: any): any => {
     if (Array.isArray(v)) return v.map(stripUndefinedDeep);

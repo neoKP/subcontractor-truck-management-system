@@ -5,6 +5,7 @@ import { X, Printer, CheckCircle, Receipt, Calendar, FileText, MapPin, Download,
 import { generateInvoicePDFBlob, downloadInvoicePDF } from './InvoicePDF';
 import Swal from 'sweetalert2';
 import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
+import { splitProportionally } from '../utils/invoiceMath';
 
 /**
  * Helper: Converts a number to Thai Baht text.
@@ -235,12 +236,22 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
             reverseButtons: true
         }).then((result) => {
             if (result.isConfirmed) {
-                const updatedJobs = jobs.map(j => ({
+                // เก็บยอดที่พิมพ์ในเอกสารไว้ด้วย — ไม่งั้นตอนจ่ายจะดึงยอดคนละชุดมาใช้
+                // แบ่งภาษีตามสัดส่วนโดยยกเศษให้แถวสุดท้าย ผลรวมจึงตรงกับเอกสารเป๊ะ
+                const weights = jobs.map(j => (Number(j.cost) || 0) + (Number(j.extraCharge) || 0));
+                const vatParts = splitProportionally(vatAmount, weights);
+                const whtParts = splitProportionally(whtAmount, weights);
+                const netParts = splitProportionally(netTotal, weights);
+                const updatedJobs = jobs.map((j, i) => ({
                     ...j,
                     status: JobStatus.BILLED,
                     billingDocNo: documentNumber,
                     billingDate: issueDate.toISOString(),
-                    referenceNo: referenceNo
+                    referenceNo: referenceNo,
+                    billingSubtotal: roundHalfUp(weights[i]),
+                    billingVatAmount: vatParts[i],
+                    billingWhtAmount: whtParts[i],
+                    billingNetTotal: netParts[i],
                 }));
                 onBatchConfirm(updatedJobs);
 

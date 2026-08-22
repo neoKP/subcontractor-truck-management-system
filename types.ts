@@ -119,6 +119,26 @@ export interface Job {
   isBaseCostLocked?: boolean;
   billingDate?: string;
   billingDocNo?: string;
+
+  /**
+   * ยอดบนใบวางบิล ณ ตอนที่ออกเอกสาร
+   *
+   * ใบวางบิลคำนวณ VAT และภาษีหัก ณ ที่จ่ายให้ดูบนหน้าจอ แต่เดิมไม่ได้เก็บไว้เลย
+   * ตอนจ่ายจึงไปดึงยอดจาก cost + extraCharge ซึ่งเป็นคนละตัวเลขกับที่พิมพ์ในใบ
+   * เก็บไว้เพื่อให้ตรวจย้อนได้ว่าเอกสารที่ส่งไปเขียนยอดเท่าไหร่
+   */
+  billingSubtotal?: number;
+  billingVatAmount?: number;
+  billingWhtAmount?: number;
+  billingNetTotal?: number;
+  /**
+   * รหัสใบแจ้งหนี้รถร่วมที่งานนี้ถูกรวมอยู่ (หน้า "จ่ายเงิน")
+   *
+   * ใบแจ้งหนี้มีรายการหักระดับใบ (ค่าปรับ ค่าน้ำมันเบิกล่วงหน้า ฯลฯ) ซึ่งการจ่าย
+   * รายใบงานในหน้า Billing ไม่รู้จัก ถ้าปล่อยให้จ่ายได้ทั้งสองทาง จะได้ทั้งจ่ายเกิน
+   * (ไม่หัก) และจ่ายซ้ำ (ใบแจ้งหนี้ยังค้างสถานะรอจ่าย) — จึงใช้ฟิลด์นี้กันไว้
+   */
+  subcontractorInvoiceId?: string;
   paymentDate?: string;
   paymentSlipUrl?: string;
 

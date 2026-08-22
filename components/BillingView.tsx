@@ -8,6 +8,7 @@ import PaymentModal from './PaymentModal';
 import BillingFinancialDashboard from './BillingFinancialDashboard';
 import { Download, CreditCard, FileText } from 'lucide-react';
 import { uploadFileToStorage } from '../utils/firebaseStorage';
+import { isPayableFromBilling, resolvePaymentTargets } from '../utils/invoiceMath';
 
 interface BillingViewProps {
   jobs: Job[];
@@ -83,7 +84,12 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
 
     } else if (viewTab === 'TO_PAY') {
       // Tab 3: TO PAY - Show only BILLED jobs that haven't been PAID yet
-      return j.status === JobStatus.BILLED && j.accountingStatus !== AccountingStatus.PAID && j.accountingStatus !== AccountingStatus.LOCKED;
+      //
+      // งานที่ถูกรวมอยู่ในใบแจ้งหนี้รถร่วมแล้ว ต้องจ่ายที่หน้า "จ่ายเงิน" ทางเดียว
+      // เพราะใบแจ้งหนี้มีรายการหักระดับใบที่การจ่ายรายงานตรงนี้ไม่รู้จัก
+      // ถ้าจ่ายจากตรงนี้จะได้ทั้งจ่ายเกิน (ไม่หัก) และใบแจ้งหนี้ยังค้างให้จ่ายซ้ำได้อีก
+      return j.status === JobStatus.BILLED && isPayableFromBilling(j)
+        && j.accountingStatus !== AccountingStatus.PAID && j.accountingStatus !== AccountingStatus.LOCKED;
 
     } else {
       // Tab 4: PAID - Show only jobs that have been PAID or LOCKED
@@ -285,7 +291,29 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
   };
 
   const handleConfirmPayment = async (date: string, file: File | null) => {
-    console.log('🔵 PAYMENT STARTED:', { jobCount: paymentTargetJobs.length, jobIds: paymentTargetJobs.map(j => j.id), date });
+    // อ่านใบงานฉบับล่าสุดก่อนบันทึกเสมอ — ไม่ใช้ snapshot ตอนที่กดเลือก
+    //
+    // หน้าต่างนี้เปิดค้างไว้ได้นาน ระหว่างนั้นอาจมีคนออกใบแจ้งหนี้ให้งานเดียวกัน
+    // (ซึ่งต้องไปจ่ายที่หน้า "จ่ายเงิน" เพราะมีรายการหักระดับใบ) หรือแก้ค่าจ้าง
+    // ถ้าบันทึกจากข้อมูลเก่า จะได้ทั้งจ่ายซ้ำและเขียนทับค่าที่คนอื่นเพิ่งแก้
+    const { payable, blocked, missingIds } = resolvePaymentTargets<Job>(paymentTargetJobs, jobs);
+
+    if (blocked.length || missingIds.length) {
+      const msgs: string[] = [];
+      if (blocked.length) {
+        const list = blocked.map(j => `${j.id} (${j.billingDocNo || j.subcontractorInvoiceId})`).join(', ');
+        msgs.push(`งานต่อไปนี้อยู่ในใบแจ้งหนี้รถร่วมแล้ว ต้องจ่ายที่หน้า "จ่ายเงิน" เพื่อให้หักรายการต่าง ๆ ถูกต้อง: ${list}`);
+      }
+      if (missingIds.length) {
+        msgs.push(`ไม่พบใบงานเหล่านี้ในระบบแล้ว: ${missingIds.join(', ')}`);
+      }
+      alert(msgs.join('\n\n'));
+      setShowPaymentModal(false);
+      setPaymentTargetJobs([]);
+      return;
+    }
+
+    console.log('🔵 PAYMENT STARTED:', { jobCount: payable.length, jobIds: payable.map(j => j.id), date });
     let slipUrl = '';
     if (file) {
       // Upload to Firebase Storage (instead of Base64 in DB)
@@ -300,7 +328,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
 
     const logs: AuditLog[] = [];
 
-    paymentTargetJobs.forEach(job => {
+    payable.forEach(job => {
       console.log(`🔄 Processing Job ${job.id}: Current status=${job.status}, AccStatus=${job.accountingStatus}`);
 
       const updatedJob: Job = {
@@ -340,7 +368,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
     (window as any).Swal.fire({
       icon: 'success',
       title: 'บันทึกสำเร็จ!',
-      text: `บันทึกการจ่ายเงินสำหรับ ${paymentTargetJobs.length} รายการเรียบร้อยแล้ว`,
+      text: `บันทึกการจ่ายเงินสำหรับ ${payable.length} รายการเรียบร้อยแล้ว`,
       timer: 2000,
       showConfirmButton: false
     });
@@ -830,7 +858,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
                         )}
 
                         {/* Payment Actions - Show in TO_PAY tab */}
-                        {viewTab === 'TO_PAY' && job.status === JobStatus.BILLED && job.accountingStatus !== AccountingStatus.PAID && job.accountingStatus !== AccountingStatus.LOCKED && (
+                        {viewTab === 'TO_PAY' && job.status === JobStatus.BILLED && isPayableFromBilling(job) && job.accountingStatus !== AccountingStatus.PAID && job.accountingStatus !== AccountingStatus.LOCKED && (
                           <button
                             onClick={() => handleOpenPaymentModal([job])}
                             className="px-6 py-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 flex flex-col items-center gap-1 min-w-[120px]"
