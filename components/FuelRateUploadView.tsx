@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Upload, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2,
     History, RotateCcw, Trash2, Info, Download,
@@ -7,12 +7,13 @@ import Swal from 'sweetalert2';
 import { parseFuelRateWorkbook, findRateAt, type ParseResult } from '../utils/fuelRateParser';
 import {
     saveFuelRateVersion, listFuelRateVersions, activateFuelRateVersion,
-    deleteFuelRateVersion, type FuelRateVersionMeta,
+    deleteFuelRateVersion, loadActiveFuelRates, type FuelRateVersionMeta,
 } from '../utils/fuelRateStore';
 import { buildFuelRateTemplate, checkAgainstMaster, TEMPLATE_VERSION } from '../utils/fuelRateTemplate';
 import { downloadWorkbook } from '../utils/excelReport';
 import { MASTER_DATA } from '../constants';
 import { useOilPrice } from '../utils/useOilPrice';
+import { diffFuelRates, type RateDiff, type RowStatus } from '../utils/fuelRateDiff';
 
 interface Props {
     /** ชื่อผู้ใช้ที่ล็อกอินอยู่ — บันทึกไว้ว่าใครอัปโหลด */
@@ -49,6 +50,13 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
     const [fileName, setFileName] = useState('');
     const [note, setNote] = useState('');
     const [error, setError] = useState('');
+    const [diff, setDiff] = useState<RateDiff | null>(null);
+    // ยังเทียบกับรุ่นเดิมไม่เสร็จ — ปุ่มบันทึกต้องรอ ไม่งั้นกดเร็ว ๆ จะข้ามคำเตือน
+    // "เส้นทางหายไป" ซึ่งเป็นตัวกันไม่ให้เรทที่ใช้อยู่หายไปเงียบ ๆ
+    const [diffLoading, setDiffLoading] = useState(false);
+    // ลำดับคำขออ่านไฟล์ — ถ้าผู้ใช้เลือกไฟล์ใหม่ระหว่างที่ของเดิมยังโหลดไม่เสร็จ
+    // ผลของไฟล์เก่าต้องถูกทิ้ง ไม่งั้นคำเตือน "เส้นทางหายไป" จะเป็นของไฟล์ผิด
+    const parseSeq = useRef(0);
 
     const [versions, setVersions] = useState<FuelRateVersionMeta[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
@@ -70,14 +78,23 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
     useEffect(() => { void refreshVersions(); }, [refreshVersions]);
 
     const handleFile = useCallback(async (file: File) => {
+        // เพิ่มลำดับก่อนตรวจอะไรทั้งสิ้น — การเลือกไฟล์ใหม่ต้องยกเลิกผลของไฟล์เก่าเสมอ
+        // แม้ไฟล์ใหม่จะผิดนามสกุล ไม่งั้นผลของไฟล์เก่าจะมาทับข้อความ error
+        const seq = ++parseSeq.current;
         if (!/\.xlsx?$/i.test(file.name)) {
             setError('รองรับเฉพาะไฟล์ Excel (.xlsx หรือ .xls) เท่านั้น');
             setPreview(null);
+            setDiff(null);
+            // ต้องล้างสถานะกำลังโหลดเอง — คำขอก่อนหน้าถูกยกเลิกไปแล้ว
+            // finally ของมันจึงไม่ล้างให้ ปล่อยไว้หน้าจะค้างหมุนตลอด
+            setParsing(false);
+            setDiffLoading(false);
             return;
         }
         setParsing(true);
         setError('');
         setPreview(null);
+        setDiff(null);
         try {
             const buf = await file.arrayBuffer();
             const result = parseFuelRateWorkbook(buf);
@@ -87,15 +104,30 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
             }
             // ไฟล์ที่กรอกจากแบบฟอร์มของเราควรใช้ชื่อชุดเดียวกับระบบ จึงตรวจให้ตั้งแต่ตอนพรีวิว
             // ไฟล์ต้นฉบับของหน่วยงานไม่ตรวจ เพราะเขาใช้ชื่อคนละชุด จะเตือนทุกแถวจนอ่านไม่รู้เรื่อง
+            if (seq !== parseSeq.current) return;   // มีไฟล์ใหม่เข้ามาแล้ว ทิ้งผลนี้
+            setDiffLoading(true);
             const nameIssues = result.isTemplate ? checkAgainstMaster(result.rows, MASTER_DATA) : [];
             setPreview({ ...result, issues: [...result.issues, ...nameIssues] });
             setFileName(file.name);
+
+            // เทียบกับรุ่นที่ใช้อยู่ ให้เห็นก่อนกดบันทึกว่าไฟล์นี้เพิ่ม/แก้/ลบอะไร
+            // การบันทึกตั้งรุ่นใหม่เป็นรุ่นใช้งานทันที ถ้าไฟล์ขาดเส้นทางไปโดยไม่รู้ตัว
+            // งานเส้นทางนั้นจะหาเรทไม่เจอตั้งแต่วินาทีที่กดบันทึก
+            try {
+                const active = await loadActiveFuelRates();
+                if (seq !== parseSeq.current) return;
+                setDiff(diffFuelRates(result.rows, active?.rows ?? null, live.diesel));
+            } catch {
+                if (seq === parseSeq.current) setDiff(null);   // เทียบไม่ได้ก็ยังอัปโหลดได้
+            } finally {
+                if (seq === parseSeq.current) setDiffLoading(false);
+            }
         } catch (e) {
-            setError((e as Error).message || 'อ่านไฟล์ไม่สำเร็จ');
+            if (seq === parseSeq.current) setError((e as Error).message || 'อ่านไฟล์ไม่สำเร็จ');
         } finally {
-            setParsing(false);
+            if (seq === parseSeq.current) setParsing(false);
         }
-    }, []);
+    }, [live.diesel]);
 
     const handleDownloadTemplate = async () => {
         const buf = await buildFuelRateTemplate(MASTER_DATA);
@@ -111,6 +143,45 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
 
     const handleSave = async () => {
         if (!preview) return;
+
+        // เส้นทางที่หายไปจากไฟล์ใหม่ = งานเส้นทางนั้นหาเรทไม่เจอทันทีที่บันทึก
+        // ต้องยืนยันแยกจากคำเตือนอื่น เพราะเป็นการ "ลบของที่ใช้อยู่" ไม่ใช่แค่ข้อมูลน่าสงสัย
+        if (diff && diff.removed.length) {
+            const list = document.createElement('div');
+            list.style.cssText = 'text-align:left;font-size:13px;line-height:1.7';
+            const head = document.createElement('div');
+            head.textContent = `ไฟล์นี้ไม่มี ${diff.removed.length} เส้นทางที่รุ่นปัจจุบันมีอยู่:`;
+            list.appendChild(head);
+            for (const c of diff.removed.slice(0, 8)) {
+                const line = document.createElement('div');
+                line.textContent = `• ${c.row.company} | ${c.row.origin} → ${c.row.destination} (${c.row.truckType})`;
+                list.appendChild(line);
+            }
+            if (diff.removed.length > 8) {
+                const more = document.createElement('div');
+                more.textContent = `… และอีก ${diff.removed.length - 8} เส้นทาง`;
+                list.appendChild(more);
+            }
+            const foot = document.createElement('div');
+            foot.style.marginTop = '12px';
+            const b = document.createElement('b');
+            b.textContent = 'ถ้าบันทึก งานเส้นทางเหล่านี้จะหาค่าขนส่งไม่เจอทันที';
+            foot.appendChild(b);
+            list.appendChild(foot);
+
+            const ok = await Swal.fire({
+                icon: 'warning',
+                title: 'มีเส้นทางหายไปจากไฟล์',
+                html: list,
+                showCancelButton: true,
+                confirmButtonText: 'เข้าใจแล้ว บันทึกต่อ',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#64748b',
+                width: 640,
+            });
+            if (!ok.isConfirmed) return;
+        }
 
         // มีปัญหาในไฟล์ → ต้องยืนยันก่อน ไม่ให้กดผ่านโดยไม่ได้อ่าน
         if (preview.issues.length) {
@@ -169,6 +240,8 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                 showConfirmButton: false,
             });
             setPreview(null);
+            setDiff(null);
+            setDiffLoading(false);
             setFileName('');
             setNote('');
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -222,7 +295,16 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
     };
 
     // ตัวอย่างที่แสดง — จำกัดจำนวนแถวเพื่อไม่ให้หน้าหนัก
-    const previewRows = preview?.rows.slice(0, 12) ?? [];
+    // โชว์ของที่เปลี่ยนก่อน — แถวที่เหมือนเดิมไม่ต้องตรวจ
+    const previewRows = useMemo(() => {
+        if (!preview) return [];
+        if (!diff) return preview.rows.slice(0, 12).map(row => ({ row, status: null as RowStatus | null }));
+        return [
+            ...diff.added.map(c => ({ row: c.row, status: c.status })),
+            ...diff.updated.map(c => ({ row: c.row, status: c.status })),
+            ...diff.unchanged.map(c => ({ row: c.row, status: c.status })),
+        ].slice(0, 12);
+    }, [preview, diff]);
     const pricedAtToday = preview
         ? preview.rows.filter(r => findRateAt(r, live.diesel) !== null).length
         : 0;
@@ -336,6 +418,55 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                             <span className="text-[10px] text-slate-400 font-bold truncate">{fileName}</span>
                         </div>
 
+                        {/* สรุปว่าไฟล์นี้เปลี่ยนอะไรบ้างเทียบกับรุ่นที่ใช้อยู่ */}
+                        {diff && (
+                            <div className={`rounded-[1.5rem] border p-5 mb-6 ${diff.isFirstUpload
+                                ? 'bg-blue-50 border-blue-100'
+                                : diff.removed.length ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'
+                                }`}>
+                                <div className="flex items-center gap-2 mb-3">
+                                    {diff.isFirstUpload
+                                        ? <Info size={15} className="text-blue-600" />
+                                        : diff.removed.length
+                                            ? <AlertTriangle size={15} className="text-amber-600" />
+                                            : <CheckCircle2 size={15} className="text-emerald-600" />}
+                                    <span className={`text-[11px] font-black uppercase tracking-widest ${diff.isFirstUpload ? 'text-blue-700'
+                                        : diff.removed.length ? 'text-amber-700' : 'text-emerald-700'
+                                        }`}>
+                                        {diff.isFirstUpload ? 'ไฟล์ชุดแรกของระบบ' : 'เทียบกับรุ่นที่ใช้อยู่'}
+                                    </span>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                    {[
+                                        { label: 'เพิ่มใหม่', n: diff.added.length, cls: 'bg-blue-100 text-blue-700' },
+                                        { label: 'แก้ไข', n: diff.updated.length, cls: 'bg-amber-100 text-amber-700' },
+                                        { label: 'เหมือนเดิม', n: diff.unchanged.length, cls: 'bg-slate-100 text-slate-600' },
+                                        { label: 'หายไป', n: diff.removed.length, cls: 'bg-red-100 text-red-700' },
+                                    ].filter(x => x.n > 0).map((x, i) => (
+                                        <span key={i} className={`px-3 py-1.5 rounded-xl text-[11px] font-black ${x.cls}`}>
+                                            {x.label} {x.n}
+                                        </span>
+                                    ))}
+                                </div>
+
+                                {diff.priceChangedCount > 0 && (
+                                    <p className="text-[11px] text-slate-600 font-medium mt-3">
+                                        มี <b>{diff.priceChangedCount} เส้นทาง</b>ที่ค่าขนส่ง ณ ราคาน้ำมัน {live.diesel.toFixed(2)} บาท เปลี่ยนไป
+                                    </p>
+                                )}
+
+                                {diff.removed.length > 0 && (
+                                    <p className="text-[11px] text-amber-700 font-bold mt-3 leading-relaxed">
+                                        ⚠️ มี {diff.removed.length} เส้นทางที่อยู่ในรุ่นเดิมแต่ไม่มีในไฟล์นี้ —
+                                        ถ้าบันทึก งานเส้นทางเหล่านั้นจะหาเรทไม่เจอทันที
+                                        <br />เช่น {diff.removed.slice(0, 2).map(c => `${c.row.origin} → ${c.row.destination}`).join(' · ')}
+                                        {diff.removed.length > 2 && ` และอีก ${diff.removed.length - 2} เส้นทาง`}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
                             {[
                                 { label: 'เส้นทางทั้งหมด', value: String(preview.rows.length) },
@@ -375,7 +506,8 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                             <table className="w-full text-sm min-w-[720px]">
                                 <thead>
                                     <tr className="bg-slate-900 text-white">
-                                        <th className="px-3 py-2.5 text-left text-[10px] font-black uppercase tracking-widest rounded-l-2xl">บริษัท</th>
+                                        <th className="px-3 py-2.5 text-left text-[10px] font-black uppercase tracking-widest rounded-l-2xl">สถานะ</th>
+                                        <th className="px-3 py-2.5 text-left text-[10px] font-black uppercase tracking-widest">บริษัท</th>
                                         <th className="px-3 py-2.5 text-left text-[10px] font-black uppercase tracking-widest">ต้นทาง</th>
                                         <th className="px-3 py-2.5 text-left text-[10px] font-black uppercase tracking-widest">ปลายทาง</th>
                                         <th className="px-3 py-2.5 text-center text-[10px] font-black uppercase tracking-widest">รถ</th>
@@ -385,10 +517,18 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {previewRows.map((r, i) => {
+                                    {previewRows.map(({ row: r, status }, i) => {
                                         const hit = findRateAt(r, live.diesel);
                                         return (
                                             <tr key={i} className={`border-b border-slate-100 ${i % 2 ? 'bg-slate-50/60' : ''}`}>
+                                                <td className="px-3 py-2">
+                                                    {status && status !== 'unchanged' && (
+                                                        <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase ${status === 'new' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                                                            }`}>
+                                                            {status === 'new' ? 'ใหม่' : 'แก้ไข'}
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td className="px-3 py-2 text-slate-700 font-bold">{r.company || '-'}</td>
                                                 <td className="px-3 py-2 text-slate-600">{r.origin || '-'}</td>
                                                 <td className="px-3 py-2 text-slate-600">
@@ -424,14 +564,14 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                         <div className="flex flex-wrap gap-3">
                             <button
                                 onClick={handleSave}
-                                disabled={saving}
+                                disabled={saving || diffLoading}
                                 className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-6 py-3 rounded-[1.5rem] flex items-center gap-2 text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:scale-105 active:scale-95"
                             >
-                                {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                                บันทึกและใช้งานรุ่นนี้
+                                {saving || diffLoading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                                {diffLoading ? 'กำลังเทียบกับรุ่นเดิม...' : 'บันทึกและใช้งานรุ่นนี้'}
                             </button>
                             <button
-                                onClick={() => { setPreview(null); setError(''); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                                onClick={() => { parseSeq.current++; setPreview(null); setDiff(null); setDiffLoading(false); setError(''); if (fileInputRef.current) fileInputRef.current.value = ''; }}
                                 disabled={saving}
                                 className="bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-600 px-6 py-3 rounded-[1.5rem] text-xs font-black uppercase tracking-widest transition-all"
                             >

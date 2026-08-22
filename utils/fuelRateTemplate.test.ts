@@ -29,8 +29,14 @@ const fillTemplate = (template: ArrayBuffer, dataRows: (string | number | null)[
 const parseFilled = (dataRows: (string | number | null)[][]): ParseResult =>
     parseFuelRateWorkbook(fillTemplate(TEMPLATE, dataRows));
 
-/** ค่าขนส่ง 16 ช่อง เริ่มที่ first แล้วเพิ่มทีละ step — เลียนตารางจริงที่ราคาไต่ขึ้นตามน้ำมัน */
-const prices = (first: number, step: number) => Array.from({ length: 16 }, (_, i) => first + step * i);
+/** จำนวนช่วงราคาน้ำมันตั้งต้นของแบบฟอร์ม — ตรงกับตารางหลักของไฟล์ "รถร่วม วสรรณ์" */
+const BAND_COUNT = 17;
+const FIRST_BAND = { from: 28.99, to: 30.98 };
+const LAST_BAND = { from: 60.99, to: 62.98 };
+
+/** ค่าขนส่งครบทุกช่อง เริ่มที่ first แล้วเพิ่มทีละ step — เลียนตารางจริงที่ราคาไต่ขึ้นตามน้ำมัน */
+const prices = (first: number, step: number) =>
+    Array.from({ length: BAND_COUNT }, (_, i) => first + step * i);
 
 /** เปิดแบบฟอร์มด้วย ExcelJS เพื่อตรวจสิ่งที่ xlsx อ่านไม่ได้ (รายการเลือก การล็อก) */
 const openWithExcelJS = async () => {
@@ -64,8 +70,8 @@ describe('buildFuelRateTemplate — โครงของแบบฟอร์�
             header: 1, raw: true, defval: null,
         });
         expect(grid[6].slice(6).every(v => v === null)).toBe(true);
-        expect(grid[4].slice(6)[0]).toBe(30);      // แถว "ตั้งแต่"
-        expect(grid[5].slice(6)[0]).toBe(31.99);   // แถว "ถึง"
+        expect(grid[4].slice(6)[0]).toBe(FIRST_BAND.from);   // แถว "ตั้งแต่"
+        expect(grid[5].slice(6)[0]).toBe(FIRST_BAND.to);     // แถว "ถึง"
     });
 
     it('ตัวอย่างการกรอกใช้ชื่อจากทะเบียนจริง ไม่ใช่ชื่อสมมติ', () => {
@@ -146,9 +152,9 @@ describe('แบบฟอร์ม → กรอก → อ่านกลับ
 
     it('ช่วงราคาน้ำมันตรงกับแถวที่ 5 และ 6 ของแบบฟอร์ม', () => {
         const b = result.rows[0].bands;
-        expect(b.length).toBe(16);
-        expect(b[0]).toMatchObject({ fuelFrom: 30, fuelTo: 31.99 });
-        expect(b[15]).toMatchObject({ fuelFrom: 60, fuelTo: 61.99 });
+        expect(b.length).toBe(BAND_COUNT);
+        expect(b[0]).toMatchObject({ fuelFrom: FIRST_BAND.from, fuelTo: FIRST_BAND.to });
+        expect(b[BAND_COUNT - 1]).toMatchObject({ fuelFrom: LAST_BAND.from, fuelTo: LAST_BAND.to });
     });
 
     it('ช่องที่เว้นว่างเป็น "ยังไม่มีเรท" ไม่ใช่ 0 บาท', () => {
@@ -244,9 +250,9 @@ describe('แถวแรกเว้นช่วงต้นว่างไว�
         ]);
     });
 
-    it('ยังได้ช่วงราคาน้ำมันครบ 16 ช่วง เริ่มที่ 30 บาท', () => {
-        expect(result.rows[0].bands.length).toBe(16);
-        expect(result.rows[0].bands[0]).toMatchObject({ fuelFrom: 30, fuelTo: 31.99 });
+    it('ยังได้ช่วงราคาน้ำมันครบทุกช่วง', () => {
+        expect(result.rows[0].bands.length).toBe(BAND_COUNT);
+        expect(result.rows[0].bands[0]).toMatchObject({ fuelFrom: FIRST_BAND.from, fuelTo: FIRST_BAND.to });
     });
 
     it('แถวที่กรอกช่วงแรกไว้ ต้องยังมีราคาช่วงนั้น', () => {
