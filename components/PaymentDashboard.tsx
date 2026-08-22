@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Job, SubcontractorInvoice, InvoiceDeduction, InvoiceStatus, PriceMatrix, UserRole, AccountingStatus } from '../types';
 import { formatDate, formatThaiCurrency } from '../utils/format';
+import { invoiceTotals as computeInvoiceTotals, withholdingTax, checkPaymentAmount, jobPayable } from '../utils/invoiceMath';
 
 interface PaymentDashboardProps {
   jobs: Job[];
@@ -105,13 +106,9 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
   // Calculate invoice totals
   const invoiceTotals = useMemo(() => {
     const selectedJobsData = jobsForSubcontractor.filter(j => createForm.selectedJobs.includes(j.id));
-    const totalAmount = selectedJobsData.reduce((sum, j) => sum + (j.cost || 0), 0);
-    const totalDeductions = createForm.deductions.reduce((sum, d) => sum + d.amount, 0);
-    return {
-      totalAmount,
-      totalDeductions,
-      netAmount: totalAmount - totalDeductions
-    };
+    // ใช้สูตรเดียวกับ BillingView และใบวางบิล — เดิมหน้านี้รวมแค่ cost
+    // ทำให้งานที่มีค่าใช้จ่ายเพิ่มถูกออกใบต่ำกว่าที่ต้องจ่ายจริง
+    return computeInvoiceTotals(selectedJobsData, createForm.deductions);
   }, [jobsForSubcontractor, createForm.selectedJobs, createForm.deductions]);
 
   // Get payment terms for subcontractor
@@ -169,6 +166,21 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
   const handlePayment = () => {
     if (!selectedInvoice) return;
 
+    // ยอดที่จ่ายต้องตรงกับยอดสุทธิ — ข้อมูลจริงในระบบมีใบที่ยอดสุทธิ 0 แต่จ่าย 18,315
+    // และใบที่ยอดสุทธิติดลบแต่จ่าย 3,465 เพราะเดิมไม่มีอะไรตรวจตรงนี้
+    const check = checkPaymentAmount(paymentForm.paidAmount, selectedInvoice.netAmount);
+    if (!check.ok) {
+      if ((window as any).Swal) {
+        (window as any).Swal.fire({
+          icon: 'warning',
+          title: 'ยอดเงินไม่ถูกต้อง',
+          text: check.message,
+          confirmButtonText: 'ตกลง',
+        });
+      }
+      return;
+    }
+
     const updatedInvoice: SubcontractorInvoice = {
       ...selectedInvoice,
       status: InvoiceStatus.PAID,
@@ -194,7 +206,9 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
           id: `ded-${Date.now()}`,
           type,
           description: type === 'DAMAGE' ? 'ค่าเสียหาย' : type === 'WITHHOLDING_TAX' ? 'ภาษี ณ ที่จ่าย 1%' : '',
-          amount: type === 'WITHHOLDING_TAX' ? Math.round(invoiceTotals.totalAmount * 0.01) : 0
+          // ปัดสองตำแหน่งเหมือนใบวางบิล — เดิมปัดเป็นจำนวนเต็มบาท
+          // ยอด 10,049 หัก 1% ควรได้ 100.49 แต่เดิมได้ 100 จ่ายเกิน 0.49 บาทต่อใบ
+          amount: type === 'WITHHOLDING_TAX' ? withholdingTax(invoiceTotals.totalAmount) : 0
         }
       ]
     }));
