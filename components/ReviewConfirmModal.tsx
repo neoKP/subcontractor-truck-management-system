@@ -20,7 +20,9 @@ interface ReviewConfirmModalProps {
         sellingPrice: number;
         drops?: string[];
     };
-    onConfirm: () => void;
+    onConfirm: () => void | Promise<void>;
+    /** true = กำลังบันทึก — ปิดปุ่มกันกดซ้ำ */
+    isConfirming?: boolean;
     onEdit: () => void;
     onClose: () => void;
     user: { id: string; name: string; role: UserRole };
@@ -31,13 +33,19 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
     job,
     editData,
     onConfirm,
+    isConfirming = false,
     onEdit,
     onClose,
     user,
     priceMatrix
 }) => {
     const margin = editData.sellingPrice - editData.cost;
-    const marginPercent = editData.cost > 0 ? ((margin / editData.cost) * 100).toFixed(1) : '0.0';
+    // หารด้วย "ราคาขาย" ให้ตรงกับทั้งระบบ (หน้าบัญชี วิเคราะห์กำไร ผู้บริหาร)
+    // เดิมหารด้วยต้นทุน ทำให้ตัวเลขสูงกว่าความจริง เช่น ต้นทุน 8,000 ขาย 10,000
+    // หน้านี้แสดง 25% แต่รายงานบัญชีแสดง 20% — ผู้อนุมัติตัดสินใจจากเลขคนละชุด
+    const marginPercent = editData.sellingPrice > 0
+        ? ((margin / editData.sellingPrice) * 100).toFixed(1)
+        : '0.0';
 
     // ตรวจสอบว่าข้อมูล Fleet Information ครบหรือไม่
     const isFleetInfoComplete = !!(
@@ -60,6 +68,16 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
     const dropFeePerPoint = matchedPricing?.dropOffFee || 0;
     const totalDropFee = dropCount * dropFeePerPoint;
     const basePrice = matchedPricing?.basePrice || 0;
+
+    // ราคาในใบงานตรงกับราคากลาง (รวมค่าดร็อป) ไหม
+    //
+    // เตือนอย่างเดียว ไม่บล็อก — งาน spot rate ตั้งใจใช้ราคาต่างจากราคากลางอยู่แล้ว
+    // ถ้าบล็อกจะยืนยันงานประเภทนั้นไม่ได้เลย แต่ถ้าไม่เตือน ราคาที่พิมพ์ผิด
+    // จะถูกล็อกเข้าบัญชีโดยไม่มีใครสังเกต
+    const expectedCost = basePrice + totalDropFee;
+    const priceMatchesMaster = !matchedPricing
+        || Math.abs((editData.cost || 0) - expectedCost) < 0.01;
+    const priceGap = (editData.cost || 0) - expectedCost;
 
     // ตรวจสอบว่าข้อมูลพื้นฐานครบหรือไม่
     const isDataComplete = !!(
@@ -350,6 +368,22 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                         </div>
                     )}
 
+                    {hasPriceMatch && !priceMatchesMaster && (
+                        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+                            <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                                <p className="text-sm font-black text-amber-900 mb-1">ราคาไม่ตรงกับราคากลาง</p>
+                                <p className="text-xs font-bold text-amber-700">
+                                    ราคากลางของเส้นทางนี้คือ <b>฿{formatThaiCurrency(expectedCost)}</b>
+                                    {totalDropFee > 0 && ` (ฐาน ฿${formatThaiCurrency(basePrice)} + ค่าดร็อป ฿${formatThaiCurrency(totalDropFee)})`}
+                                    {' '}แต่ใบงานนี้ระบุ <b>฿{formatThaiCurrency(editData.cost || 0)}</b>
+                                    {' '}({priceGap > 0 ? 'สูงกว่า' : 'ต่ำกว่า'} ฿{formatThaiCurrency(Math.abs(priceGap))})
+                                    <br />ยืนยันต่อได้ถ้าเป็นราคาที่ตกลงกันไว้ — ระบบจะบันทึกไว้ในประวัติ
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4">
                         <button
                             id={`modal-btn-edit-${job?.id || 'new'}`}
@@ -362,14 +396,14 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
 
                         <button
                             onClick={onConfirm}
-                            disabled={!isDataComplete}
-                            className={`flex items-center justify-center gap-2 px-6 sm:px-12 py-3 sm:py-4 rounded-2xl font-black shadow-xl transform transition-all uppercase tracking-widest text-xs sm:text-sm ${isDataComplete
+                            disabled={!isDataComplete || isConfirming}
+                            className={`flex items-center justify-center gap-2 px-6 sm:px-12 py-3 sm:py-4 rounded-2xl font-black shadow-xl transform transition-all uppercase tracking-widest text-xs sm:text-sm ${isDataComplete && !isConfirming
                                 ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-200 hover:shadow-blue-300 hover:-translate-y-0.5 cursor-pointer'
                                 : 'bg-slate-300 text-slate-500 shadow-slate-200 cursor-not-allowed opacity-60'
                                 }`}
                         >
                             <CheckCircle size={20} />
-                            ตรวจทาน (REVIEW & CONFIRM)
+                            {isConfirming ? 'กำลังบันทึก...' : 'ตรวจทาน (REVIEW & CONFIRM)'}
                         </button>
                     </div>
                 </div>

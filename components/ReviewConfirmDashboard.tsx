@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { Job, JobStatus, AccountingStatus, UserRole, AuditLog, PriceMatrix, SubcontractorMaster } from '../types';
 import { Search, Download, CheckCircle, Clock, TrendingUp, AlertCircle, User } from 'lucide-react';
-import { formatDate, formatThaiCurrency } from '../utils/format';
+import { formatDate, formatThaiCurrency, generateUUID } from '../utils/format';
+import { db, ref, get, authReady } from '../firebaseConfig';
+import { canConfirmJob, markJobReviewed, describeChanges } from '../utils/confirmJob';
 import ReviewConfirmModal from './ReviewConfirmModal';
 import DispatcherActionModal from './DispatcherActionModal';
 
 
 interface ReviewConfirmDashboardProps {
     jobs: Job[];
-    onSave: (job: Job) => void;
+    /** บันทึกใบงาน — throw เมื่อเขียนไม่สำเร็จ หน้าจอจะแจ้งผู้ใช้เอง */
+    onSave: (job: Job, logs?: AuditLog[]) => void | Promise<void>;
     user: { id: string; name: string; role: UserRole };
     priceMatrix: any[];
     subcontractorMasters?: SubcontractorMaster[];
@@ -28,15 +31,23 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
     hidePrice = false
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
+    // กันกดยืนยันซ้ำระหว่างที่ยังบันทึกไม่เสร็จ
+    const [confirming, setConfirming] = useState(false);
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
     const [editingJob, setEditingJob] = useState<Job | null>(null);
     const [filterView, setFilterView] = useState<'all' | 'incomplete' | 'complete'>('all');
 
 
-    // กรองงานที่ ASSIGNED และยังไม่ล็อกราคา (เฉพาะงานที่รอตรวจทาน) หรืองานที่ถูก Reject กลับมาแก้ไข
+    // งานที่ต้องตรวจทาน: ASSIGNED และยังไม่ล็อกราคา หรือถูกบัญชีตีกลับมาแก้
+    //
+    // รวมงานที่ "ล็อกแล้วแต่ไม่มีสถานะบัญชี" ด้วย — สถานะนั้นหลุดจากทั้งหน้านี้และหน้าบัญชี
+    // ทำให้งานหายจากสายตาทุกคน เกิดได้เมื่อเขียนข้อมูลไม่ครบ เช่น เน็ตหลุดกลางคัน
     const assignedJobs = jobs.filter(job =>
-        job.status === JobStatus.ASSIGNED &&
-        (!job.isBaseCostLocked || job.accountingStatus === AccountingStatus.REJECTED)
+        job.status === JobStatus.ASSIGNED && (
+            !job.isBaseCostLocked ||
+            job.accountingStatus === AccountingStatus.REJECTED ||
+            !job.accountingStatus
+        )
     );
 
     // Check if price matches Master Pricing
@@ -411,30 +422,82 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                     }}
                     user={user}
                     priceMatrix={priceMatrix}
-                    onConfirm={() => {
-                        // Lock the price and update job status
-                        const updatedJob = {
-                            ...selectedJob,
-                            isBaseCostLocked: true,
-                            status: JobStatus.ASSIGNED,
-                            accountingStatus: AccountingStatus.PENDING_REVIEW,
-                            reviewedAt: new Date().toISOString(),
-                            reviewedBy: user.name
-                        };
+                    isConfirming={confirming}
+                    onConfirm={async () => {
+                        if (confirming) return;
+                        setConfirming(true);
+                        const jobId = selectedJob.id;
+                        try {
+                            // อ่านฉบับล่าสุดก่อนเสมอ — หน้านี้ถูกเปิดค้างได้นาน
+                            // ถ้าเขียนทับด้วย snapshot ตอนเปิด สิ่งที่คนอื่นแก้ระหว่างนั้นจะหาย
+                            await authReady;
+                            const snap = await get(ref(db, `jobs/${jobId}`));
+                            const latest = snap.val() as Job | null;
 
-                        onSave(updatedJob);
-                        setSelectedJob(null);
+                            const check = canConfirmJob(latest, priceMatrix);
+                            if (!check.ok || !latest) {
+                                setConfirming(false);
+                                if ((window as any).Swal) {
+                                    await (window as any).Swal.fire({
+                                        icon: 'warning',
+                                        title: 'ยืนยันไม่ได้',
+                                        text: check.message || 'ใบงานเปลี่ยนสถานะไปแล้ว',
+                                        confirmButtonText: 'ตกลง',
+                                    });
+                                }
+                                setSelectedJob(null);
+                                return;
+                            }
 
-                        // Show success message
-                        if ((window as any).Swal) {
-                            (window as any).Swal.fire({
-                                icon: 'success',
-                                title: '✅ ยืนยันและล็อกสำเร็จ',
-                                text: `งาน ${selectedJob.id} ถูกล็อกราคาและส่งไปยังฝ่ายบัญชีแล้ว`,
-                                timer: 2000,
-                                showConfirmButton: false,
-                                customClass: { popup: 'rounded-[2rem]' }
+                            const now = new Date().toISOString();
+                            const merged = markJobReviewed(latest, { name: user.name, at: now });
+
+                            // บันทึกว่าใครยืนยัน — เดิมล็อกราคาส่งบัญชีโดยไม่มีร่องรอยเลย
+                            // และบันทึกด้วยว่ามีใครแก้ข้อมูลระหว่างที่หน้าเปิดค้างไหม
+                            const changes = describeChanges(selectedJob, latest);
+                            const mkLog = (field: string, oldValue: string, newValue: string, reason = 'ตรวจทานและยืนยันใบงาน'): AuditLog => ({
+                                reason,
+                                // ใช้ Date.now() ไม่ใช่ ISO — คีย์ของ Firebase ห้ามมีจุด
+                                // และ ISO มีจุดในหลักมิลลิวินาที ทำให้เขียน log ไม่เข้าเงียบ ๆ
+                                id: `LOG-${Date.now()}-${generateUUID().slice(0, 8)}`,
+                                jobId,
+                                userId: user.id,
+                                userName: user.name,
+                                userRole: user.role,
+                                timestamp: now,
+                                field,
+                                oldValue,
+                                newValue,
                             });
+                            const auditLogs: AuditLog[] = [
+                                mkLog('ยืนยันและล็อกราคา', latest.accountingStatus || '-', AccountingStatus.PENDING_REVIEW),
+                                ...changes.map(c => mkLog(c.field, c.from, c.to, 'ข้อมูลถูกแก้โดยผู้อื่นระหว่างตรวจทาน')),
+                            ];
+
+                            await onSave(merged, auditLogs);
+
+                            setSelectedJob(null);
+                            if ((window as any).Swal) {
+                                (window as any).Swal.fire({
+                                    icon: 'success',
+                                    title: '✅ ยืนยันและล็อกสำเร็จ',
+                                    text: `งาน ${jobId} ถูกล็อกราคาและส่งไปยังฝ่ายบัญชีแล้ว`,
+                                    timer: 2000,
+                                    showConfirmButton: false,
+                                    customClass: { popup: 'rounded-[2rem]' }
+                                });
+                            }
+                        } catch (e) {
+                            if ((window as any).Swal) {
+                                await (window as any).Swal.fire({
+                                    icon: 'error',
+                                    title: 'บันทึกไม่สำเร็จ',
+                                    html: `ใบงานยังไม่ถูกยืนยัน กรุณาลองใหม่<br/><small>${(e as Error).message || ''}</small>`,
+                                    confirmButtonText: 'ตกลง',
+                                });
+                            }
+                        } finally {
+                            setConfirming(false);
                         }
                     }}
                     onEdit={() => {

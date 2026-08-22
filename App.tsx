@@ -422,13 +422,19 @@ const App: React.FC = () => {
     setActiveTab('board');
   };
 
-  const updateJob = (updatedJob: Job, newLogs?: AuditLog[]) => {
-    // Persist to Firebase
-    set(ref(db, `jobs/${updatedJob.id}`), cleanJob(updatedJob));
+  /**
+   * บันทึกใบงานที่แก้ไข — async และ throw เมื่อเขียนไม่สำเร็จ
+   * ผู้เรียกที่อยากรู้ผลจริงต้อง await; ที่เหลือทำงานเหมือนเดิม
+   */
+  const updateJob = async (updatedJob: Job, newLogs?: AuditLog[]) => {
+    await set(ref(db, `jobs/${updatedJob.id}`), cleanJob(updatedJob));
     if (newLogs && newLogs.length > 0) {
-      newLogs.forEach(log => {
-        set(ref(db, `logs/${log.id}`), log);
-      });
+      // log ล้มเหลวไม่ควรทำให้ใบงานที่บันทึกแล้วกลายเป็นล้มเหลว
+      await Promise.all(newLogs.map(log =>
+        set(ref(db, `logs/${log.id}`), log).catch((e: Error) => {
+          console.error('[updateJob] เขียน audit log ไม่สำเร็จ:', e);
+        })
+      ));
     }
   };
 
