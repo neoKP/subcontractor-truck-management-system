@@ -6,6 +6,7 @@ import { exportExcelReport, thaiFileDate, type ReportSheet } from '../utils/exce
 import { findRateAt, type FuelRateRow } from '../utils/fuelRateParser';
 import { watchActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
 import { useOilPrice } from '../utils/useOilPrice';
+import { pageCount, pageNumbers as buildPageNumbers, pageSlice, PAGE_SIZE } from '../utils/pagination';
 
 const money = (n: number): string =>
     n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -29,6 +30,7 @@ const FuelRateTableView: React.FC = () => {
     const [company, setCompany] = useState('');
     const [truckType, setTruckType] = useState('');
     const [onlyMissing, setOnlyMissing] = useState(false);
+    const [page, setPage] = useState(1);
 
     // เฝ้าดูรุ่นที่ใช้งาน ไม่ใช่โหลดครั้งเดียว — หน้านี้ถูกเปิดค้างทั้งวัน
     // ถ้ามีคนอัปเรทรอบใหม่ คนที่เปิดค้างต้องเห็นทันที ไม่ใช่คิดเงินจากเรทเก่าต่อ
@@ -62,6 +64,28 @@ const FuelRateTableView: React.FC = () => {
                 .some(f => (f || '').toLowerCase().includes(q));
         });
     }, [rows, search, company, truckType, onlyMissing, live.diesel]);
+
+    const totalPages = pageCount(filtered.length, PAGE_SIZE);
+    // กันหน้าค้างเกินขอบเขตหลังกรอง — ถ้าอยู่หน้า 5 แล้วกรองจนเหลือ 10 แถว จะได้ตารางว่าง
+    const safePage = Math.min(page, totalPages);
+    const pageRows = useMemo(
+        () => pageSlice(filtered, safePage, PAGE_SIZE),
+        [filtered, safePage]
+    );
+
+    // เปลี่ยนตัวกรองแล้วต้องกลับหน้าแรก ไม่งั้นผลลัพธ์ชุดใหม่จะเริ่มที่หน้ากลาง ๆ
+    useEffect(() => { setPage(1); }, [search, company, truckType, onlyMissing]);
+
+    // ข้อมูลหดลงได้โดยไม่ผ่านตัวกรอง เช่น มีคนอัปเรทรุ่นใหม่ที่แถวน้อยกว่า
+    // ถ้าปล่อยให้ page ค้างเกินขอบเขต ปุ่มจะกดหลายทีกว่าตารางจะขยับ
+    useEffect(() => {
+        setPage(p => Math.min(p, totalPages));
+    }, [totalPages]);
+
+    const pageNumbers = useMemo(
+        () => buildPageNumbers(totalPages, safePage),
+        [totalPages, safePage]
+    );
 
     // จำนวนเส้นทางที่หาเรทไม่ได้ที่ราคาน้ำมันปัจจุบัน — ต้องเห็นชัดเพราะกระทบการคิดเงิน
     const missingCount = useMemo(
@@ -270,7 +294,10 @@ const FuelRateTableView: React.FC = () => {
                         </button>
                     )}
                     <span className="text-[10px] text-slate-400 font-bold ml-auto">
-                        แสดง {filtered.length} จาก {rows.length} เส้นทาง
+                        {filtered.length === 0
+                            ? `ไม่พบเส้นทาง (ทั้งหมด ${rows.length})`
+                            : `แสดง ${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, filtered.length)} จาก ${filtered.length} เส้นทาง`}
+                        {filtered.length !== rows.length && ` · ทั้งหมด ${rows.length}`}
                     </span>
                 </div>
             </div>
@@ -299,7 +326,7 @@ const FuelRateTableView: React.FC = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                filtered.map((r: FuelRateRow, i) => {
+                                pageRows.map((r: FuelRateRow, i) => {
                                     const hit = findRateAt(r, live.diesel);
                                     return (
                                         <tr
@@ -337,6 +364,44 @@ const FuelRateTableView: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* แบ่งหน้า — แสดงเมื่อมีมากกว่าหนึ่งหน้าเท่านั้น */}
+                {totalPages > 1 && (
+                    <div className="flex flex-wrap items-center justify-center gap-2 mt-6">
+                        <button
+                            onClick={() => setPage(Math.max(1, safePage - 1))}
+                            disabled={safePage === 1}
+                            className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-slate-100 transition-all"
+                        >
+                            ← ก่อนหน้า
+                        </button>
+
+                        {pageNumbers.map((n, i) =>
+                            n === null ? (
+                                <span key={`gap-${i}`} className="px-1 text-slate-300 font-black">…</span>
+                            ) : (
+                                <button
+                                    key={n}
+                                    onClick={() => setPage(n)}
+                                    className={`min-w-[38px] px-3 py-2 rounded-xl text-[11px] font-black transition-all ${n === safePage
+                                        ? 'bg-slate-900 text-white shadow-lg'
+                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                        }`}
+                                >
+                                    {n}
+                                </button>
+                            )
+                        )}
+
+                        <button
+                            onClick={() => setPage(Math.min(totalPages, safePage + 1))}
+                            disabled={safePage === totalPages}
+                            className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-slate-100 transition-all"
+                        >
+                            ถัดไป →
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* คำเตือนจากตอนอัปโหลด */}
