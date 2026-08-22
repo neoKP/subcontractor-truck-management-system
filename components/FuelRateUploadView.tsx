@@ -9,7 +9,7 @@ import {
     saveFuelRateVersion, listFuelRateVersions, activateFuelRateVersion,
     deleteFuelRateVersion, loadActiveFuelRates, type FuelRateVersionMeta,
 } from '../utils/fuelRateStore';
-import { buildFuelRateTemplate, checkAgainstMaster, TEMPLATE_VERSION } from '../utils/fuelRateTemplate';
+import { buildFuelRateTemplate, checkAgainstMaster, BAND_SETS, TEMPLATE_VERSION, type BandSetId } from '../utils/fuelRateTemplate';
 import { downloadWorkbook } from '../utils/excelReport';
 import { MASTER_DATA } from '../constants';
 import { useOilPrice } from '../utils/useOilPrice';
@@ -129,9 +129,17 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
         }
     }, [live.diesel]);
 
-    const handleDownloadTemplate = async () => {
-        const buf = await buildFuelRateTemplate(MASTER_DATA);
-        downloadWorkbook(buf, `แบบฟอร์มตารางเรทค่าขนส่ง_${TEMPLATE_VERSION}`);
+    const [downloading, setDownloading] = useState<BandSetId | null>(null);
+
+    const handleDownloadTemplate = async (bandSet: BandSetId) => {
+        setDownloading(bandSet);
+        try {
+            const buf = await buildFuelRateTemplate(MASTER_DATA, { bandSet });
+            // ใส่ช่วงราคาไว้ในชื่อไฟล์ด้วย — คนที่มีทั้งสองไฟล์ต้องแยกออกจากชื่อได้
+            downloadWorkbook(buf, `แบบฟอร์มเรทค่าขนส่ง_${BAND_SETS[bandSet].label}_${TEMPLATE_VERSION}`);
+        } finally {
+            setDownloading(null);
+        }
     };
 
     const onDrop = (e: React.DragEvent) => {
@@ -347,14 +355,34 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                     <p className="text-[11px] text-slate-500 font-medium mt-1.5 leading-relaxed max-w-2xl">
                         ส่งไฟล์นี้ให้หน่วยงานอัตราจ้างกรอกแทนรูปแบบเดิม · ในไฟล์มี<b>ทะเบียนชื่อผู้รับจ้าง สถานที่ และประเภทรถ</b>ของระบบแนบไว้ให้คัดลอก
                         พร้อมตัวอย่างการกรอกและวิธีใช้ · เมื่ออัปโหลดกลับ ระบบจะตรวจให้ทันทีว่าชื่อตรงทะเบียนหรือไม่
+                        <br /><b className="text-slate-700">เลือกแบบฟอร์มให้ตรงกับช่วงราคาน้ำมันที่หน่วยงานใช้</b> —
+                        ถ้าใช้ผิดชุด ราคาจะถูกผูกกับช่วงผิดตั้งแต่ต้น
                     </p>
                 </div>
-                <button
-                    onClick={handleDownloadTemplate}
-                    className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-[1.5rem] text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:scale-105 active:scale-95 flex items-center gap-2"
-                >
-                    <Download size={15} /> ดาวน์โหลดแบบฟอร์ม
-                </button>
+                <div className="shrink-0 flex flex-col gap-2">
+                    {(['main', 'sunlee'] as BandSetId[]).map(id => (
+                        <button
+                            key={id}
+                            onClick={() => void handleDownloadTemplate(id)}
+                            disabled={downloading !== null}
+                            title={BAND_SETS[id].description}
+                            className={`px-6 py-3 rounded-[1.5rem] text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:scale-105 active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100 ${id === 'main'
+                                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                }`}
+                        >
+                            {downloading === id
+                                ? <Loader2 size={15} className="animate-spin" />
+                                : <Download size={15} />}
+                            <span className="flex flex-col items-start leading-tight">
+                                <span>{BAND_SETS[id].label}</span>
+                                <span className="text-[9px] font-bold opacity-70 normal-case tracking-normal">
+                                    {BAND_SETS[id].description}
+                                </span>
+                            </span>
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* Dropzone */}

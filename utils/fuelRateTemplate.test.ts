@@ -343,3 +343,61 @@ describe('ทะเบียนของระบบครอบคลุมไ�
         }
     });
 });
+
+describe('แบบฟอร์มสองชุดช่วงราคาน้ำมัน', () => {
+    // ไฟล์ "รถร่วม วสรรณ์" มีสองตารางที่ใช้ช่วงคนละชุด ต่างกันที่จุดเริ่ม 1.01 บาท
+    // ถ้าคนกรอกหยิบผิดชุด ราคาจะถูกผูกกับช่วงผิดตั้งแต่ต้น
+    const readBands = async (bandSet: 'main' | 'sunlee') => {
+        const buf = await buildFuelRateTemplate(MASTER, { bandSet });
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(buf);
+        const ws = wb.getWorksheet(TEMPLATE_SHEET)!;
+        const out: { from: number; to: number }[] = [];
+        for (let c = 7; c <= 50; c++) {
+            const f = ws.getRow(5).getCell(c).value;
+            const t = ws.getRow(6).getCell(c).value;
+            if (typeof f === 'number' && typeof t === 'number') out.push({ from: f, to: t });
+        }
+        return { bands: out, header: String(ws.getRow(1).getCell(1).value ?? '') };
+    };
+
+    it('ชุดตารางหลักมี 17 ช่วง เริ่ม 28.99 จบ 62.98', async () => {
+        const { bands } = await readBands('main');
+        expect(bands.length).toBe(17);
+        expect(bands[0]).toEqual({ from: 28.99, to: 30.98 });
+        expect(bands[16]).toEqual({ from: 60.99, to: 62.98 });
+    });
+
+    it('ชุด sunlee มี 16 ช่วง เริ่ม 30.00 จบ 61.99', async () => {
+        const { bands } = await readBands('sunlee');
+        expect(bands.length).toBe(16);
+        expect(bands[0]).toEqual({ from: 30, to: 31.99 });
+        expect(bands[15]).toEqual({ from: 60, to: 61.99 });
+    });
+
+    it('ทุกช่วงกว้าง 2 บาทและต่อเนื่องกันไม่มีรอยต่อ', async () => {
+        for (const set of ['main', 'sunlee'] as const) {
+            const { bands } = await readBands(set);
+            for (let i = 0; i < bands.length; i++) {
+                expect(Math.round((bands[i].to - bands[i].from) * 100) / 100).toBe(1.99);
+                if (i > 0) {
+                    // ช่วงถัดไปต้องเริ่มถัดจากช่วงก่อนหน้าพอดี ไม่ทับและไม่เว้น
+                    expect(Math.round((bands[i].from - bands[i - 1].to) * 100) / 100).toBe(0.01);
+                }
+            }
+        }
+    });
+
+    it('หัวไฟล์บอกว่าเป็นชุดไหน ให้คนกรอกรู้ว่าหยิบถูกไฟล์', async () => {
+        expect((await readBands('main')).header).toContain('ตารางหลัก');
+        expect((await readBands('sunlee')).header).toContain('sunlee');
+    });
+
+    it('ไม่ระบุชุด = ใช้ตารางหลัก (เรทที่จ่ายจริง)', async () => {
+        const buf = await buildFuelRateTemplate(MASTER);
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(buf);
+        const ws = wb.getWorksheet(TEMPLATE_SHEET)!;
+        expect(ws.getRow(5).getCell(7).value).toBe(28.99);
+    });
+});

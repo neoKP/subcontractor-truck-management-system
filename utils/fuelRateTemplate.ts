@@ -42,24 +42,59 @@ export interface RateMaster {
 }
 
 export interface TemplateOptions {
-    /** ช่วงราคาน้ำมันตั้งต้น — หน่วยงานแก้เองได้ ถ้าใช้ช่วงอื่น */
+    /** ชุดช่วงราคาน้ำมันที่จะใช้ — ไม่ระบุ = ตารางหลัก */
+    bandSet?: BandSetId;
+    /** ช่วงราคาน้ำมันเอง (ทับ bandSet) — หน่วยงานแก้ในไฟล์เองได้เช่นกัน */
     bands?: { from: number; to: number }[];
     /** จำนวนแถวเปล่าที่เตรียมไว้ให้กรอก (รายการเลือกครอบเท่านี้) */
     blankRows?: number;
 }
 
 /**
- * ช่วงตั้งต้น 28.99–62.98 บาท ทีละ 2 บาท — ตามตารางหลักของไฟล์ "รถร่วม วสรรณ์"
+ * ชุดช่วงราคาน้ำมันที่หน่วยงานใช้อยู่จริง
  *
- * ไฟล์นั้นมีสองตารางที่ใช้ช่วงคนละชุด: ตารางหลักเริ่ม 28.99 ส่วนตารางย่อย
- * ("นีโอสยาม วางบิล sunlee") เริ่ม 30.00 — ยึดตารางหลักเป็นค่าตั้งต้น
- * เพราะเป็นเรทที่ใช้จ่ายจริง หน่วยงานแก้แถว 5-6 เองได้ถ้ารอบใหม่ใช้ช่วงอื่น
+ * ไฟล์ "รถร่วม วสรรณ์" มีสองตารางที่ใช้ช่วงคนละชุด ต่างกันที่จุดเริ่ม 1.01 บาท
+ * ถ้าให้แบบฟอร์มเดียวครอบทั้งคู่ คนกรอกต้องพิมพ์หัวตารางใหม่ทุกครั้งที่ใช้ผิดชุด
+ * และถ้าลืมแก้ ราคาจะถูกผูกกับช่วงผิด — ค่าขนส่งเพี้ยนตั้งแต่ต้นทาง
+ * จึงแยกเป็นสองแบบฟอร์มให้เลือกดาวน์โหลดแทน
  */
-const defaultBands = (): { from: number; to: number }[] =>
-    Array.from({ length: 17 }, (_, i) => ({
-        from: Math.round((28.99 + i * 2) * 100) / 100,
-        to: Math.round((30.98 + i * 2) * 100) / 100,
+export type BandSetId = 'main' | 'sunlee';
+
+export interface BandSet {
+    id: BandSetId;
+    /** ชื่อที่แสดงบนปุ่มดาวน์โหลด */
+    label: string;
+    /** อธิบายว่าใช้กับตารางไหน */
+    description: string;
+    bands: { from: number; to: number }[];
+}
+
+/** สร้างช่วงกว้าง 2 บาทต่อเนื่องกัน จากจุดเริ่มที่กำหนด */
+const makeBands = (start: number, count: number): { from: number; to: number }[] =>
+    Array.from({ length: count }, (_, i) => ({
+        from: Math.round((start + i * 2) * 100) / 100,
+        to: Math.round((start + i * 2 + 1.99) * 100) / 100,
     }));
+
+export const BAND_SETS: Record<BandSetId, BandSet> = {
+    // ตารางหลักของไฟล์ "รถร่วม วสรรณ์" — เรทที่ใช้จ่ายจริง
+    main: {
+        id: 'main',
+        label: 'เริ่ม 28.99 บาท',
+        description: 'ตารางหลัก · 17 ช่วง (28.99–62.98)',
+        bands: makeBands(28.99, 17),
+    },
+    // ตารางย่อยที่วางไว้ทางขวาในไฟล์เดียวกัน
+    sunlee: {
+        id: 'sunlee',
+        label: 'เริ่ม 30.00 บาท',
+        description: 'ตารางนีโอสยาม วางบิล sunlee · 16 ช่วง (30.00–61.99)',
+        bands: makeBands(30, 16),
+    },
+};
+
+/** ใช้ตารางหลักเป็นค่าตั้งต้น เพราะเป็นเรทที่ใช้จ่ายจริง */
+const defaultBands = (): { from: number; to: number }[] => BAND_SETS.main.bands;
 
 const LABELS = ['ลำดับ', 'บริษัท', 'ต้นทาง', 'ปลายทาง', 'ประเภทรถ', 'หมายเหตุ'];
 const LABEL_WIDTH = [7, 22, 26, 26, 14, 22];
@@ -79,7 +114,8 @@ export async function buildFuelRateTemplate(
     options: TemplateOptions = {},
 ): Promise<ArrayBuffer> {
     const ExcelJS = (await import('exceljs')).default;
-    const bands = options.bands?.length ? options.bands : defaultBands();
+    const bandSet = BAND_SETS[options.bandSet ?? 'main'];
+    const bands = options.bands?.length ? options.bands : bandSet.bands;
     // ไฟล์จริงของหน่วยงานมี 164 เส้นทาง — 100 แถวไม่พอ เผื่อไว้ให้เพิ่มเส้นทางได้อีก
     const blankRows = options.blankRows ?? 300;
     const lastRow = FIRST_DATA_ROW + blankRows - 1;
@@ -90,7 +126,9 @@ export async function buildFuelRateTemplate(
 
     /** วางหัวแบบฟอร์ม 7 แถวแรกให้เหมือนกันทั้งชีตกรอกจริงและชีตตัวอย่าง */
     const writeHead = (ws: import('exceljs').Worksheet) => {
-        const marker = ws.addRow([`${TEMPLATE_MARKER} (นีโอสยาม) ${TEMPLATE_VERSION}`]);
+        const marker = ws.addRow([
+            `${TEMPLATE_MARKER} (นีโอสยาม) ${TEMPLATE_VERSION} · ${bandSet.description}`,
+        ]);
         ws.mergeCells(marker.number, 1, marker.number, lastCol);
         marker.height = 26;
         marker.getCell(1).font = { name: FONT, size: SIZE.title, bold: true, color: { argb: COLOR.headerText } };
