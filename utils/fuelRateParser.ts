@@ -144,6 +144,11 @@ const MIN_FREIGHT_PRICE = 100;
 /**
  * แถวหมายเหตุที่หน่วยงานแทรกไว้ท้ายตาราง — ไม่ใช่เส้นทางจริง
  *
+ * เคยลองเพิ่มตัวกรองแถวสรุป ("รวม", "ขั้นต่ำ", ...) แล้วถอนออก เพราะไฟล์จริงทั้งสอง
+ * ไฟล์ไม่มีแถวแบบนั้นเลย และการกรองด้วยคำขึ้นต้นเสี่ยงตัดชื่อสถานที่จริงทิ้ง
+ * ("รวมโชค" เป็นชื่ออำเภอ) — ตัดเส้นทางจริงหายอันตรายกว่าปล่อยแถวสรุปหลุดเข้ามา
+ * ถ้าเจอแถวสรุปในไฟล์รอบใหม่ ค่อยเพิ่มกฎที่อิงโครงสร้างจริงของไฟล์นั้น
+ *
  * เจอในไฟล์ "รถร่วม วสรรณ์" แถว 42:
  *   "* ส่ง สินค้า อ.เมือง / ศูนย์กระจาย 1 จุด" พร้อมตัวเลข 0.94, 0.96, 1.02
  * ตัวเลขเหล่านั้นเป็น "ตัวคูณ" ไม่ใช่ค่าขนส่ง ถ้านับเข้ามาจะได้แถวราคา 1.02 บาท
@@ -291,6 +296,34 @@ function parseSideTables(
 }
 
 /**
+ * ชีตที่ไม่ใช่ข้อมูลจริงในแบบฟอร์มของเรา — ต้องไม่ถูกอ่านเป็นเรท
+ *
+ * ชีต "ตัวอย่างการกรอก" มีราคาสมมติ (5,000/8,000/9,000) และหน้าตาเหมือนตารางจริงทุกอย่าง
+ * ถ้าใครสลับลำดับชีตก่อนส่งไฟล์มา ตัวอ่านที่หยิบชีตแรกเสมอจะนำเข้าราคาสมมติเป็นเรทจริง
+ */
+const NON_DATA_SHEET_HINTS = ['ตัวอย่าง', 'วิธีใช้', 'รายการที่เลือกได้', 'คำอธิบาย', 'readme'];
+
+/** ชื่อชีตที่เป็นตารางกรอกจริงของแบบฟอร์ม — ถ้าเจอให้ใช้ชีตนี้ก่อนเสมอ */
+const PREFERRED_SHEET = 'กรอกเรท';
+
+/**
+ * เลือกชีตที่เป็นข้อมูลจริง
+ *   1. ชีต "กรอกเรท" ของแบบฟอร์มเรา ถ้ามี
+ *   2. ชีตแรกที่ไม่ใช่ตัวอย่าง/คำอธิบาย
+ *   3. ชีตแรก (ไฟล์ต้นฉบับของหน่วยงานที่มีชีตเดียว)
+ */
+function pickDataSheet(names: string[]): string {
+    const exact = names.find(n => n.trim() === PREFERRED_SHEET);
+    if (exact) return exact;
+
+    const dataSheet = names.find(n => {
+        const lower = n.trim().toLowerCase();
+        return !NON_DATA_SHEET_HINTS.some(h => lower.includes(h.toLowerCase()));
+    });
+    return dataSheet ?? names[0];
+}
+
+/**
  * อ่านไฟล์รูปแบบ "ตารางกว้าง" — หนึ่งคอลัมน์ = หนึ่งช่วงราคาน้ำมัน
  *
  * รองรับทั้งสองแบบที่หน่วยงานส่งมา:
@@ -299,7 +332,7 @@ function parseSideTables(
  */
 export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResult {
     const wb = XLSX.read(data, { type: 'array' });
-    const sheetName = wb.SheetNames[0];
+    const sheetName = pickDataSheet(wb.SheetNames);
     const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], {
         header: 1,
         raw: true,
@@ -416,6 +449,8 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
         const origin = toStr(cOrigin >= 0 ? r[cOrigin] : '');
         const dest = toStr(cDest >= 0 ? r[cDest] : '');
         if (!origin && !dest) continue;   // แถวหัวข้อ/แถวว่าง
+
+        const rowTruckType = toStr(cTruck >= 0 ? r[cTruck] : '');
         if (isNoteRow(r, origin, dest, bandCols)) continue;
 
         // บริษัทเว้นว่างในแถวถัดมา = ใช้ค่าจากแถวก่อนหน้า (merge cell ใน Excel)
@@ -432,7 +467,7 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
             company,
             origin,
             destination: dest,
-            truckType: toStr(cTruck >= 0 ? r[cTruck] : ''),
+            truckType: rowTruckType,
             note: toStr(cNote >= 0 ? r[cNote] : ''),
             bands,
         });

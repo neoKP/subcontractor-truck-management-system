@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import { exportExcelReport, thaiFileDate, type ReportSheet } from '../utils/excelReport';
 import { findRateAt, type FuelRateRow } from '../utils/fuelRateParser';
-import { loadActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
+import { watchActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
 import { useOilPrice } from '../utils/useOilPrice';
 
 const money = (n: number): string =>
@@ -30,19 +30,14 @@ const FuelRateTableView: React.FC = () => {
     const [truckType, setTruckType] = useState('');
     const [onlyMissing, setOnlyMissing] = useState(false);
 
+    // เฝ้าดูรุ่นที่ใช้งาน ไม่ใช่โหลดครั้งเดียว — หน้านี้ถูกเปิดค้างทั้งวัน
+    // ถ้ามีคนอัปเรทรอบใหม่ คนที่เปิดค้างต้องเห็นทันที ไม่ใช่คิดเงินจากเรทเก่าต่อ
     useEffect(() => {
-        let alive = true;
-        (async () => {
-            try {
-                const v = await loadActiveFuelRates();
-                if (alive) setVersion(v);
-            } catch (e) {
-                if (alive) setLoadError((e as Error).message || 'โหลดข้อมูลไม่สำเร็จ');
-            } finally {
-                if (alive) setLoading(false);
-            }
-        })();
-        return () => { alive = false; };
+        const stop = watchActiveFuelRates(
+            v => { setVersion(v); setLoadError(''); setLoading(false); },
+            msg => { setLoadError(msg); setLoading(false); }
+        );
+        return stop;
     }, []);
 
     const rows = version?.rows ?? [];

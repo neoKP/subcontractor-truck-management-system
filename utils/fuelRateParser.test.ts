@@ -342,3 +342,48 @@ describe('parseFuelRateWorkbook — คอลัมน์หมายเหต�
         expect(result.rows[0].note).toBe('ต่อรองแล้ว');
     });
 });
+
+describe('เลือกชีตข้อมูล ไม่ใช่ชีตตัวอย่าง', () => {
+    const dataRows = [
+        [null, null, null, null, null, 29.01, 30.01],
+        ['ลำดับ', 'บริษัท', 'ต้นทาง', 'ปลายทาง', 'ประเภทรถ', 30, 31],
+        [1, 'KNN DYNAMIC', 'สมุทรสาคร', 'แม่สอด', '6W', 13500, 13500],
+    ];
+    const exampleRows = [
+        [null, null, null, null, null, 29.01, 30.01],
+        ['ลำดับ', 'บริษัท', 'ต้นทาง', 'ปลายทาง', 'ประเภทรถ', 30, 31],
+        [1, 'บริษัทตัวอย่าง', 'ต้นทางตัวอย่าง', 'ปลายทางตัวอย่าง', '6W', 5000, 5000],
+    ];
+
+    /** สร้างไฟล์หลายชีตตามลำดับที่กำหนด */
+    const multiSheet = (sheets: { name: string; rows: (string | number | null)[][] }[]) => {
+        const wb = XLSX.utils.book_new();
+        for (const s of sheets) {
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s.rows), s.name);
+        }
+        return XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+    };
+
+    it('ใช้ชีต "กรอกเรท" แม้ชีตตัวอย่างจะอยู่หน้าสุด', () => {
+        const buf = multiSheet([
+            { name: 'ตัวอย่างการกรอก', rows: exampleRows },
+            { name: 'กรอกเรท', rows: dataRows },
+        ]);
+        const result = parseFuelRateWorkbook(buf);
+        expect(result.sheetName).toBe('กรอกเรท');
+        expect(result.rows[0].company).toBe('KNN DYNAMIC');
+    });
+
+    it('ข้ามชีตตัวอย่าง/วิธีใช้ เมื่อไม่มีชีต "กรอกเรท"', () => {
+        const buf = multiSheet([
+            { name: 'วิธีใช้', rows: exampleRows },
+            { name: 'ตารางเรท', rows: dataRows },
+        ]);
+        expect(parseFuelRateWorkbook(buf).sheetName).toBe('ตารางเรท');
+    });
+
+    it('ใช้ชีตแรกเมื่อไฟล์มีชีตเดียว', () => {
+        const buf = multiSheet([{ name: 'Sheet1', rows: dataRows }]);
+        expect(parseFuelRateWorkbook(buf).sheetName).toBe('Sheet1');
+    });
+});

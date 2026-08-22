@@ -71,6 +71,12 @@ const BUNDLED_BY_DATE = (SAHA_OIL as { byDate: OilBands }).byDate;
 /** ดึงราคาจาก NAS ซ้ำทุกชั่วโมง — ราคาเปลี่ยนวันละครั้ง ถี่กว่านี้ไม่มีประโยชน์ */
 const NAS_REFRESH_MS = 60 * 60 * 1000;
 
+/**
+ * NAS ต้องค้างเกินกี่วันจึงจะยอมใช้ RTDB แทน
+ * ปตท. ปรับราคาถี่กว่านี้มาก ถ้า NAS ไม่ขยับเกินสองสัปดาห์แปลว่าค้างจริง
+ */
+const STALE_AFTER_DAYS = 14;
+
 /** ค่าสำรองจากไฟล์ที่ bundle มา — ใช้เมื่อทั้ง NAS และ RTDB ไม่ตอบ */
 const bundledPrice = (): SourcePrice => {
     const dates = Object.keys(BUNDLED_BY_DATE).sort();
@@ -154,8 +160,12 @@ export function useOilPrice(): OilPriceState {
                 ref(db, 'oilPrice/latest'),
                 (snap: { val: () => RtdbOilPrice | null }) => {
                     const v = snap.val();
-                    // ต้องมีทั้งราคาและวันที่มีผล ไม่งั้นถือว่าใช้ไม่ได้
-                    if (!v || typeof v.diesel !== 'number' || !v.effectiveDate) return;
+                    // ข้อมูลถูกลบหรือเสีย → ทิ้งของเก่า ไม่งั้นหน้าจะใช้ราคาเก่าค้างต่อไป
+                    // ทั้งที่แหล่งนี้ใช้ไม่ได้แล้ว แทนที่จะถอยไปใช้ค่าสำรอง
+                    if (!v || typeof v.diesel !== 'number' || !v.effectiveDate) {
+                        setRtdbPrice(null);
+                        return;
+                    }
                     // รับทุก snapshot รวมถึงการแก้ไขงวดเดิม — การจัดลำดับแหล่งทำตอนคืนค่า
                     setRtdbPrice({
                         diesel: v.diesel,
@@ -175,7 +185,7 @@ export function useOilPrice(): OilPriceState {
                 ref(db, 'oilPrice/bands'),
                 (snap: { val: () => Record<string, RtdbOilBand> | null }) => {
                     const v = snap.val();
-                    if (!v) return;
+                    if (!v) { setRtdbBands(null); return; }
                     const parsed: OilBands = {};
                     for (const [iso, band] of Object.entries(v)) {
                         const pct = typeof band?.pct === 'number'
@@ -186,7 +196,7 @@ export function useOilPrice(): OilPriceState {
                         if (pct !== null) parsed[iso] = pct;
                     }
                     // แทนที่ทั้งชุด — snapshot ล่าสุดคือความจริงของ RTDB (รวมการลบ/แก้งวด)
-                    if (Object.keys(parsed).length) setRtdbBands(parsed);
+                    setRtdbBands(Object.keys(parsed).length ? parsed : null);
                 },
                 () => { /* เงียบ — ใช้แหล่งอื่นต่อไป */ }
             );
@@ -203,17 +213,22 @@ export function useOilPrice(): OilPriceState {
     }, []);
 
     // แหล่งจะใช้ได้ต่อเมื่อมีครบทั้งราคาและประวัติ — การ์ดกับตารางต้องมาจากที่เดียวกัน
+    //
+    // NAS ชนะเสมอเมื่อยังสด ไม่ได้เลือกตาม "วันที่ใหม่สุด"
+    // ถ้าเลือกตามวันที่ ข้อมูลผิดใน RTDB ที่ระบุวันล้ำหน้า (เช่นกรอกปีผิด) จะทับ NAS
+    // แล้วราคาน้ำมันที่ใช้เปิดตารางเรทจะเพี้ยน ทำให้ทุกเส้นทางที่ข้ามช่วงคิดเงินผิด
+    // RTDB เป็นแค่ทางสำรองตอน NAS ใช้ไม่ได้ ตามที่ระบุไว้ด้านบนของไฟล์
     const chosen = useMemo(() => {
-        const usable = [
-            nasPrice && nasBands ? { price: nasPrice, bands: nasBands } : null,
-            rtdbPrice && rtdbBands ? { price: rtdbPrice, bands: rtdbBands } : null,
-        ].filter((x): x is { price: SourcePrice; bands: OilBands } => x !== null);
+        const nasUsable = nasPrice && nasBands ? { price: nasPrice, bands: nasBands } : null;
+        const rtdbUsable = rtdbPrice && rtdbBands ? { price: rtdbPrice, bands: rtdbBands } : null;
 
-        if (!usable.length) return null;
-        // สดที่สุดชนะ · เท่ากันเลือก NAS (อยู่ก่อนในรายการ) เพราะดึงจาก ปตท. ถี่กว่า
-        return usable.reduce((best, c) =>
-            c.price.effectiveDate > best.price.effectiveDate ? c : best
-        );
+        if (!nasUsable) return rtdbUsable;
+        if (!rtdbUsable) return nasUsable;
+
+        // ใช้ RTDB แทนต่อเมื่อ NAS ค้างเก่ากว่าเกณฑ์จริง ๆ (เช่น NAS ล่มมาหลายวันแต่ยังตอบ cache)
+        const nasStale = daysSince(nasUsable.price.effectiveDate) > STALE_AFTER_DAYS;
+        const rtdbNewer = rtdbUsable.price.effectiveDate > nasUsable.price.effectiveDate;
+        return nasStale && rtdbNewer ? rtdbUsable : nasUsable;
     }, [nasPrice, nasBands, rtdbPrice, rtdbBands]);
 
     const byDate = useMemo(

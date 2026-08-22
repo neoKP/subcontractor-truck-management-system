@@ -207,3 +207,29 @@ describe.skipIf(!load(FILE_1))('ไฟล์ที่ 1 ไม่มีตาร
         expect(result.issues.some(i => i.kind === 'side-table-unreadable')).toBe(false);
     });
 });
+
+describe.skipIf(!load(FILE_1))('ตัวกรองแถวสรุปไม่ตัดเส้นทางจริงทิ้ง', () => {
+    const result = parseFuelRateWorkbook(load(FILE_1)!);
+
+    it('ยังอ่านได้ครบ 164 เส้นทางเท่าเดิม', () => {
+        expect(result.rows.length).toBe(164);
+    });
+
+    it('ไม่มีแถวสรุปหลุดเข้ามาเป็นเส้นทาง', () => {
+        const words = ['รวม', 'ขั้นต่ำ', 'คิดเพิ่ม', 'เงื่อนไข', 'สรุป'];
+        for (const r of result.rows) {
+            for (const w of words) {
+                expect(r.origin.startsWith(w)).toBe(false);
+                expect(r.destination.startsWith(w)).toBe(false);
+            }
+        }
+    });
+});
+
+describe.skipIf(!load(FILE_2))('เลือกชีตข้อมูลถูกต้อง', () => {
+    it('ยังอ่านไฟล์ต้นฉบับที่มีชีตเดียวได้', () => {
+        const result = parseFuelRateWorkbook(load(FILE_2)!);
+        expect(result.rows.length).toBeGreaterThan(30);
+        expect(result.rows[0].bands[0].price).toBe(1880);
+    });
+});
