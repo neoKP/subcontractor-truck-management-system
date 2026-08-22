@@ -13,7 +13,7 @@ import { isPayableFromBilling, resolvePaymentTargets } from '../utils/invoiceMat
 interface BillingViewProps {
   jobs: Job[];
   user: { id: string; name: string; role: UserRole };
-  onUpdateJob: (job: Job, logs?: AuditLog[]) => void;
+  onUpdateJob: (job: Job, logs?: AuditLog[]) => void | Promise<void>;
   priceMatrix?: PriceMatrix[];
 }
 
@@ -97,6 +97,15 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
     }
   });
 
+  /**
+   * งานที่เลือกไว้ "และยังมองเห็นอยู่จริง" ในแท็บ/ตัวกรองปัจจุบัน
+   *
+   * รายการที่เลือกไม่ถูกล้างเมื่อผู้ใช้เปลี่ยนคำค้นหรือช่วงวันที่ ถ้าปุ่มชุดนับจาก
+   * selectedJobIds ตรง ๆ จะขึ้นว่า "จ่าย 5 รายการ" แต่จ่ายจริงแค่ 2 หรือ 0 รายการ
+   * แล้วยังขึ้นว่าสำเร็จ ทุกที่จึงต้องอ่านจากตัวนี้ตัวเดียว
+   */
+  const selectedVisibleJobs = filteredJobs.filter(j => selectedJobIds.includes(j.id));
+
   const totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
   const paginatedJobs = filteredJobs.slice().reverse().slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -154,7 +163,18 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
       isBaseCostLocked: action === AccountingStatus.APPROVED || action === AccountingStatus.LOCKED
     };
 
-    onUpdateJob(updatedJob, [log]);
+    // รอให้เขียนเสร็จก่อนแจ้งว่าสำเร็จ ไม่งั้นผู้ใช้เห็นว่าสำเร็จทั้งที่ยังไม่ได้บันทึก
+    try {
+      await onUpdateJob(updatedJob, [log]);
+    } catch (error) {
+      console.error('Update status failed:', error);
+      (window as any).Swal.fire({
+        icon: 'error',
+        title: 'บันทึกไม่สำเร็จ',
+        text: 'เปลี่ยนสถานะไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
+      });
+      return;
+    }
 
     (window as any).Swal.fire({
       icon: 'success',
@@ -197,11 +217,21 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
       reason: 'Undo: ย้อนกลับไป Verification Center'
     };
 
-    onUpdateJob({
-      ...job,
-      accountingStatus: AccountingStatus.PENDING_REVIEW,
-      isBaseCostLocked: false
-    }, [log]);
+    try {
+      await onUpdateJob({
+        ...job,
+        accountingStatus: AccountingStatus.PENDING_REVIEW,
+        isBaseCostLocked: false
+      }, [log]);
+    } catch (error) {
+      console.error('Undo failed:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'ย้อนงานไม่สำเร็จ',
+        text: 'กรุณาลองใหม่อีกครั้ง',
+      });
+      return;
+    }
 
     Swal.fire({
       icon: 'success',
@@ -232,9 +262,9 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
   };
 
   const handleBatchBill = () => {
-    if (selectedJobIds.length === 0) return;
-
-    const selectedJobs = jobs.filter(j => selectedJobIds.includes(j.id));
+    // เฉพาะงานที่เลือกไว้และยังมองเห็นอยู่จริง — กันรายการที่ค้างจากแท็บหรือตัวกรองก่อนหน้า
+    const selectedJobs = selectedVisibleJobs;
+    if (selectedJobs.length === 0) return;
 
     // Validation: All must have POD
     const missingPod = selectedJobs.filter(j => !j.podImageUrls || j.podImageUrls.length === 0);
@@ -313,24 +343,41 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
       return;
     }
 
+    // ถึงตรงนี้แปลว่าไม่มีรายการถูกบล็อกและไม่มีใบหาย — ถ้ายังว่างแปลว่าเลือกมา 0 รายการ
+    // (เช่น เปลี่ยนตัวกรองจนรายการที่เลือกหลุดออกจากจอ) ต้องไม่ขึ้นว่าสำเร็จ
+    if (!payable.length) {
+      alert('ไม่มีรายการที่จ่ายได้ — รายการที่เลือกไว้อาจถูกกรองออกจากหน้าจอแล้ว');
+      setShowPaymentModal(false);
+      setPaymentTargetJobs([]);
+      return;
+    }
+
     console.log('🔵 PAYMENT STARTED:', { jobCount: payable.length, jobIds: payable.map(j => j.id), date });
     let slipUrl = '';
     if (file) {
-      // Upload to Firebase Storage (instead of Base64 in DB)
+      // อัปโหลดสลิปขึ้น Firebase Storage (ไม่เก็บ Base64 ลงฐานข้อมูล)
+      //
+      // ถ้าอัปโหลดไม่สำเร็จต้องหยุด ไม่ใช่บันทึกต่อโดยไม่มีสลิป — ผู้ใช้เลือกไฟล์มาแล้ว
+      // ถ้าปล่อยผ่าน จะได้รายการจ่ายที่ไม่มีหลักฐาน โดยผู้ใช้เห็นข้อความว่าสำเร็จ
       try {
         const timestamp = Date.now();
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         slipUrl = await uploadFileToStorage(file, `payment-slips/${timestamp}_${safeName}`);
       } catch (error) {
         console.error("Upload failed:", error);
+        (window as any).Swal.fire({
+          icon: 'error',
+          title: 'อัปโหลดสลิปไม่สำเร็จ',
+          text: 'ยังไม่ได้บันทึกการจ่ายเงิน กรุณาลองใหม่อีกครั้ง',
+        });
+        return;
       }
     }
 
     const logs: AuditLog[] = [];
+    const updates: Promise<unknown>[] = [];
 
     payable.forEach(job => {
-      console.log(`🔄 Processing Job ${job.id}: Current status=${job.status}, AccStatus=${job.accountingStatus}`);
-
       const updatedJob: Job = {
         ...job,
         accountingStatus: AccountingStatus.PAID,
@@ -338,8 +385,6 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
         paymentSlipUrl: slipUrl,
         isBaseCostLocked: true
       };
-
-      console.log(`✅ Updated Job ${job.id}: New AccStatus=${updatedJob.accountingStatus}, PaymentDate=${updatedJob.paymentDate}`);
 
       const log: AuditLog = {
         id: `LOG-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -355,8 +400,24 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
       };
 
       logs.push(log);
-      onUpdateJob(updatedJob, [log]);
+      updates.push(Promise.resolve(onUpdateJob(updatedJob, [log])));
     });
+
+    // ต้องรอให้เขียนเสร็จก่อน ถึงจะบอกผู้ใช้ว่าสำเร็จ
+    //
+    // เดิมยิงคำสั่งเขียนแล้วขึ้น "บันทึกสำเร็จ!" ทันที ถ้าเน็ตหลุดหรือฐานข้อมูลปฏิเสธ
+    // ผู้ใช้จะเห็นว่าสำเร็จทั้งที่เงินยังไม่ถูกบันทึก แล้วไปจ่ายซ้ำในภายหลัง
+    try {
+      await Promise.all(updates);
+    } catch (error) {
+      console.error('Payment save failed:', error);
+      (window as any).Swal.fire({
+        icon: 'error',
+        title: 'บันทึกไม่สำเร็จ',
+        text: 'การจ่ายเงินบางรายการบันทึกไม่สำเร็จ กรุณาตรวจสอบรายการและลองใหม่',
+      });
+      return;
+    }
 
     // Close modal and reset state
     setShowPaymentModal(false);
@@ -431,6 +492,9 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
             setViewTab(stage);
             setActiveFilter('ALL');
             setCurrentPage(1);
+            // ล้างรายการที่เลือกด้วย — รายการที่เลือกไว้ในแท็บก่อนหน้าไม่ได้แสดงในแท็บใหม่
+            // ถ้าไม่ล้าง ปุ่ม "จ่ายเลย" จะทำงานกับงานที่ผู้ใช้มองไม่เห็นบนจอ
+            setSelectedJobIds([]);
           }}
         />
       </section>
@@ -477,22 +541,22 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
           )}
 
           {/* Batch Actions for TO_BILL */}
-          {viewTab === 'TO_BILL' && selectedJobIds.length > 0 && (
+          {viewTab === 'TO_BILL' && selectedVisibleJobs.length > 0 && (
             <button
               onClick={handleBatchBill}
               className="px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-indigo-600 text-white shadow-lg shadow-indigo-100 hover:bg-indigo-700 flex items-center gap-2 animate-in zoom-in duration-200"
             >
-              <Receipt size={14} /> Batch Acknowledge ({selectedJobIds.length})
+              <Receipt size={14} /> Batch Acknowledge ({selectedVisibleJobs.length})
             </button>
           )}
 
           {/* Batch Actions for TO_PAY */}
-          {viewTab === 'TO_PAY' && selectedJobIds.length > 0 && (
+          {viewTab === 'TO_PAY' && selectedVisibleJobs.length > 0 && (
             <button
-              onClick={() => handleOpenPaymentModal(jobs.filter(j => selectedJobIds.includes(j.id)))}
+              onClick={() => handleOpenPaymentModal(selectedVisibleJobs)}
               className="px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-amber-600 text-white shadow-lg shadow-amber-100 hover:bg-amber-700 flex items-center gap-2 animate-in zoom-in duration-200"
             >
-              <CreditCard size={14} /> Batch Pay Now ({selectedJobIds.length})
+              <CreditCard size={14} /> Batch Pay Now ({selectedVisibleJobs.length})
             </button>
           )}
         </div>
@@ -930,12 +994,12 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
 
       {/* Floating Batch Action */}
       {
-        selectedJobIds.length > 0 && (
+        selectedVisibleJobs.length > 0 && (
           <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[50] animate-in slide-in-from-bottom-10 duration-500">
             <div className="bg-slate-900 text-white px-8 py-4 rounded-[2rem] shadow-2xl flex items-center gap-6 border border-slate-700 backdrop-blur-xl bg-slate-900/90">
               <div className="flex flex-col">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selected Jobs</span>
-                <span className="text-lg font-black">{selectedJobIds.length} ใบงาน</span>
+                <span className="text-lg font-black">{selectedVisibleJobs.length} ใบงาน</span>
               </div>
               <div className="h-8 w-px bg-slate-700"></div>
               <button

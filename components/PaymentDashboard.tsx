@@ -8,12 +8,14 @@ import {
 import { Job, SubcontractorInvoice, InvoiceDeduction, InvoiceStatus, PriceMatrix, UserRole, AccountingStatus } from '../types';
 import { formatDate, formatThaiCurrency } from '../utils/format';
 import { invoiceTotals as computeInvoiceTotals, withholdingTax, checkPaymentAmount, jobPayable } from '../utils/invoiceMath';
+import { isWithinPeriod } from '../utils/dateRange';
+import { reserveInvoiceSeq, invoiceYearCode, formatInvoiceNo, nextSeqFromInvoices } from '../utils/invoiceNo';
 
 interface PaymentDashboardProps {
   jobs: Job[];
   invoices: SubcontractorInvoice[];
   priceMatrix: PriceMatrix[];
-  onCreateInvoice: (invoice: SubcontractorInvoice) => void;
+  onCreateInvoice: (invoice: SubcontractorInvoice) => void | Promise<void>;
   onUpdateInvoice: (invoice: SubcontractorInvoice) => void;
   user: { id: string; name: string; role: UserRole };
 }
@@ -30,6 +32,8 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSubCon, setFilterSubCon] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  /** กำลังจองเลขและบันทึกใบอยู่ — กันกดปุ่มซ้ำจนได้ใบซ้ำ */
+  const [isCreating, setIsCreating] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<SubcontractorInvoice | null>(null);
 
@@ -98,8 +102,9 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
     if (!createForm.subcontractor) return [];
     return verifiedJobs.filter(job => 
       job.subcontractor === createForm.subcontractor &&
-      (!createForm.periodStart || job.dateOfService >= createForm.periodStart) &&
-      (!createForm.periodEnd || job.dateOfService <= createForm.periodEnd)
+      // เทียบแบบวันล้วน — ถ้าเทียบสตริงตรง ๆ งานวันสุดท้ายของงวดที่มีเวลาติดมา
+      // (`2026-08-31T08:30:00Z`) จะถูกมองว่าเกินปลายงวด แล้วหายจากใบเงียบ ๆ
+      isWithinPeriod(job.dateOfService, createForm.periodStart, createForm.periodEnd)
     );
   }, [verifiedJobs, createForm.subcontractor, createForm.periodStart, createForm.periodEnd]);
 
@@ -120,24 +125,41 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
     };
   };
 
-  // Generate invoice number
-  const generateInvoiceNo = () => {
-    const year = new Date().getFullYear();
-    const count = invoices.filter(inv => inv.invoiceNo.includes(`INV-${year}`)).length + 1;
-    return `INV-${year}-${String(count).padStart(4, '0')}`;
-  };
-
   // Handle create invoice
-  const handleCreateInvoice = () => {
+  const handleCreateInvoice = async () => {
     if (!createForm.subcontractor || createForm.selectedJobs.length === 0) return;
+    if (isCreating) return;   // กันกดซ้ำระหว่างที่กำลังจองเลข
+    setIsCreating(true);
+
+    // จองเลขใบผ่าน transaction — เดิมนับจากจำนวนใบในหน้าจอ ซึ่งซ้ำได้สองแบบ:
+    // สองคนกดพร้อมกันได้เลขเดียวกัน และถ้าลบใบทิ้ง เลขถัดไปจะย้อนไปทับใบเก่า
+    const yearCode = invoiceYearCode();
+    let invoiceNo: string;
+    try {
+      const fallback = nextSeqFromInvoices(invoices.map(inv => inv.invoiceNo), yearCode);
+      invoiceNo = formatInvoiceNo(yearCode, await reserveInvoiceSeq(yearCode, fallback));
+    } catch (error) {
+      console.error('Reserve invoice number failed:', error);
+      setIsCreating(false);
+      if ((window as any).Swal) {
+        (window as any).Swal.fire({
+          icon: 'error',
+          title: 'ออกเลขใบแจ้งหนี้ไม่สำเร็จ',
+          text: 'ยังไม่ได้สร้างใบแจ้งหนี้ กรุณาลองใหม่อีกครั้ง',
+        });
+      }
+      return;
+    }
 
     const terms = getPaymentTerms(createForm.subcontractor);
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + (terms.creditDays || 0));
 
     const newInvoice: SubcontractorInvoice = {
-      id: `inv-${Date.now()}`,
-      invoiceNo: generateInvoiceNo(),
+      // ใช้เลขใบเป็น id ด้วย — `inv-${Date.now()}` ชนกันได้ถ้ากดพร้อมกัน
+      // แล้วใบที่บันทึกทีหลังจะเขียนทับใบแรกหายไปทั้งใบ ไม่ใช่แค่เลขซ้ำ
+      id: invoiceNo,
+      invoiceNo,
       subcontractor: createForm.subcontractor,
       periodStart: createForm.periodStart || jobsForSubcontractor[0]?.dateOfService || new Date().toISOString().split('T')[0],
       periodEnd: createForm.periodEnd || jobsForSubcontractor[jobsForSubcontractor.length - 1]?.dateOfService || new Date().toISOString().split('T')[0],
@@ -151,7 +173,24 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
       createdBy: user.name
     };
 
-    onCreateInvoice(newInvoice);
+    // ต้องรอให้บันทึกเสร็จก่อนปิดหน้าต่าง ไม่งั้นผู้ใช้เห็นว่าสำเร็จทั้งที่ยังไม่ได้บันทึก
+    // และเลขที่จองไปแล้วจะหายไปเฉย ๆ
+    try {
+      await onCreateInvoice(newInvoice);
+    } catch (error) {
+      console.error('Create invoice failed:', error);
+      if ((window as any).Swal) {
+        (window as any).Swal.fire({
+          icon: 'error',
+          title: 'สร้างใบแจ้งหนี้ไม่สำเร็จ',
+          text: `เลข ${invoiceNo} ถูกจองไว้แล้วแต่บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง`,
+        });
+      }
+      return;
+    } finally {
+      setIsCreating(false);
+    }
+
     setShowCreateModal(false);
     setCreateForm({
       subcontractor: '',
@@ -669,10 +708,10 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
               </button>
               <button
                 onClick={handleCreateInvoice}
-                disabled={!createForm.subcontractor || createForm.selectedJobs.length === 0}
+                disabled={isCreating || !createForm.subcontractor || createForm.selectedJobs.length === 0}
                 className="px-6 py-2 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:bg-slate-300 flex items-center gap-2"
               >
-                <Save size={16} /> สร้างใบวางบิล
+                <Save size={16} /> {isCreating ? 'กำลังสร้าง...' : 'สร้างใบวางบิล'}
               </button>
             </div>
           </div>

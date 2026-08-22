@@ -209,3 +209,32 @@ describe('resolvePaymentTargets — อ่านฉบับล่าสุด�
         expect(r.missingIds).toHaveLength(0);
     });
 });
+
+describe('รายการที่เลือกค้างข้ามแท็บ', () => {
+    // จำลองตัวกรองของแต่ละแท็บใน BillingView
+    const inTab = (j: any, tab: string) => {
+        if (tab === 'TO_BILL') return j.status === 'Completed' && j.accountingStatus === 'Approved';
+        if (tab === 'TO_PAY') return j.status === 'Billed' && isPayableFromBilling(j)
+            && j.accountingStatus !== 'Paid' && j.accountingStatus !== 'Locked';
+        return false;
+    };
+
+    const jobs = [
+        { id: 'J1', status: 'Completed', accountingStatus: 'Approved' },  // แท็บ รอวางบิล
+        { id: 'J2', status: 'Billed', accountingStatus: 'Approved' },     // แท็บ รอจ่าย
+    ];
+
+    it('เลือกไว้ในแท็บรอวางบิล แล้วสลับไปรอจ่าย ต้องไม่ถูกนำไปจ่าย', () => {
+        const selected = ['J1'];
+        // พฤติกรรมเดิม: กรองจากงานทั้งหมด -> J1 หลุดเข้าไปทั้งที่ยังไม่ได้วางบิล
+        expect(jobs.filter(j => selected.includes(j.id)).map(j => j.id)).toEqual(['J1']);
+        // พฤติกรรมใหม่: กรองจากงานในแท็บปัจจุบันเท่านั้น
+        const visible = jobs.filter(j => inTab(j, 'TO_PAY'));
+        expect(visible.filter(j => selected.includes(j.id))).toEqual([]);
+    });
+
+    it('เลือกงานที่อยู่ในแท็บนั้นจริง ยังทำงานได้ปกติ', () => {
+        const visible = jobs.filter(j => inTab(j, 'TO_PAY'));
+        expect(visible.filter(j => ['J2'].includes(j.id)).map(j => j.id)).toEqual(['J2']);
+    });
+});
