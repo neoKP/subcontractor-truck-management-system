@@ -91,6 +91,17 @@ export interface Job {
   cost?: number; // Cost paid to subcontractor
   sellingPrice?: number; // Revenue billed to customer (selling price)
 
+  /**
+   * ลูกค้าที่จ้างงานนี้ (เช่น All Now) — ยังไม่มีหน้าจอให้กรอก เตรียมไว้ก่อน
+   *
+   * โมเดลคือนายหน้า: ลูกค้า → นีโอสยาม → รถร่วม
+   *   cost         = จ่ายรถร่วม
+   *   sellingPrice = เก็บลูกค้ารายนี้
+   * ต้องมีช่องนี้เพราะลูกค้าแต่ละรายจ่ายไม่เท่ากันในเส้นทางเดียวกัน
+   * ถ้าเก็บราคาขายโดยไม่รู้ว่าของใคร จะแยกไม่ออกตอนวางบิล
+   */
+  customer?: string;
+
   // Completion fields
   actualArrivalTime?: string;
   mileage?: string;
@@ -144,6 +155,8 @@ export interface MasterData {
   truckTypes: string[];
   subcontractors: string[];
   reasons: string[];
+  /** ทะเบียนลูกค้าที่จ้างเรา (ฝั่งรายได้) — ยังไม่มีหน้าจอจัดการ */
+  customers?: string[];
 }
 
 export interface PriceMatrix {
@@ -153,6 +166,14 @@ export interface PriceMatrix {
   truckType: string;
   basePrice: number; // Cost paid to sub
   sellingBasePrice: number; // Revenue billed to customer
+
+  /**
+   * ลูกค้าที่ราคาขายแถวนี้ใช้กับ — ว่าง = ใช้กับทุกราย (พฤติกรรมเดิม)
+   *
+   * ปัจจุบันทุกแถวมี sellingBasePrice = 0 ยังไม่ได้กรอกราคาขายจริง
+   * เมื่อกรอกแล้ว เส้นทางเดียวกันจะมีได้หลายแถวแยกตามลูกค้า
+   */
+  customer?: string;
   dropOffFee?: number;
   paymentType?: 'CASH' | 'CREDIT'; // Payment type for subcontractor
   creditDays?: number; // Credit days: 0, 7, 15, 30, 45, 60, or custom
