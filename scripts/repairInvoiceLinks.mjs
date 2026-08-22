@@ -64,6 +64,25 @@ const ALLOWLIST = onlyArg
 const AUTH_TOKEN = process.env.FIREBASE_TOKEN || process.env.RTDB_AUTH || '';
 const authQuery = AUTH_TOKEN ? `?auth=${encodeURIComponent(AUTH_TOKEN)}` : '';
 
+/**
+ * เติมยอดภาษีหัก ณ ที่จ่ายที่ถูกบันทึกเป็น 0 (ต้องสั่งด้วย --fix-withholding)
+ *
+ * INV-2026-0001 มีรายการหัก "ภาษี ณ ที่จ่าย 1%" อยู่แล้ว แต่ยอดเป็น 0 ทั้งที่
+ * เงินที่จ่ายจริงถูกหักไป 185 บาท (= 1% ของ 18,500) ตรงรูปแบบเดียวกับใบอื่น
+ *
+ * ไม่เปิดเป็นค่าเริ่มต้น เพราะเป็นการ "ตีความ" ว่าเงินที่หายไปคือภาษี ไม่ใช่การ
+ * อ่านค่าที่บันทึกไว้ตรง ๆ — ต้องให้คนยืนยันก่อนเสมอ
+ *
+ * ต่อให้เปิดแล้ว ยังต้องผ่านเงื่อนไขทั้งหมดนี้ถึงจะเขียน:
+ *   - ใบต้องจ่ายเงินไปแล้ว (มียอดจ่ายจริงให้เทียบ)
+ *   - รายการหักต้องเป็น type WITHHOLDING_TAX และยอดเป็น 0 อยู่เดิม
+ *   - ยอดที่คำนวณได้ต้องทำให้ยอดสุทธิ "ตรงเป๊ะ" กับเงินที่จ่ายจริง
+ * ถ้าไม่ตรง แปลว่าเงินที่หายไปไม่ใช่ภาษี 1% จะข้ามใบนั้นไปตามเดิม
+ */
+const FIX_WITHHOLDING = process.argv.includes('--fix-withholding');
+const WITHHOLDING_RATE = 0.01;
+const WITHHOLDING_TYPE = 'WITHHOLDING_TAX';
+
 const JOB_STATUS_BILLED = 'Billed';
 const ACC_STATUS_PAID = 'Paid';
 const INVOICE_PAID = 'PAID';
@@ -138,9 +157,30 @@ async function main() {
     }
 
     const realTotal = r2(jobs.reduce((s, { job }) => s + (job.cost || 0) + (job.extraCharge || 0), 0));
-    const deductions = r2((inv.deductions || []).reduce((s, d) => s + (Number(d.amount) || 0), 0));
-    const realNet = r2(realTotal - deductions);
+    let deductionList = inv.deductions || [];
+    let deductions = r2(deductionList.reduce((s, d) => s + (Number(d.amount) || 0), 0));
     const isPaid = inv.status === INVOICE_PAID;
+
+    // เติมยอดภาษีหัก ณ ที่จ่ายที่บันทึกเป็น 0 — เฉพาะเมื่อสั่งด้วย --fix-withholding
+    // และเฉพาะเมื่อผลลัพธ์ทำให้ยอดสุทธิตรงกับเงินที่จ่ายจริงเป๊ะ
+    // ถ้าไม่ตรง ปล่อยไว้เหมือนเดิมแล้วให้การ์ดข้างล่างข้ามใบนี้ไป
+    let withholdingFix = null;
+    if (FIX_WITHHOLDING && isPaid) {
+      const zeroTax = deductionList.findIndex(
+        (d) => d.type === WITHHOLDING_TYPE && r2(d.amount) === 0
+      );
+      if (zeroTax !== -1) {
+        const tax = r2(realTotal * WITHHOLDING_RATE);
+        const netWithTax = r2(realTotal - r2(deductions + tax));
+        if (netWithTax === r2(inv.paidAmount)) {
+          deductionList = deductionList.map((d, i) => (i === zeroTax ? { ...d, amount: tax } : d));
+          deductions = r2(deductions + tax);
+          withholdingFix = { from: 0, to: tax, description: deductionList[zeroTax].description };
+        }
+      }
+    }
+
+    const realNet = r2(realTotal - deductions);
 
     // ถ้าใบจ่ายไปแล้ว ยอดสุทธิที่คำนวณได้ต้องตรงกับเงินที่จ่ายจริง
     // ไม่ตรง = สมมติฐานไม่จริง ต้องให้คนดู ไม่ใช่ให้สคริปต์เดา
@@ -155,6 +195,7 @@ async function main() {
     const invoiceChanges = {};
     if (r2(inv.totalAmount) !== realTotal) invoiceChanges.totalAmount = realTotal;
     if (r2(inv.netAmount) !== realNet) invoiceChanges.netAmount = realNet;
+    if (withholdingFix) invoiceChanges.deductions = deductionList;
 
     const jobChanges = [];
     for (const { id, job } of jobs) {
@@ -172,7 +213,7 @@ async function main() {
     }
 
     if (Object.keys(invoiceChanges).length || jobChanges.length) {
-      plans.push({ invKey, inv, realTotal, deductions, realNet, isPaid, invoiceChanges, jobChanges });
+      plans.push({ invKey, inv, realTotal, deductions, realNet, isPaid, invoiceChanges, jobChanges, withholdingFix });
     }
   }
 
@@ -187,7 +228,18 @@ async function main() {
       console.log(`   จ่ายไปแล้ว ${r2(p.inv.paidAmount).toLocaleString()} เมื่อ ${p.inv.paidDate} -> ตรงกับยอดสุทธิ (ไม่แตะยอดเงิน)`);
     }
 
+    if (p.withholdingFix) {
+      console.log(`   ** เติมยอดภาษี: "${p.withholdingFix.description}"  ${p.withholdingFix.from} -> ${p.withholdingFix.to}`);
+      console.log(`      (ตรวจแล้วว่าทำให้ยอดสุทธิตรงกับเงินที่จ่ายจริงพอดี)`);
+    }
+
     for (const [k, v] of Object.entries(p.invoiceChanges)) {
+      // deductions เป็นอาร์เรย์ของ object — แสดงเป็นสรุปสั้น ๆ ไม่ใช่ [object Object]
+      if (k === 'deductions') {
+        const summary = v.map((d) => `${d.description}: ${d.amount}`).join(', ');
+        console.log(`   ใบแจ้งหนี้: deductions -> ${summary}`);
+        continue;
+      }
       console.log(`   ใบแจ้งหนี้: ${k}  ${p.inv[k]} -> ${v}`);
     }
     for (const { id, job, change } of p.jobChanges) {
