@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { buildFuelRateTemplate, checkAgainstMaster, TEMPLATE_SHEET, type RateMaster } from './fuelRateTemplate';
 import { parseFuelRateWorkbook, findRateAt, type ParseResult } from './fuelRateParser';
+import { MASTER_DATA as REAL_MASTER } from '../constants';
 
 const MASTER: RateMaster = {
     subcontractors: ['KNN', 'YSK', 'รถร่วมคุณหนึ่ง'],
@@ -303,5 +304,36 @@ describe('แบบฟอร์มต้องกรอกได้ทุกช�
         let text = '';
         howto.eachRow(r => r.eachCell(c => { text += String(c.value ?? ''); }));
         expect(text).not.toContain('ล็อกไว้ให้แล้ว');
+    });
+});
+
+describe('ทะเบียนของระบบครอบคลุมไฟล์เรทจริง', () => {
+    // ถ้าชื่อในไฟล์ไม่มีในทะเบียน dropdown จะเลือกไม่ได้ และระบบจะเตือนทุกแถวตอนอัปโหลด
+    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+    const has = (list: string[], v: string) => list.some(x => norm(x) === norm(v));
+
+    it('มีชื่อผู้รับจ้างจากไฟล์ครบ', () => {
+        for (const name of ['KNN DYNAMIC', 'YSK TRANSPORT', 'รถร่วมคุณหนึ่ง',
+            'พรแม่ย่า', 'วิวัฒน์ทรานส์', 'โอเคนะ แม่สอด', 'นีโอสยาม วางบิล sunlee']) {
+            expect(has(REAL_MASTER.subcontractors, name), name).toBe(true);
+        }
+    });
+
+    it('มีสถานที่จากไฟล์ครบ', () => {
+        for (const name of ['ซันลี บางปะกง', 'อาหารสากล (นครปฐม)', '7-11 ลาดกระบัง (สุวรรณภูมิ)',
+            'ศูนย์กระจาย บางบัวทอง', 'แม่สอด พาเลทกลับ', 'ลำปาง / แพร่']) {
+            expect(has(REAL_MASTER.locations, name), name).toBe(true);
+        }
+    });
+
+    it('มีประเภทรถ 4wj ที่ไฟล์ใช้', () => {
+        expect(has(REAL_MASTER.truckTypes, '4wj')).toBe(true);
+        expect(has(REAL_MASTER.truckTypes, '4w')).toBe(true);
+    });
+
+    it('ไม่มีชื่อซ้ำในทะเบียน', () => {
+        for (const list of [REAL_MASTER.locations, REAL_MASTER.subcontractors, REAL_MASTER.truckTypes]) {
+            expect(new Set(list.map(norm)).size).toBe(list.length);
+        }
     });
 });
