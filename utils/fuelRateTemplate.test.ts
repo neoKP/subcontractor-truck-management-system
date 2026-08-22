@@ -100,21 +100,6 @@ describe('buildFuelRateTemplate — กันกรอกผิดตั้ง�
         expect(dv.error).toContain('แจ้งนีโอสยาม');
     });
 
-    it('ล็อกแถวหัวตารางไว้ แต่แถวข้อมูลยังกรอกได้', async () => {
-        const ws = (await openWithExcelJS()).getWorksheet(TEMPLATE_SHEET)!;
-        expect(ws.getCell('A7').protection?.locked).not.toBe(false);   // หัวตาราง = ล็อก
-        expect(ws.getCell('B8').protection?.locked).toBe(false);       // ช่องกรอก = ปลดล็อก
-    });
-
-    it('ช่องขอบช่วงราคาน้ำมันยังแก้ได้ ตามที่คู่มือบอกไว้', async () => {
-        const ws = (await openWithExcelJS()).getWorksheet(TEMPLATE_SHEET)!;
-        expect(ws.getCell('G5').protection?.locked).toBe(false);   // แถว "ตั้งแต่"
-        expect(ws.getCell('G6').protection?.locked).toBe(false);   // แถว "ถึง"
-        expect(ws.getCell('G7').protection?.locked).not.toBe(false);   // หัวตาราง = ยังล็อก
-        // ExcelJS ไม่ได้ประกาศ sheetProtection ไว้ในไฟล์ชนิดข้อมูล แต่มีจริงตอนรัน
-        const protection = (ws as unknown as { sheetProtection?: { insertColumns?: boolean } }).sheetProtection;
-        expect(protection?.insertColumns).toBe(true);
-    });
 
     it('ตรึงหัวตารางและคอลัมน์ชื่อไว้ เลื่อนดูช่วงราคาไกล ๆ แล้วยังรู้ว่าแถวไหน', async () => {
         const ws = (await openWithExcelJS()).getWorksheet(TEMPLATE_SHEET)!;
@@ -272,5 +257,51 @@ describe('แถวแรกเว้นช่วงต้นว่างไว�
         expect(result.rows[0].bands[0].price).toBeNull();
         expect(result.rows[0].bands[1].price).toBeNull();
         expect(result.rows[0].bands[2].price).toBe(7200);
+    });
+});
+
+describe('แบบฟอร์มต้องกรอกได้ทุกช่อง ไม่ล็อกชีต', () => {
+    let wb: ExcelJS.Workbook;
+
+    beforeAll(async () => {
+        const buf = await buildFuelRateTemplate(MASTER);
+        wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(buf);
+    });
+
+    it('ไม่มีชีตไหนถูกล็อก', () => {
+        // หน่วยงานเป็นคนภายนอก ถ้าเจอกล่อง "แผ่นงานมีการป้องกัน" มีแนวโน้มจะเลิกใช้แบบฟอร์ม
+        // ExcelJS ไม่ได้ประกาศ sheetProtection ไว้ในชนิดข้อมูล แต่มีจริงตอนรัน
+        for (const ws of wb.worksheets) {
+            const state = (ws as unknown as { sheetProtection?: unknown }).sheetProtection;
+            expect(state ?? null).toBeNull();
+        }
+    });
+
+    it('ไม่มีช่องไหนถูกตั้งเป็นล็อกไว้', () => {
+        const ws = wb.getWorksheet(TEMPLATE_SHEET)!;
+        for (const row of [5, 6, 8, 100, 200]) {
+            for (const col of [1, 2, 5, 7, 10]) {
+                expect(ws.getRow(row).getCell(col).protection?.locked).not.toBe(true);
+            }
+        }
+    });
+
+    it('มีแถวให้กรอกมากพอสำหรับไฟล์จริง (164 เส้นทาง)', () => {
+        const ws = wb.getWorksheet(TEMPLATE_SHEET)!;
+        // แถว 1-7 เป็นหัวตาราง ที่เหลือคือแถวข้อมูล
+        expect(ws.rowCount - 7).toBeGreaterThanOrEqual(200);
+    });
+
+    it('ยังมี dropdown ให้เลือกชื่อเหมือนเดิม', () => {
+        const ws = wb.getWorksheet(TEMPLATE_SHEET)!;
+        expect(ws.getRow(8).getCell(2).dataValidation).toBeDefined();
+    });
+
+    it('คู่มือในไฟล์ไม่พูดถึงการล็อกที่ไม่มีอยู่จริง', () => {
+        const howto = wb.getWorksheet('วิธีใช้')!;
+        let text = '';
+        howto.eachRow(r => r.eachCell(c => { text += String(c.value ?? ''); }));
+        expect(text).not.toContain('ล็อกไว้ให้แล้ว');
     });
 });

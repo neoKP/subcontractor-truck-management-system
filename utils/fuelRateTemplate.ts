@@ -9,9 +9,9 @@ import { COLOR, FONT, SIZE } from './excelReport';
  * กับงานจริงไม่ได้ ถ้าเริ่มจากแบบฟอร์มที่มีทะเบียนชื่อในตัว ปัญหานี้หายไปตั้งแต่ต้นทาง
  *
  * กันชื่อผิดสองชั้น
- *   1. ในไฟล์ — ช่องชื่อเป็นรายการให้เลือก (dropdown) และล็อกแถวหัวตารางไม่ให้เผลอลบ
+ *   1. ในไฟล์ — ช่องชื่อเป็นรายการให้เลือก (dropdown)
  *   2. ตอนอัปโหลด — `checkAgainstMaster()` ตรวจซ้ำ เพราะรายการเลือกใน Excel ถูก paste ทับได้
- *      และคนกรอกปลดล็อกชีตเองได้ ชั้นที่สองจึงเป็นชั้นที่เชื่อถือได้จริง
+ *      แต่ dropdown ถูกข้ามได้ด้วยการวาง (paste) ชั้นที่สองจึงเป็นชั้นที่เชื่อถือได้จริง
  *
  * โครงของชีต "กรอกเรท" ต้องเข้ากับ `parseFuelRateWorkbook()` โดยไม่ต้องมีตัวอ่านแยก
  * ห้ามสลับแถวเหล่านี้:
@@ -25,7 +25,7 @@ import { COLOR, FONT, SIZE } from './excelReport';
 
 /** ชื่อชีตที่ใช้กรอก — `parseFuelRateWorkbook` อ่านชีตแรกเสมอ ชีตนี้จึงต้องอยู่หน้าสุด */
 export const TEMPLATE_SHEET = 'กรอกเรท';
-export const TEMPLATE_VERSION = 'v2';
+export const TEMPLATE_VERSION = 'v3';
 const LIST_SHEET = 'รายการที่เลือกได้';
 const EXAMPLE_SHEET = 'ตัวอย่างการกรอก';
 
@@ -71,7 +71,8 @@ export async function buildFuelRateTemplate(
 ): Promise<ArrayBuffer> {
     const ExcelJS = (await import('exceljs')).default;
     const bands = options.bands?.length ? options.bands : defaultBands();
-    const blankRows = options.blankRows ?? 100;
+    // ไฟล์จริงของหน่วยงานมี 164 เส้นทาง — 100 แถวไม่พอ เผื่อไว้ให้เพิ่มเส้นทางได้อีก
+    const blankRows = options.blankRows ?? 300;
     const lastRow = FIRST_DATA_ROW + blankRows - 1;
     const lastCol = LABELS.length + bands.length;
 
@@ -108,12 +109,7 @@ export async function buildFuelRateTemplate(
                 cell.font = { name: FONT, size: SIZE.body, bold: i <= LABELS.length, color: { argb: COLOR.text } };
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.totalBg } };
                 cell.alignment = { vertical: 'middle', horizontal: i <= LABELS.length ? 'left' : 'center' };
-                if (i > LABELS.length) {
-                    cell.numFmt = '0.00';
-                    // ปลดล็อกช่องขอบช่วง เพราะคู่มือข้อ 3 บอกให้หน่วยงานแก้ช่วงราคาน้ำมันเองได้
-                    // ถ้าล็อกไว้ วิธีใช้กับไฟล์จะขัดกันเอง คนกรอกจะแก้ไม่ได้จนกว่าจะปลดล็อกชีต
-                    cell.protection = { locked: false };
-                }
+                if (i > LABELS.length) cell.numFmt = '0.00';
             });
         };
         edgeStyle(ws.addRow(['ช่วงราคาน้ำมัน — ตั้งแต่ (บาท/ลิตร)', ...LABELS.slice(1).map(() => null), ...bands.map(b => b.from)]));
@@ -145,8 +141,6 @@ export async function buildFuelRateTemplate(
             cell.font = { name: FONT, size: SIZE.body, color: { argb: COLOR.text } };
             cell.alignment = { vertical: 'middle', horizontal: c <= LABELS.length ? 'left' : 'right' };
             if (c > LABELS.length) cell.numFmt = '#,##0.00';
-            // ปลดล็อกเฉพาะช่องที่ต้องกรอก แถวหัวด้านบนยังล็อกอยู่
-            cell.protection = { locked: false };
         });
     }
 
@@ -177,22 +171,10 @@ export async function buildFuelRateTemplate(
         });
     }
 
-    // ล็อกแถวหัว (1-7) ไม่ให้เผลอลบ ส่วนแถวข้อมูลปลดล็อกไว้แล้วด้านบน
-    // ไม่ใส่รหัสผ่าน — กันพลาด ไม่ได้กันคน ถ้าหน่วยงานต้องแก้จริงก็ปลดล็อกเองได้
-    await form.protect('', {
-        selectLockedCells: true,
-        selectUnlockedCells: true,
-        formatCells: true,
-        formatColumns: true,
-        formatRows: true,
-        insertRows: true,
-        deleteRows: true,
-        // เพิ่ม/ลดคอลัมน์ช่วงราคาน้ำมันได้ ตามที่คู่มือบอกไว้
-        insertColumns: true,
-        deleteColumns: true,
-        sort: true,
-        autoFilter: true,
-    });
+    // ไม่ล็อกชีต — หน่วยงานอัตราจ้างเป็นคนภายนอก ถ้าเจอกล่องเตือน "แผ่นงานมีการป้องกัน"
+    // ระหว่างกรอก เขามีแนวโน้มจะเลิกใช้แบบฟอร์มแล้วส่งไฟล์รูปแบบเดิมมาแทน
+    // ซึ่งเสียมากกว่าความเสี่ยงที่หัวตารางจะถูกแก้ — ตัวอ่านตรวจหัวตารางตอนอัปโหลดอยู่แล้ว
+    // และแจ้ง error ทันทีถ้าโครงไฟล์ผิด จึงไม่ต้องกันตั้งแต่ในไฟล์
 
     // ── ชีต 2: ตัวอย่างการกรอก ──
     const example = wb.addWorksheet(EXAMPLE_SHEET);
@@ -256,7 +238,7 @@ export async function buildFuelRateTemplate(
     howto.addRow([]);
     const steps = [
         `กรอกเฉพาะชีต "${TEMPLATE_SHEET}" ชีตอื่นเป็นข้อมูลประกอบ ไม่ต้องแก้`,
-        'ห้ามลบหรือสลับแถวที่ 1-7 และห้ามสลับลำดับคอลัมน์ ระบบใช้แถวเหล่านี้อ่านไฟล์ (ล็อกไว้ให้แล้ว)',
+        'ห้ามลบหรือสลับแถวที่ 1-7 และห้ามสลับลำดับคอลัมน์ ระบบใช้แถวเหล่านี้อ่านไฟล์',
         'ถ้าใช้ช่วงราคาน้ำมันแบบอื่น ให้แก้ตัวเลขในแถวที่ 5 และ 6 เพิ่มหรือลดคอลัมน์ได้',
         'ช่อง บริษัท / ต้นทาง / ปลายทาง / ประเภทรถ ให้คลิกที่ช่องแล้วเลือกจากรายการที่ขึ้นมา',
         'ค่าขนส่งกรอกเป็นตัวเลขอย่างเดียว ไม่ต้องใส่เครื่องหมายจุลภาคหรือคำว่าบาท',
