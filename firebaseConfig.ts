@@ -2,7 +2,7 @@
 // @ts-ignore
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 // @ts-ignore
-import { getDatabase, ref, onValue, set, push, update, remove, get, query, limitToLast, orderByChild, startAt, endAt } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref, onValue, set, push, update, remove, get, query, limitToLast, orderByChild, startAt, endAt, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 // @ts-ignore
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, getBlob } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 // @ts-ignore
@@ -35,4 +35,4 @@ export const authReady: Promise<unknown> = signInAnonymously(auth).catch((err: a
   console.error('Anonymous sign-in failed (enable Anonymous provider in Firebase Console):', err?.code || err);
 });
 
-export { ref, onValue, set, push, update, remove, get, query, limitToLast, orderByChild, startAt, endAt, storageRef, uploadBytes, getDownloadURL, getBlob };
+export { ref, onValue, set, push, update, remove, get, query, limitToLast, orderByChild, startAt, endAt, runTransaction, storageRef, uploadBytes, getDownloadURL, getBlob };

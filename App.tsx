@@ -390,9 +390,13 @@ const App: React.FC = () => {
     return stripUndefinedDeep(cleaned);
   };
 
-  const addJob = (job: Job) => {
-    // Persist to Firebase
-    set(ref(db, `jobs/${job.id}`), cleanJob(job));
+  /**
+   * บันทึกใบงานใหม่ — เป็น async และ throw เมื่อเขียนไม่สำเร็จ
+   * ฟอร์มต้องรอผลก่อนแจ้งผู้ใช้ว่าสำเร็จ ไม่งั้นเน็ตหลุดแล้วผู้ใช้จะคิดว่างานเข้าระบบแล้ว
+   */
+  const addJob = async (job: Job) => {
+    // Persist to Firebase — ต้อง await ให้รู้ผลจริง
+    await set(ref(db, `jobs/${job.id}`), cleanJob(job));
 
     // Write Audit Log for Spot Rate jobs
     if (job.isSpotRate) {
@@ -408,7 +412,10 @@ const App: React.FC = () => {
         newValue: `Cost: ฿${(job.cost || 0).toLocaleString()} | Sub: ${job.subcontractor || '-'}`,
         reason: job.spotRateReason || 'Spot Rate — ราคากำหนดเองโดยผู้ใช้',
       };
-      set(ref(db, `logs/${spotLog.id}`), spotLog);
+      // log ล้มเหลวไม่ควรทำให้ใบงานที่บันทึกสำเร็จแล้วกลายเป็นล้มเหลว
+      set(ref(db, `logs/${spotLog.id}`), spotLog).catch((e: Error) => {
+        console.error('[addJob] เขียน audit log ไม่สำเร็จ:', e);
+      });
       setLogs(prev => [spotLog, ...prev]);
     }
 

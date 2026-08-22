@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { jobYearCode, formatJobId, reserveJobSeq, nextSeqFromJobs } from '../utils/jobId';
 import { Job, JobStatus, UserRole, PriceMatrix, SubcontractorMaster } from '../types';
 import { MASTER_DATA } from '../constants';
 import { Truck, MapPin, ClipboardCheck, ArrowRight, ArrowLeft, CheckCircle2, Zap, Search, Info, AlertTriangle, ShieldCheck, LayoutPanelTop } from 'lucide-react';
@@ -7,7 +8,8 @@ import { formatDate } from '../utils/format';
 import { sendJobNotification } from '../utils/telegramNotify';
 
 interface JobRequestFormProps {
-  onSubmit: (job: Job) => void;
+  /** บันทึกใบงาน — throw เมื่อเขียนไม่สำเร็จ ฟอร์มจะแจ้งผู้ใช้เอง */
+  onSubmit: (job: Job) => void | Promise<void>;
   existingJobs: Job[];
   priceMatrix: PriceMatrix[];
   subcontractorMasters: SubcontractorMaster[];
@@ -19,6 +21,11 @@ declare const Swal: any;
 
 const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs, priceMatrix, subcontractorMasters, onShowSummary, user }) => {
   const [step, setStep] = useState(1);
+  // วันนี้ในรูป yyyy-mm-dd ตามเวลาเครื่อง — ใช้เป็นขอบล่างของวันที่ต้องการรถ
+  const todayIso = React.useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     dateOfService: '',
@@ -112,6 +119,24 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     // If step === 3, do nothing on Enter. User must click key.
   };
 
+  /**
+   * เปลี่ยนต้นทาง/ปลายทาง/ประเภทรถ = ราคาและผู้รับเหมาของเส้นทางเดิมใช้ไม่ได้แล้ว
+   *
+   * ถ้าไม่ล้าง ผู้ใช้ที่ย้อนกลับไปแก้เส้นทางจะพาราคาของเส้นทางเก่าติดไปด้วย
+   * แล้วบันทึกงานที่ราคาไม่ตรงกับเส้นทางจริง
+   */
+  const changeRouteField = (patch: Partial<typeof formData>) => {
+    setFormData(prev => ({
+      ...prev,
+      ...patch,
+      subcontractor: '',
+      cost: 0,
+      sellingPrice: 0,
+      paymentType: undefined,
+      paymentAccount: '',
+    }));
+  };
+
   const handleSave = async () => {
     // No need to check step < 3 here as this is bound to the save button
 
@@ -136,22 +161,27 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     // Simulate API Delay
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    const currentYear = new Date().getFullYear();
-
-    // Calculate sequence number for the current year
-    const yearPrefix = `JRS-${currentYear}-`;
-    const yearJobs = existingJobs.filter(j => j.id.startsWith(yearPrefix));
-
-    let nextSeq = 1;
-    if (yearJobs.length > 0) {
-      const maxSeq = Math.max(...yearJobs.map(j => {
-        const seqPart = j.id.split('-')[2];
-        return parseInt(seqPart, 10) || 0;
-      }));
-      nextSeq = maxSeq + 1;
+    // จองเลขใบงานผ่าน transaction — นับจากรายการในหน้าจอทำให้สองคนที่กดพร้อมกัน
+    // ได้เลขเดียวกัน แล้วคนที่บันทึกทีหลังเขียนทับใบของคนแรกจนหายไป
+    const yearCode = jobYearCode();
+    let jobId: string;
+    try {
+      const seq = await reserveJobSeq(
+        yearCode,
+        nextSeqFromJobs(existingJobs.map(j => j.id), yearCode)
+      );
+      jobId = formatJobId(yearCode, seq);
+    } catch (e) {
+      setIsSubmitting(false);
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          icon: 'error',
+          title: 'ออกเลขใบงานไม่สำเร็จ',
+          text: (e as Error).message || 'กรุณาลองใหม่อีกครั้ง',
+        });
+      }
+      return;
     }
-
-    const formattedSeq = nextSeq.toString().padStart(4, '0');
 
     // Check for pricing availability.
     // ⚠️ A single route+truck can have MULTIPLE subcontractors at different prices.
@@ -167,7 +197,14 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
         (!selectedSub || (p.subcontractor || '').trim() === selectedSub)
       )
       .sort((a: PriceMatrix, b: PriceMatrix) => (a.basePrice || 0) - (b.basePrice || 0))[0];
-    const hasPricing = !!matchedPricing;
+
+    // ราคาที่ใช้จริงไม่ได้ (NaN / ไม่ใช่ตัวเลข) ต้องถือว่า "ไม่มีราคา" ไม่ใช่ปล่อยผ่าน
+    // ถ้าปล่อยไป cleanJob() จะแปลงเป็น 0 เงียบ ๆ แล้วใบงานจะมีต้นทุน 0 บาท
+    // ทั้งที่หน้าจอบอกว่ามีราคากลาง — เงินผิดโดยไม่มี error ให้เห็น
+    const hasUsablePrice = !!matchedPricing
+      && Number.isFinite(matchedPricing.basePrice)
+      && Number.isFinite(matchedPricing.sellingBasePrice);
+    const hasPricing = hasUsablePrice;
     const isSpotRateJob = priceMode === 'spot';
     const initialStatus = isSpotRateJob || hasPricing ? JobStatus.NEW_REQUEST : JobStatus.PENDING_PRICING;
 
@@ -180,12 +217,19 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       truckType: (formData.truckType || '').trim(),
       driverName: (formData.driverName || '').trim(),
       licensePlate: (formData.licensePlate || '').trim(),
+      // ตัดจุดส่งที่ยังไม่ได้กรอกชื่อทิ้ง — ไม่งั้นใบงานจะมีจุดส่งไร้ชื่อให้หน้างานงง
+      // และตัวเลขจุดส่งในรายงานจะไม่ตรงกับที่ส่งจริง
+      drops: (formData.drops || [])
+        .filter(d => (d.location || '').trim())
+        .map(d => ({ ...d, location: d.location.trim() })),
     };
 
-    const dropCount = formData.drops?.length || 0;
+    // นับเฉพาะจุดที่กรอกชื่อสถานที่แล้ว — ค่าดร็อปจุดละ 1,000 บาทในบางเส้นทาง
+    // ถ้านับจุดว่างด้วย ผู้ใช้ที่เผลอกด "เพิ่มจุด" แล้วไม่กรอกจะถูกคิดเงินเกินโดยไม่รู้ตัว
+    const dropCount = (formData.drops || []).filter(d => (d.location || '').trim()).length;
     const newJob: Job = {
       ...cleanFormData,
-      id: `${yearPrefix}${formattedSeq}`,
+      id: jobId,
       status: initialStatus,
       cost: isSpotRateJob
         ? spotCostNum
@@ -199,7 +243,23 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       ...(isSpotRateJob ? { isSpotRate: true, spotRateReason: spotReason.trim() || 'Spot Rate — ราคากำหนดเองโดยผู้ใช้' } : {}),
     };
 
-    // Show Success Alert and wait for user to click OK
+    // บันทึกก่อน แล้วค่อยแจ้งผล — เดิมแจ้ง "สำเร็จ" ก่อนเขียนลงฐานข้อมูล
+    // ถ้าเน็ตหลุด ผู้ใช้จะไปทำงานต่อทั้งที่ใบงานไม่ได้ถูกบันทึก
+    try {
+      await onSubmit(newJob);
+    } catch (e) {
+      setIsSubmitting(false);
+      if (typeof Swal !== 'undefined') {
+        await Swal.fire({
+          icon: 'error',
+          title: 'บันทึกไม่สำเร็จ / Save Failed',
+          html: `ใบงานยังไม่ถูกบันทึก กรุณาลองใหม่<br/><small>${(e as Error).message || ''}</small>`,
+          confirmButtonText: 'ตกลง',
+        });
+      }
+      return;
+    }
+
     if (typeof Swal !== 'undefined') {
       await Swal.fire({
         title: isSpotRateJob ? '🎯 Spot Rate Saved!' : hasPricing ? 'Success! / บันทึกสำเร็จ' : 'Saved for Review / ส่งตรวจสอบราคา',
@@ -218,7 +278,6 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       });
     }
 
-    onSubmit(newJob);
     sendJobNotification(newJob, 'สร้างงานใหม่แล้ว').catch(() => {});
     setIsSubmitting(false);
 
@@ -241,9 +300,22 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     (p.truckType || '').trim() === (formData.truckType || '').trim()
   );
   const spotCostNum = parseFloat(spotCost.replace(/,/g, '')) || 0;
+
+  // ถ้าเลือกผู้รับเหมาไว้ ราคาที่ใช้ต้องเป็นของรายนั้น ไม่ใช่ของรายอื่นในเส้นทางเดียวกัน
+  // เดิมเช็คแค่ว่า "เส้นทางนี้มีราคากลาง" จึงกดบันทึกได้ทั้งที่รายที่เลือกไม่มีราคา
+  // แล้วใบงานกลายเป็นรอตรวจสอบราคา + ราคา 0 ทั้งที่หน้าจอบอกว่าสร้างได้
+  const pricingForChosenSub = (formData.subcontractor || '').trim()
+    ? priceMatrix.find(p =>
+        (p.origin || '').trim() === (formData.origin || '').trim() &&
+        (p.destination || '').trim() === (formData.destination || '').trim() &&
+        (p.truckType || '').trim() === (formData.truckType || '').trim() &&
+        (p.subcontractor || '').trim() === (formData.subcontractor || '').trim()
+      )
+    : currentMatchedPricing;
+
   const canSaveJob = priceMode === 'spot'
     ? (formData.subcontractor !== '' && spotCostNum > 0)
-    : !!currentMatchedPricing;
+    : !!pricingForChosenSub;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -290,6 +362,8 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                     id="date-service"
                     required
                     type="date"
+                    /* ห้ามย้อนหลัง — ใบงานวันที่ผ่านไปแล้วทำให้แผนงานและรายงานรายวันเพี้ยน */
+                    min={todayIso}
                     className="w-full px-5 py-4 rounded-2xl border border-slate-100 bg-slate-50/50 focus:bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-800"
                     value={formData.dateOfService}
                     onKeyDown={(e) => e.preventDefault()}
@@ -303,7 +377,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                     required
                     className="w-full px-5 py-4 rounded-2xl border border-slate-100 bg-slate-50/50 focus:bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-800 appearance-none cursor-pointer"
                     value={formData.truckType}
-                    onChange={e => setFormData({ ...formData, truckType: e.target.value })}
+                    onChange={e => changeRouteField({ truckType: e.target.value })}
                   >
                     <option value="">เลือกประเภทรถ</option>
                     {MASTER_DATA.truckTypes.map((t, idx) => <option key={`${t}-${idx}`} value={t}>{t}</option>)}
@@ -341,7 +415,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                       onFocus={() => setShowOriginList(true)}
                       onChange={e => {
                         setOriginQuery(e.target.value);
-                        setFormData({ ...formData, origin: e.target.value });
+                        changeRouteField({ origin: e.target.value });
                         setShowOriginList(true);
                       }}
                       onBlur={() => setTimeout(() => setShowOriginList(false), 200)}
@@ -365,7 +439,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                             className={`w-full text-left px-5 py-3.5 hover:bg-blue-50 text-sm font-bold transition-all border-b border-slate-50 last:border-0 flex items-center justify-between ${isMaster ? 'bg-blue-50/20 text-blue-900' : 'text-slate-700'
                               }`}
                             onClick={() => {
-                              setFormData({ ...formData, origin: l });
+                              changeRouteField({ origin: l });
                               setOriginQuery(l);
                               setShowOriginList(false);
                             }}
@@ -400,7 +474,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                       onFocus={() => setShowDestList(true)}
                       onChange={e => {
                         setDestQuery(e.target.value);
-                        setFormData({ ...formData, destination: e.target.value });
+                        changeRouteField({ destination: e.target.value });
                         setShowDestList(true);
                       }}
                       onBlur={() => setTimeout(() => setShowDestList(false), 200)}
@@ -424,7 +498,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                             className={`w-full text-left px-5 py-3.5 hover:bg-blue-50 text-sm font-bold transition-all border-b border-slate-50 last:border-0 flex items-center justify-between ${isMaster ? 'bg-emerald-50/10 text-slate-900' : 'text-slate-700'
                               }`}
                             onClick={() => {
-                              setFormData({ ...formData, destination: l });
+                              changeRouteField({ destination: l });
                               setDestQuery(l);
                               setShowDestList(false);
                             }}
@@ -677,7 +751,15 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                                   key={`${s}-${idx}`}
                                   type="button"
                                   onMouseDown={() => {
-                                    setFormData({ ...formData, subcontractor: s });
+                                    // โหมด spot ไม่มีราคากลางให้ดึงวิธีจ่ายเงิน จึงเอาจากทะเบียนผู้รับเหมา
+                                    // ไม่งั้นงานเงินสดจะบันทึกได้โดยไม่มีเลขบัญชี เพราะตัวกันเช็คจาก paymentType
+                                    const master = subcontractorMasters.find(m => m.name === s);
+                                    setFormData({
+                                      ...formData,
+                                      subcontractor: s,
+                                      paymentType: master?.paymentType || 'CREDIT',
+                                      paymentAccount: master?.paymentAccount || '',
+                                    });
                                     setSpotSubSearch('');
                                     setShowSubDropdown(false);
                                   }}

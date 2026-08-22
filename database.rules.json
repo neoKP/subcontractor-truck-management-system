@@ -29,6 +29,11 @@
       ".read": "auth != null",
       ".write": "auth != null"
     },
+    "jobCounters": {
+      "//": "ตัวนับเลขใบงานรายปี — เขียนผ่าน transaction เท่านั้น กันเลขซ้ำเมื่อสร้างงานพร้อมกัน",
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
     "fuelRates": {
       "//": "ตารางเรทค่าขนส่งตามราคาน้ำมันที่หน่วยงานส่งมา — เก็บเป็นรุ่น ไม่ทับของเดิม",
       "//2": "TODO(ระยะที่ 4): ควรจำกัดสิทธิ์เขียนเฉพาะ admin/accountant แต่ทำไม่ได้จนกว่าจะย้ายไป Firebase Auth จริง — ตอนนี้ทุก client เป็น anonymous เหมือนกันหมด rules จึงแยกบทบาทไม่ได้ (ปัญหาเดียวกับ priceMatrix/invoices) ดู docs/SECURITY_REMEDIATION_PLAN_TH.md",
