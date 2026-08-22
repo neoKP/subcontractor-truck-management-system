@@ -27,7 +27,10 @@ export const uploadFilesToStorage = async (files: File[], basePath: string): Pro
     const uploadPromises = files.map((file, index) => {
         const timestamp = Date.now();
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const path = `${basePath}/${timestamp}_${index}_${safeName.replace(/\.[^.]+$/, '')}.webp`;
+        // ไม่ต้องบังคับเป็น .webp ตรงนี้ — uploadToNAS จะตั้งนามสกุลให้ตรงกับไบต์ที่ส่งจริง
+        // หลังบีบอัดเสร็จ (ดู alignPathExtension ใน utils/nasUpload.ts)
+        // ของเดิมเปลี่ยนทุกอย่างเป็น .webp รวมทั้งไฟล์ PDF ที่ไม่ได้ถูกบีบอัดเลย
+        const path = `${basePath}/${timestamp}_${index}_${safeName}`;
         return uploadFileToStorage(file, path);
     });
     return Promise.all(uploadPromises);
