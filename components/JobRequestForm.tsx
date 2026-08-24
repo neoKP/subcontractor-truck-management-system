@@ -1268,8 +1268,21 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                       <div>
                         <h4 className="text-xs font-black text-amber-700 uppercase tracking-widest">เรทค่าขนส่งตามราคาน้ำมัน</h4>
                         <p className="text-[10px] font-bold text-amber-600/80">
-                          หน่วยงานกำหนดราคาไว้ตามช่วงราคาน้ำมัน · ดีเซล {fuelDiesel.toFixed(2)} บาท/ลิตร
-                          {serviceOil.effectiveDate && ` (งวด ${formatDate(serviceOil.effectiveDate)})`}
+                          {/*
+                            บอกให้ชัดว่าราคาผูกกับ "วันที่ต้องการรถ" ไม่ใช่วันที่กรอกใบงาน
+                            เดิมเขียนว่า "(งวด 19/08)" ซึ่งผู้ใช้เข้าใจว่าเป็นวันทำงาน ทั้งที่
+                            เป็นวันที่ราคาน้ำมันงวดนั้นเริ่มมีผล
+                          */}
+                          หน่วยงานกำหนดราคาไว้ตามช่วงราคาน้ำมัน ·{' '}
+                          {!serviceOil.usable
+                            // ไม่รู้ราคาน้ำมันของวันนั้น (เก่ากว่าข้อมูลที่มี หรือดึงราคาไม่ได้)
+                            // fuelDiesel เป็น 0 ซึ่งแปลว่า "ไม่รู้" ไม่ใช่ "ฟรี" — ห้ามแสดงเป็นราคา
+                            ? <>ยังไม่ทราบราคาน้ำมันของวันที่ต้องการรถ (ดูรายละเอียดด้านล่าง)</>
+                            : serviceOil.status === 'future'
+                              // วันงานยังไม่ถึง ราคาที่ใช้จึงเป็นราคาล่าสุดที่ประกาศแล้ว
+                              // ไม่ใช่ราคาของวันงาน — ต้องไม่พูดว่าเป็นราคา ณ วันนั้น
+                              ? <>ดีเซลล่าสุด {fuelDiesel.toFixed(2)} บาท/ลิตร (ดูรายละเอียดด้านล่าง)</>
+                              : <>ดีเซล ณ วันที่ต้องการรถ{formData.dateOfService && ` (${formatDate(formData.dateOfService)})`} = {fuelDiesel.toFixed(2)} บาท/ลิตร</>}
                         </p>
                       </div>
                     </div>
@@ -1284,8 +1297,9 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                           วันที่ต้องการรถอยู่ข้างหน้าอีก {serviceOil.daysAhead} วัน — ราคานี้เป็นราคาชั่วคราว
                         </p>
                         <p className="text-[10px] font-bold text-amber-700 mt-1">
-                          คิดจากดีเซลงวดล่าสุด {fuelDiesel.toFixed(2)} บาท ({formatDate(serviceOil.effectiveDate)})
-                          ถ้าน้ำมันปรับก่อนถึงวันงาน ราคาจะเปลี่ยน — ระบบจะตรวจให้อีกครั้งตอนตรวจทานและคอนเฟิร์ม
+                          ยังไม่รู้ราคาน้ำมันของวันงาน จึงคิดจากราคาล่าสุดที่ประกาศเมื่อ {formatDate(serviceOil.effectiveDate)}
+                          {' '}({fuelDiesel.toFixed(2)} บาท/ลิตร) ถ้าน้ำมันปรับก่อนถึงวันงาน ราคาจะเปลี่ยน
+                          — ระบบจะตรวจให้อีกครั้งตอนตรวจทานและคอนเฟิร์ม
                         </p>
                       </div>
                     )}
