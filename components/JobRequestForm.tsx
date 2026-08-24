@@ -6,9 +6,8 @@ import { MASTER_DATA } from '../constants';
 import { Truck, MapPin, ClipboardCheck, ArrowRight, ArrowLeft, CheckCircle2, Zap, Search, Info, AlertTriangle, ShieldCheck, LayoutPanelTop, Fuel } from 'lucide-react';
 import { formatDate } from '../utils/format';
 import { sendJobNotification } from '../utils/telegramNotify';
-import { watchActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
-import { findFuelRateOptions, hasFuelRateRoute, matchSelectedFuelRate } from '../utils/fuelRateLookup';
-import { useOilPrice } from '../utils/useOilPrice';
+import { hasFuelRateRoute, matchSelectedFuelRate } from '../utils/fuelRateLookup';
+import { useJobFuelRate } from '../utils/useJobFuelRate';
 
 interface JobRequestFormProps {
   /** บันทึกใบงาน — throw เมื่อเขียนไม่สำเร็จ ฟอร์มจะแจ้งผู้ใช้เอง */
@@ -31,15 +30,6 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
   }, []);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  /**
-   * เรทค่าขนส่งตามราคาน้ำมัน — แหล่งราคาที่สองนอกจากราคากลาง
-   *
-   * เฝ้าดูรุ่นที่ใช้งานแทนโหลดครั้งเดียว เพราะฟอร์มถูกเปิดค้างได้นาน
-   * ถ้ามีคนอัปเรทรอบใหม่ระหว่างนั้น ต้องเห็นราคาใหม่ ไม่ใช่สร้างงานด้วยเรทเก่า
-   */
-  const [fuelRates, setFuelRates] = useState<FuelRateVersion | null>(null);
-  React.useEffect(() => watchActiveFuelRates(v => setFuelRates(v), () => setFuelRates(null)), []);
-  const oil = useOilPrice();
   const [formData, setFormData] = useState({
     dateOfService: '',
     origin: '',
@@ -67,7 +57,13 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
   const [showDropList, setShowDropList] = useState<boolean[]>([]);
 
   // Spot Rate state
-  const [priceMode, setPriceMode] = useState<'standard' | 'spot'>('standard');
+  /**
+   * แหล่งราคาที่ผู้ใช้เลือกใช้
+   *   standard = ราคากลางที่ตกลงไว้ในระบบ
+   *   fuel     = เรทที่หน่วยงานคิดมาให้ตามราคาน้ำมัน (แสดงเฉพาะเส้นทางที่มีเรท)
+   *   spot     = กำหนดราคาเองเป็นกรณีพิเศษ
+   */
+  const [priceMode, setPriceMode] = useState<'standard' | 'fuel' | 'spot'>('standard');
   const [spotCost, setSpotCost] = useState<string>('');
   const [spotReason, setSpotReason] = useState<string>('');
   const [spotSubSearch, setSpotSubSearch] = useState<string>('');
@@ -85,8 +81,33 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
   const masterPricingOrigins = Array.from(new Set(priceMatrix.map(p => p.origin))) as string[];
   const masterPricingDests = Array.from(new Set(priceMatrix.map(p => p.destination))) as string[];
 
-  const allKnownOrigins = Array.from(new Set([...MASTER_DATA.locations, ...masterPricingOrigins])) as string[];
-  const allKnownDests = Array.from(new Set([...MASTER_DATA.locations, ...masterPricingDests])) as string[];
+  /**
+   * เส้นทางจากตารางเรทตามราคาน้ำมันต้องอยู่ในรายการให้เลือกด้วย
+   *
+   * เส้นทางที่หน่วยงานให้เรทมาส่วนใหญ่ไม่มีในราคากลาง ถ้ารายการดึงจากราคากลาง
+   * อย่างเดียว ผู้ใช้จะเลือกเส้นทางเหล่านั้นไม่ได้เลย และกล่องเรทจะไม่มีวันขึ้น
+   * — เรทที่อัปโหลดไว้จะใช้งานไม่ได้ทั้งชุดโดยไม่มีอะไรบอก
+   */
+  /**
+   * เรทค่าขนส่งตามราคาน้ำมัน ณ วันที่ต้องการรถ — แหล่งราคาที่สองนอกจากราคากลาง
+   *
+   * ใช้ hook ตัวเดียวกับหน้าตรวจทานก่อนล็อกราคา เพื่อให้สองหน้าตัดสินจากราคาชุด
+   * เดียวกันเสมอ ถ้าแยกกันคำนวณ จะเพี้ยนจากกันเมื่อแก้ที่เดียว
+   */
+  const jobFuel = useJobFuelRate(
+    { origin: formData.origin, destination: formData.destination, truckType: formData.truckType },
+    formData.dateOfService
+  );
+  const fuelRates = jobFuel.version;
+  const serviceOil = jobFuel.oil;
+  const fuelDiesel = jobFuel.diesel;
+  const fuelOptions = jobFuel.options;
+
+  const fuelRateOrigins = Array.from(new Set((fuelRates?.rows ?? []).map(r => (r.origin || '').trim()).filter(Boolean)));
+  const fuelRateDests = Array.from(new Set((fuelRates?.rows ?? []).map(r => (r.destination || '').trim()).filter(Boolean)));
+
+  const allKnownOrigins = Array.from(new Set([...MASTER_DATA.locations, ...masterPricingOrigins, ...fuelRateOrigins])) as string[];
+  const allKnownDests = Array.from(new Set([...MASTER_DATA.locations, ...masterPricingDests, ...fuelRateDests])) as string[];
 
   const filteredOrigins = allKnownOrigins
     .filter(l => l.toLowerCase().includes(originQuery.toLowerCase()))
@@ -150,6 +171,70 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       paymentAccount: '',
     }));
   };
+
+  /**
+   * เรทตามราคาน้ำมันของเส้นทางที่กำลังกรอกอยู่
+   *
+   * คำนวณที่ระดับคอมโพเนนต์เพราะทั้งแท็บเลือกโหมดราคาและกล่องตัวเลือกต้องใช้
+   * แท็บ "เรทตามน้ำมัน" จะโผล่เฉพาะเส้นทางที่มีเรทจริง — ถ้าโชว์ทุกเส้นทาง
+   * ผู้ใช้จะกดเข้าไปเจอกล่องว่างโดยไม่รู้ว่าทำอะไรผิด
+   */
+  const fuelRoute = {
+    origin: formData.origin,
+    destination: formData.destination,
+    truckType: formData.truckType,
+  };
+
+  // มีเส้นทางในตารางแต่ไม่มีราคาที่ราคาน้ำมันวันนั้น — ต้องบอกให้ต่างจาก "ไม่มีเส้นทาง"
+  const fuelRouteExists = hasFuelRateRoute(fuelRates?.rows ?? [], fuelRoute);
+  const hasFuelTab = fuelOptions.length > 0 || fuelRouteExists;
+
+  /**
+   * สลับแท็บแหล่งราคา แล้วล้างราคาที่เลือกไว้เสมอ
+   *
+   * ราคาที่เลือกผูกกับแท็บที่เลือกมัน ถ้าค้างข้ามแท็บ ผู้ใช้จะเห็นแท็บหนึ่ง
+   * แต่ราคาที่จะบันทึกมาจากอีกแท็บ — ตัวกันตอนบันทึกจับได้ แต่ผู้ใช้จะงงว่า
+   * ทำไมบันทึกไม่ได้ทั้งที่เห็นราคาอยู่
+   */
+  const switchPriceMode = (mode: 'standard' | 'fuel' | 'spot') => {
+    if (mode === priceMode) return;
+    setPriceMode(mode);
+    setFormData(prev => ({ ...prev, subcontractor: '', cost: 0, sellingPrice: 0, paymentType: '', paymentAccount: '' }));
+  };
+
+  /**
+   * เส้นทางเปลี่ยนจนไม่มีเรทแล้ว ต้องพากลับไปราคากลาง
+   *
+   * ผู้ใช้เลือกเรทไว้แล้วย้อนไปแก้เส้นทางหรือประเภทรถได้ ถ้าปล่อยให้ค้างอยู่
+   * แท็บนี้ จะเห็นหน้าว่างโดยไม่รู้ว่าเกิดอะไรขึ้น และราคาที่เลือกไว้ก็เป็นของ
+   * เส้นทางเดิมซึ่งใช้กับเส้นทางใหม่ไม่ได้ จึงล้างทิ้งพร้อมกัน
+   */
+  React.useEffect(() => {
+    if (priceMode === 'fuel' && !hasFuelTab) {
+      switchPriceMode('standard');
+    }
+  }, [priceMode, hasFuelTab]);
+
+  /**
+   * ราคาที่เลือกไว้ใช้กับวันที่/เส้นทางปัจจุบันไม่ได้แล้ว ต้องล้างทันที
+   *
+   * ผู้ใช้เลือกเรทแล้วย้อนไปแก้วันที่ต้องการรถได้ ราคาน้ำมันของวันใหม่ต่างกัน
+   * เรทจึงเปลี่ยน (เช่น 22 ส.ค. ได้ 2,040 แต่ 10 ก.ค. ได้ 1,960)
+   *
+   * ตัวกันตอนบันทึกจับได้อยู่แล้ว แต่จะแจ้งตอนกดบันทึกเท่านั้น — ผู้ใช้ควรเห็น
+   * ตั้งแต่วินาทีที่เปลี่ยนวันที่ ไม่ใช่กรอกจนจบแล้วค่อยถูกตีกลับ
+   */
+  React.useEffect(() => {
+    if (priceMode !== 'fuel') return;
+    const sub = (formData.subcontractor || '').trim();
+    const cost = Number(formData.cost);
+    if (!sub || !Number.isFinite(cost) || cost <= 0) return;
+
+    const stillValid = fuelOptions.some(o => o.subcontractor === sub && o.price === cost);
+    if (!stillValid) {
+      setFormData(prev => ({ ...prev, subcontractor: '', cost: 0, sellingPrice: 0, paymentType: '', paymentAccount: '' }));
+    }
+  }, [priceMode, fuelOptions, formData.subcontractor, formData.cost]);
 
   /**
    * จำนวนจุดส่งที่คิดเงินได้ — นับเฉพาะจุดที่กรอกชื่อสถานที่แล้ว
@@ -260,7 +345,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     const fuelMatch = matchSelectedFuelRate(
       fuelRates?.rows ?? [],
       { origin: formData.origin, destination: formData.destination, truckType: formData.truckType },
-      oil.diesel,
+      fuelDiesel,
       { subcontractor: selectedSub, cost: formData.cost }
     );
 
@@ -289,7 +374,11 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       && Number.isFinite(selectedSellingPrice)
       && selectedCost === matrixCost
       && selectedSellingPrice === matrixSellingPrice;
-    const selectedFuelMatch = !selectedMatchesMatrix ? fuelMatch : undefined;
+    // ในแท็บเรทตามน้ำมัน ราคาต้องมาจากเรทเท่านั้น
+    // ถ้าปล่อยให้ราคากลางชนะ ใบงานจะถูกบันทึกด้วยราคาที่ไม่ได้อยู่บนหน้าจอที่ผู้ใช้เห็น
+    const selectedFuelMatch = priceMode === 'fuel'
+      ? fuelMatch
+      : (!selectedMatchesMatrix ? fuelMatch : undefined);
 
     /**
      * ราคาที่จะบันทึกต้องเป็นราคาที่ผู้ใช้เห็นตอนกดเลือก
@@ -300,16 +389,18 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
      * ถ้าปล่อยผ่าน ระบบจะตกไปใช้ราคากลางแทนเงียบ ๆ — ผู้ใช้เห็น 2,040 บนจอ
      * แต่ใบงานถูกบันทึกที่ 2,100 โดยไม่มีอะไรเตือน จึงต้องหยุดให้เลือกใหม่
      */
+    // ในแท็บเรท ทุกการเลือกถือว่ามาจากกล่องเรท แม้ราคาจะบังเอิญตรงกับราคากลาง
+    // ในแท็บราคากลาง นับเฉพาะราคาที่ไม่ตรงกับแถวราคากลาง (= มาจากกล่องเรท)
     const pickedFromFuelBlock = !!selectedSub
       && Number.isFinite(selectedCost) && selectedCost > 0
-      && !selectedMatchesMatrix;
-    if (priceMode === 'standard' && pickedFromFuelBlock && !selectedFuelMatch) {
+      && (priceMode === 'fuel' || !selectedMatchesMatrix);
+    if (priceMode !== 'spot' && pickedFromFuelBlock && !selectedFuelMatch) {
       setIsSubmitting(false);
       const msg = hasFuelRateRoute(
         fuelRates?.rows ?? [],
         { origin: formData.origin, destination: formData.destination, truckType: formData.truckType }
       )
-        ? `เรทของเส้นทางนี้เปลี่ยนไปแล้ว (ราคาน้ำมันปัจจุบัน ${oil.diesel.toFixed(2)} บาท) กรุณาเลือกราคาใหม่อีกครั้ง`
+        ? `เรทของเส้นทางนี้เปลี่ยนไปแล้ว (ดีเซล ${fuelDiesel.toFixed(2)} บาท ณ วันที่ต้องการรถ) กรุณาเลือกราคาใหม่อีกครั้ง`
         : 'ราคาที่เลือกไว้ใช้กับเส้นทางหรือประเภทรถปัจจุบันไม่ได้แล้ว กรุณาเลือกราคาใหม่อีกครั้ง';
       if (typeof Swal !== 'undefined') {
         Swal.fire({ icon: 'warning', title: 'ราคาไม่ตรงกับที่แสดงอยู่', text: msg });
@@ -319,7 +410,10 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       return;
     }
 
-    const hasPricing = hasUsablePrice || !!selectedFuelMatch;
+    // แท็บเรทต้องมีเรทที่ยืนยันได้เท่านั้น ไม่ยืมราคากลางมาทำให้ผ่าน
+    const hasPricing = priceMode === 'fuel'
+      ? !!selectedFuelMatch
+      : (hasUsablePrice || !!selectedFuelMatch);
     const isSpotRateJob = priceMode === 'spot';
     const initialStatus = isSpotRateJob || hasPricing ? JobStatus.NEW_REQUEST : JobStatus.PENDING_PRICING;
 
@@ -359,6 +453,16 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       requestedByName: user.name,
       createdAt: new Date().toISOString(),
       ...(isSpotRateJob ? { isSpotRate: true, spotRateReason: spotReason.trim() || 'Spot Rate — ราคากำหนดเองโดยผู้ใช้' } : {}),
+      // บันทึกที่มาของราคาไว้ตรวจย้อน — ราคาถูกตัดสินด้วยเรทรุ่นล่าสุดเสมอ แต่ต้อง
+      // ตอบได้ว่าใบงานนี้ตกลงกันด้วยเรทรุ่นไหน ที่ราคาน้ำมันเท่าไร ไม่งั้นจะอธิบาย
+      // ไม่ได้ว่าทำไมราคาในเอกสารที่ส่งไปแล้วต่างจากเรทปัจจุบัน
+      ...(selectedFuelMatch && fuelRates?.id
+        ? {
+            fuelRateVersionId: fuelRates.id,
+            fuelRateDiesel: fuelDiesel,
+            fuelRateBand: selectedFuelMatch.fuelBand,
+          }
+        : {}),
     };
 
     // บันทึกก่อน แล้วค่อยแจ้งผล — เดิมแจ้ง "สำเร็จ" ก่อนเขียนลงฐานข้อมูล
@@ -442,13 +546,16 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
   const fuelSelection = matchSelectedFuelRate(
     fuelRates?.rows ?? [],
     { origin: formData.origin, destination: formData.destination, truckType: formData.truckType },
-    oil.diesel,
+    fuelDiesel,
     { subcontractor: formData.subcontractor, cost: formData.cost }
   );
 
   const canSaveJob = priceMode === 'spot'
     ? (formData.subcontractor !== '' && spotCostNum > 0)
-    : (!!pricingForChosenSub || !!fuelSelection);
+    // แท็บเรทเปิดปุ่มเมื่อเลือกเรทได้จริงเท่านั้น — ไม่ใช่เพราะเส้นทางมีราคากลาง
+    : priceMode === 'fuel'
+      ? !!fuelSelection
+      : (!!pricingForChosenSub || !!fuelSelection);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -792,22 +899,16 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
             );
             const hasPricing = matchedPricing.length > 0;
 
-            // เรทตามราคาน้ำมัน — คนละชุดกับราคากลาง เพราะราคาเปลี่ยนตามน้ำมัน
-            // จึงต้องแยกกล่องแสดง ไม่ปนกันจนผู้ใช้เข้าใจว่าเป็นราคาคงที่เหมือนกัน
-            const route = {
-              origin: formData.origin,
-              destination: formData.destination,
-              truckType: formData.truckType,
-            };
-            const fuelOptions = findFuelRateOptions(fuelRates?.rows ?? [], route, oil.diesel);
-            // มีเส้นทางในตารางแต่ไม่มีราคาที่น้ำมันวันนี้ — ต้องบอกให้ต่างจาก "ไม่มีเส้นทาง"
-            const fuelRouteExists = hasFuelRateRoute(fuelRates?.rows ?? [], route);
 
             return (
               <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
 
                 {/* ===== PRICE MODE TOGGLE ===== */}
-                {canUseSpotRate && (
+                {/*
+                  แสดงเมื่อมีให้เลือกมากกว่าทางเดียว — เจ้าหน้าที่หน้างานกด Spot Rate ไม่ได้
+                  แต่ต้องใช้เรทตามน้ำมันได้ เพราะเป็นราคาที่หน่วยงานกำหนดมา ไม่ใช่กำหนดเอง
+                */}
+                {(canUseSpotRate || hasFuelTab) && (
                   <div className="bg-slate-50 border border-slate-200 rounded-[2rem] p-5">
                     <div className="flex items-center gap-2 mb-3">
                       <Info size={14} className="text-slate-400" />
@@ -816,20 +917,33 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                     <div className="flex bg-white border border-slate-200 p-1.5 rounded-2xl gap-1.5">
                       <button
                         type="button"
-                        onClick={() => setPriceMode('standard')}
+                        onClick={() => switchPriceMode('standard')}
                         className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-black transition-all duration-200 ${priceMode === 'standard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'}`}
                       >
                         <ShieldCheck size={15} />
                         ราคากลาง (Standard Rate)
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setPriceMode('spot')}
-                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-black transition-all duration-200 ${priceMode === 'spot' ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'}`}
-                      >
-                        <Zap size={15} />
-                        Spot Rate (กำหนดราคาเอง)
-                      </button>
+                      {/* แท็บนี้โผล่เฉพาะเส้นทางที่หน่วยงานให้เรทมา */}
+                      {hasFuelTab && (
+                        <button
+                          type="button"
+                          onClick={() => switchPriceMode('fuel')}
+                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-black transition-all duration-200 ${priceMode === 'fuel' ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'}`}
+                        >
+                          <Fuel size={15} />
+                          เรทตามน้ำมัน
+                        </button>
+                      )}
+                      {canUseSpotRate && (
+                        <button
+                          type="button"
+                          onClick={() => switchPriceMode('spot')}
+                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-black transition-all duration-200 ${priceMode === 'spot' ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'}`}
+                        >
+                          <Zap size={15} />
+                          Spot Rate (กำหนดราคาเอง)
+                        </button>
+                      )}
                     </div>
                     {priceMode === 'spot' && (
                       <p className="text-[10px] font-bold text-orange-600 mt-2 flex items-center gap-1">
@@ -1016,11 +1130,13 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                           <>
                             <strong className="block text-sm mb-1">⚠️ ไม่พบข้อมูลราคามาตรฐาน</strong>
                             ขออภัย เส้นทางและประเภทรถนี้ ยังไม่ได้ถูกกำหนดราคาไว้ในระบบ Master Table
-                            ฝ่ายจัดรถอาจต้องทำการต่อรองราคาเป็นกรณีพิเศษ (Spot Rate).
+                            {hasFuelTab
+                              ? ' — แต่เส้นทางนี้มีเรทตามราคาน้ำมันจากหน่วยงาน กดแท็บ "เรทตามน้ำมัน" ด้านบนเพื่อใช้ราคานั้น'
+                              : ' ฝ่ายจัดรถอาจต้องทำการต่อรองราคาเป็นกรณีพิเศษ (Spot Rate).'}
                           </>
                         )}
                       </p>
-                      {!hasPricing && (
+                      {!hasPricing && !hasFuelTab && (
                         <div className="mt-3 bg-rose-100 p-3 rounded-xl border border-rose-200">
                           <p className="text-[10px] font-black text-rose-700 uppercase tracking-wide mb-1">Status Impact / ผลกระทบต่อสถานะงาน</p>
                           <p className="text-xs font-bold text-rose-800">
@@ -1143,7 +1259,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                 )}
 
                 {/* ===== เรทค่าขนส่งตามราคาน้ำมัน ===== */}
-                {priceMode === 'standard' && (fuelOptions.length > 0 || fuelRouteExists) && (
+                {priceMode === 'fuel' && (
                   <div className="bg-amber-50/60 border border-amber-200 rounded-[2rem] p-6 space-y-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-600 border border-amber-200 shrink-0">
@@ -1152,17 +1268,49 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                       <div>
                         <h4 className="text-xs font-black text-amber-700 uppercase tracking-widest">เรทค่าขนส่งตามราคาน้ำมัน</h4>
                         <p className="text-[10px] font-bold text-amber-600/80">
-                          หน่วยงานกำหนดราคาไว้ตามช่วงราคาน้ำมัน · ดีเซลที่ใช้คิด {oil.diesel.toFixed(2)} บาท/ลิตร
+                          หน่วยงานกำหนดราคาไว้ตามช่วงราคาน้ำมัน · ดีเซล {fuelDiesel.toFixed(2)} บาท/ลิตร
+                          {serviceOil.effectiveDate && ` (งวด ${formatDate(serviceOil.effectiveDate)})`}
                         </p>
                       </div>
                     </div>
 
-                    {fuelOptions.length === 0 ? (
-                      // มีเส้นทางในตาราง แต่ราคาน้ำมันวันนี้ไม่อยู่ในช่วงที่หน่วยงานกำหนดไว้
+                    {/*
+                      วันที่ต้องการรถอยู่ในอนาคต — ใช้ราคางวดล่าสุดไปก่อน แต่ต้องบอกให้ชัด
+                      ว่าราคาอาจเปลี่ยนถ้าน้ำมันปรับก่อนถึงวันงาน ระบบไม่เดาราคาล่วงหน้า
+                    */}
+                    {serviceOil.status === 'future' && (
+                      <div className="bg-amber-100/70 rounded-2xl p-4 border border-amber-300">
+                        <p className="text-xs font-black text-amber-900">
+                          วันที่ต้องการรถอยู่ข้างหน้าอีก {serviceOil.daysAhead} วัน — ราคานี้เป็นราคาชั่วคราว
+                        </p>
+                        <p className="text-[10px] font-bold text-amber-700 mt-1">
+                          คิดจากดีเซลงวดล่าสุด {fuelDiesel.toFixed(2)} บาท ({formatDate(serviceOil.effectiveDate)})
+                          ถ้าน้ำมันปรับก่อนถึงวันงาน ราคาจะเปลี่ยน — ระบบจะตรวจให้อีกครั้งตอนตรวจทานและคอนเฟิร์ม
+                        </p>
+                      </div>
+                    )}
+
+                    {!serviceOil.usable ? (
+                      // ไม่รู้ราคาน้ำมันของวันนั้น — คนละเรื่องกับ "หน่วยงานยังไม่ได้ให้ราคา"
+                      // ต้องบอกเหตุผลให้ตรง ไม่งั้นผู้ใช้จะไปตามหน่วยงานทั้งที่ปัญหาอยู่ที่วันที่
+                      <div className="bg-white/70 rounded-2xl p-4 border border-amber-200">
+                        <p className="text-xs font-bold text-amber-800">
+                          {!formData.dateOfService
+                            ? 'กรุณาระบุวันที่ต้องการรถก่อน — เรทค่าขนส่งคิดจากราคาน้ำมันของวันนั้น'
+                            : serviceOil.status === 'before-history'
+                              ? `ไม่มีข้อมูลราคาน้ำมันของวันที่ ${formatDate(formData.dateOfService)} (ข้อมูลเริ่มที่ ${formatDate(serviceOil.effectiveDate)})`
+                              : 'ยังไม่มีข้อมูลราคาน้ำมัน — ตรวจการเชื่อมต่อกับ NAS'}
+                        </p>
+                        <p className="text-[10px] font-bold text-amber-600 mt-1">
+                          ระบบไม่เดาราคาน้ำมันแทน เพราะค่าขนส่งจะผิดโดยไม่มีอะไรเตือน — ใช้ราคากลางหรือ Spot Rate แทน
+                        </p>
+                      </div>
+                    ) : fuelOptions.length === 0 ? (
+                      // มีเส้นทางในตาราง แต่ราคาน้ำมันของวันนั้นไม่อยู่ในช่วงที่หน่วยงานกำหนดไว้
                       // ต้องบอกให้ชัดว่าเป็นคนละเรื่องกับ "ไม่มีเส้นทางนี้" ไม่งั้นผู้ใช้จะเข้าใจผิด
                       <div className="bg-white/70 rounded-2xl p-4 border border-amber-200">
                         <p className="text-xs font-bold text-amber-800">
-                          เส้นทางนี้มีในตารางเรท แต่หน่วยงานยังไม่ได้กำหนดราคาที่ราคาน้ำมัน {oil.diesel.toFixed(2)} บาท
+                          เส้นทางนี้มีในตารางเรท แต่หน่วยงานยังไม่ได้กำหนดราคาที่ดีเซล {fuelDiesel.toFixed(2)} บาท
                         </p>
                         <p className="text-[10px] font-bold text-amber-600 mt-1">
                           ใช้ราคากลางด้านบน หรือสอบถามเรทช่วงนี้จากหน่วยงานก่อน — ระบบไม่คำนวณราคาแทนหน่วยงาน
@@ -1263,7 +1411,15 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                         <p className="text-sm font-bold text-slate-700">{formData.productDetail || 'ไม่ระบุรายละเอียด'}</p>
                       </div>
 
-                      {/* Subcontractor Selection in Review Step */}
+                      {/*
+                        Subcontractor Selection in Review Step
+
+                        ซ่อนในแท็บเรทตามน้ำมัน — ช่องนี้ดึงราคาจากราคากลาง ถ้าเปิดไว้
+                        ผู้ใช้จะเลือกทับราคาที่กดจากการ์ดเรทได้ แล้วใบงานถูกบันทึกด้วย
+                        ราคากลางทั้งที่หน้าจอยังอยู่แท็บเรท (การเลือกผู้รับเหมาในแท็บนี้
+                        ทำที่การ์ดเรทอยู่แล้ว)
+                      */}
+                      {priceMode !== 'fuel' && (
                       <div className="space-y-2 pt-2">
                         <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em]">Assign Subcontractor / ระบุบริษัทรถร่วม</p>
                         <select
@@ -1299,6 +1455,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                           ))}
                         </select>
                       </div>
+                      )}
 
                       {/* Driver & Truck Info for Booking Officer */}
                       <div className="space-y-4 p-4 bg-white rounded-2xl border border-blue-50 shadow-sm">
@@ -1439,10 +1596,16 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                           <p className="text-xs font-bold text-rose-700 leading-relaxed">
                             โหมด Spot Rate: กรุณา<span className="underline decoration-2">เลือกบริษัทรถร่วม</span>และ<span className="underline decoration-2">ระบุต้นทุน</span>ให้ครบถ้วนก่อนบันทึก
                           </p>
+                        ) : priceMode === 'fuel' ? (
+                          <p className="text-xs font-bold text-rose-700 leading-relaxed">
+                            โหมดเรทตามน้ำมัน: กรุณา<span className="underline decoration-2">กดเลือกเรท</span>ในกล่องด้านบนก่อนบันทึก
+                          </p>
                         ) : (
                           <p className="text-xs font-bold text-rose-700 leading-relaxed">
                             เส้นทาง ({formData.origin} → {formData.destination}) สำหรับประเภทรถ {formData.truckType} <span className="underline decoration-2">ยังไม่มีราคากลางในระบบ</span>
-                            กรุณาแจ้งแอดมินให้เพิ่มราคาก่อนจึงจะสามารถสร้างใบงานได้ หรือเปลี่ยนเป็นโหมด <strong>Spot Rate</strong> เพื่อกำหนดราคาเอง
+                            {hasFuelTab
+                              ? <> — แต่เส้นทางนี้มีเรทตามราคาน้ำมัน กดแท็บ <strong>เรทตามน้ำมัน</strong> ด้านบนเพื่อใช้ราคานั้น</>
+                              : <> กรุณาแจ้งแอดมินให้เพิ่มราคาก่อนจึงจะสามารถสร้างใบงานได้ หรือเปลี่ยนเป็นโหมด <strong>Spot Rate</strong> เพื่อกำหนดราคาเอง</>}
                           </p>
                         )}
                       </div>

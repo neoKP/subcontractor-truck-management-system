@@ -6,6 +6,7 @@ import { AlertTriangle, Info, X, Lock, CheckCircle, User, Phone, Hash, CircleDot
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
 import { sendJobNotification } from '../utils/telegramNotify';
 import ReviewConfirmModal from './ReviewConfirmModal';
+import { useJobFuelRate } from '../utils/useJobFuelRate';
 
 interface DispatcherActionModalProps {
   job: Job;
@@ -50,6 +51,17 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     destination: job.destination,
     drops: job.drops || [] as { location: string; status: 'PENDING' | 'COMPLETED'; podUrl?: string; completedAt?: string }[]
   });
+
+  /**
+   * เรทตามน้ำมันของงานนี้ ณ วันที่ต้องการรถ
+   *
+   * ใช้เส้นทางจาก editData ไม่ใช่จาก job เพราะผู้ใช้แก้เส้นทางและประเภทรถได้
+   * ในหน้านี้ — ต้องตรวจกับสิ่งที่กำลังจะบันทึกจริง ไม่ใช่ค่าเดิมในใบงาน
+   */
+  const jobFuel = useJobFuelRate(
+    { origin: editData.origin, destination: editData.destination, truckType: editData.truckType },
+    job.dateOfService
+  );
 
   const [originQuery, setOriginQuery] = useState('');
   const [destQuery, setDestQuery] = useState('');
@@ -199,14 +211,23 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     }
 
     // 🔒 3. Strict Verification Guard (User Requested Rule)
-    const priceValid = !!findContractMatch(editData.origin, editData.destination, editData.truckType, editData.subcontractor);
+    //
+    // ราคาถูกต้องเมื่อตรงกับ "แหล่งใดแหล่งหนึ่ง" — ราคากลาง หรือเรทตามน้ำมันของ
+    // วันที่ต้องการรถ เดิมตรวจแต่ราคากลาง ทำให้ 32 เส้นทางที่หน่วยงานให้เรทมา
+    // (ซึ่งไม่มีในราคากลางเลยสักเส้น) ไปต่อไม่ได้ตั้งแต่ขั้นนี้
+    const fuelPriceValid = jobFuel.options.some(o =>
+      o.subcontractor === (editData.subcontractor || '').trim()
+      && Math.abs(o.price - (editData.cost || 0)) < 0.01
+    );
+    const priceValid = fuelPriceValid
+      || !!findContractMatch(editData.origin, editData.destination, editData.truckType, editData.subcontractor);
     // POD validation moved to Job Confirmation step
     const infoValid = !!(editData.driverName && editData.driverPhone && editData.licensePlate && (editData.cost || 0) > 0);
 
     // Only block if we're trying to move towards confirmation
     if (!priceValid || !infoValid) {
       const missing = [];
-      if (!priceValid) missing.push('● ราคาจองต้องตรงกับต้นทุนใน Master Pricing');
+      if (!priceValid) missing.push('● ราคาจองต้องตรงกับราคากลาง หรือเรทตามน้ำมันของวันที่ต้องการรถ');
       if (!infoValid) missing.push('● ข้อมูลคนขับ/ทะเบียน/ค่าจ้าง ต้องระบุให้ครบ');
 
       if (typeof (window as any).Swal !== 'undefined') {
@@ -291,9 +312,31 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
       }
     }
     const matchedMatrix = findContractMatch(editData.origin, editData.destination, editData.truckType, editData.subcontractor);
+
+    /**
+     * ที่มาของราคาต้องตรงกับราคาที่กำลังบันทึกจริง
+     *
+     * ผู้ใช้แก้ราคาที่นี่ได้ ถ้าปล่อยฟิลด์เดิมไว้ ใบงานจะบอกว่าราคามาจากเรทรุ่นหนึ่ง
+     * ทั้งที่ยอดเป็นของอีกรุ่น — คนที่มาตรวจย้อนทีหลังจะอ่านแล้วเข้าใจผิด
+     *
+     * ตรงกับเรทปัจจุบัน = บันทึกที่มาใหม่ · ไม่ตรง = ล้างทิ้ง (ราคานี้ไม่ได้มาจากเรท)
+     */
+    const fuelNow = jobFuel.options.find(o =>
+      o.subcontractor === (editData.subcontractor || '').trim()
+      && Math.abs(o.price - (editData.cost || 0)) < 0.01
+    );
+    const fuelProvenance = fuelNow && jobFuel.version?.id
+      ? {
+          fuelRateVersionId: jobFuel.version.id,
+          fuelRateDiesel: jobFuel.diesel,
+          fuelRateBand: fuelNow.fuelBand,
+        }
+      : { fuelRateVersionId: undefined, fuelRateDiesel: undefined, fuelRateBand: undefined };
+
     const updatedJob: Job = {
       ...job,
       ...editData,
+      ...fuelProvenance,
       cost: editData.cost || 0,
       sellingPrice: editData.sellingPrice || 0,
       status: job.status === JobStatus.NEW_REQUEST ? JobStatus.ASSIGNED : job.status,
@@ -1044,6 +1087,8 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
             editData={editData}
             user={user}
             priceMatrix={priceMatrix}
+            fuelRateOptions={jobFuel.options}
+            fuelDiesel={jobFuel.diesel}
             onConfirm={() => {
               setShowReviewModal(false);
               finalizeSave();

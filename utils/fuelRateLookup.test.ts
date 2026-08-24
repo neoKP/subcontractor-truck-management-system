@@ -351,3 +351,56 @@ describe('แถวราคาที่ต้นทุนเท่ากัน�
         expect(pickRow(rows, { cost: 0, selling: 0 }, 0).basePrice).toBe(1000);
     });
 });
+
+describe('แหล่งราคาตามแท็บที่เลือก', () => {
+    /** จำลองตรรกะใน JobRequestForm หลังแยกเป็น 3 แท็บ */
+    const decide = (
+        mode: 'standard' | 'fuel' | 'spot',
+        form: { sub: string; cost: number; selling: number },
+        matrix: { cost: number; selling: number } | null,
+        fuelPriceNow = 38.39
+    ) => {
+        const hasUsablePrice = !!matrix;
+        const matchesMatrix = hasUsablePrice
+            && form.cost === matrix!.cost && form.selling === matrix!.selling;
+        const fuelMatch = matchSelectedFuelRate(
+            [realRow()], query, fuelPriceNow,
+            { subcontractor: form.sub, cost: form.cost }
+        );
+        const selectedFuelMatch = mode === 'fuel' ? fuelMatch : (!matchesMatrix ? fuelMatch : undefined);
+        const hasPricing = mode === 'fuel' ? !!selectedFuelMatch : (hasUsablePrice || !!selectedFuelMatch);
+        const pickedFromFuelBlock = !!form.sub && form.cost > 0 && (mode === 'fuel' || !matchesMatrix);
+        const blocked = mode !== 'spot' && pickedFromFuelBlock && !selectedFuelMatch;
+        return { source: selectedFuelMatch ? 'fuel' : (hasPricing ? 'matrix' : 'none'), hasPricing, blocked };
+    };
+
+    const fuelPick = { sub: 'รถร่วมคุณวสรรณ์', cost: 2040, selling: 0 };
+
+    it('แท็บเรท: ใช้ราคาจากเรทเท่านั้น', () => {
+        const r = decide('fuel', fuelPick, { cost: 2100, selling: 2500 });
+        expect(r.source).toBe('fuel');
+    });
+
+    it('แท็บเรท: ราคาบังเอิญตรงราคากลาง ก็ยังต้องมาจากเรท', () => {
+        // ถ้ายอมให้ราคากลางชนะ ใบงานจะบันทึกราคาขาย 2,500 ทั้งที่หน้าจออยู่แท็บเรท
+        const r = decide('fuel', { sub: 'รถร่วมคุณวสรรณ์', cost: 2040, selling: 2040 }, { cost: 2040, selling: 2040 });
+        expect(r.source).toBe('fuel');
+    });
+
+    it('แท็บเรท: เรทล้าสมัย ต้องบล็อก ไม่ยืมราคากลางมาผ่าน', () => {
+        const r = decide('fuel', fuelPick, { cost: 2100, selling: 2500 }, 39.5);
+        expect(r.blocked).toBe(true);
+        expect(r.hasPricing).toBe(false);
+    });
+
+    it('แท็บราคากลาง: ใช้ราคากลางตามปกติ', () => {
+        const r = decide('standard', { sub: 'รถร่วมคุณวสรรณ์', cost: 2100, selling: 2500 }, { cost: 2100, selling: 2500 });
+        expect(r.source).toBe('matrix');
+        expect(r.blocked).toBe(false);
+    });
+
+    it('แท็บ spot: ไม่ถูกบล็อกด้วยตรรกะเรท', () => {
+        const r = decide('spot', fuelPick, null, 39.5);
+        expect(r.blocked).toBe(false);
+    });
+});

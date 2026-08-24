@@ -36,7 +36,14 @@ const PAST_REVIEW: AccountingStatus[] = [
 export function canConfirmJob(
     latest: Job | null,
     /** ราคากลางทั้งหมด — ส่งมาเพื่อตรวจว่าเส้นทางของฉบับล่าสุดยังมีราคาอยู่ */
-    priceMatrix?: { origin?: string; destination?: string; truckType?: string; subcontractor?: string }[]
+    priceMatrix?: { origin?: string; destination?: string; truckType?: string; subcontractor?: string }[],
+    /**
+     * true = ราคาในใบงานตรงกับเรทตามน้ำมันของวันที่ต้องการรถ
+     *
+     * เส้นทางที่หน่วยงานให้เรทมาไม่มีในราคากลาง (32 เส้นทาง ไม่ทับกันเลยสักเส้น)
+     * ถ้าตรวจแต่ราคากลาง งานกลุ่มนี้จะยืนยันไม่ได้และค้างอยู่ขั้นตรวจทานตลอดไป
+     */
+    hasFuelRatePrice?: boolean
 ): ConfirmCheck {
     if (!latest) {
         return { ok: false, reason: 'missing', message: 'ไม่พบใบงานนี้ในระบบ อาจถูกลบไปแล้ว' };
@@ -93,7 +100,8 @@ export function canConfirmJob(
         };
     }
 
-    if (priceMatrix) {
+    // เรทตามน้ำมันก็ถือว่า "มีราคารองรับ" เท่ากับราคากลาง
+    if (priceMatrix && !hasFuelRatePrice) {
         const norm = (v?: string) => (v || '').trim();
         const hasPrice = priceMatrix.some(p =>
             norm(p.origin) === norm(latest.origin) &&
@@ -105,7 +113,7 @@ export function canConfirmJob(
             return {
                 ok: false,
                 reason: 'incomplete',
-                message: 'เส้นทางหรือผู้รับเหมาของใบงานเปลี่ยนไปและไม่มีราคากลางรองรับ — กรุณาตรวจใหม่',
+                message: 'เส้นทางหรือผู้รับเหมาของใบงานเปลี่ยนไป และไม่มีทั้งราคากลางและเรทตามน้ำมันรองรับ — กรุณาตรวจใหม่',
             };
         }
     }

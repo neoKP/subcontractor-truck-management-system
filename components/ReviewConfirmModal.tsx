@@ -27,6 +27,15 @@ interface ReviewConfirmModalProps {
     onClose: () => void;
     user: { id: string; name: string; role: UserRole };
     priceMatrix: any[];
+    /**
+     * เรทตามราคาน้ำมันที่ใช้ได้กับใบงานนี้ ณ วันที่ต้องการรถ
+     *
+     * เส้นทางที่หน่วยงานให้เรทมาไม่มีในราคากลาง ถ้าตรวจแต่ราคากลาง งานกลุ่มนี้
+     * จะยืนยันไม่ได้เลยและค้างอยู่ขั้นตรวจทานตลอดไป
+     */
+    fuelRateOptions?: { subcontractor: string; price: number; fuelBand: string }[];
+    /** ราคาดีเซลของวันที่ต้องการรถ — ใช้อธิบายที่มาของราคาให้ผู้ตรวจเห็น */
+    fuelDiesel?: number;
 }
 
 const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
@@ -37,7 +46,9 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
     onEdit,
     onClose,
     user,
-    priceMatrix
+    priceMatrix,
+    fuelRateOptions = [],
+    fuelDiesel = 0
 }) => {
     const margin = editData.sellingPrice - editData.cost;
     // หารด้วย "ราคาขาย" ให้ตรงกับทั้งระบบ (หน้าบัญชี วิเคราะห์กำไร ผู้บริหาร)
@@ -75,17 +86,37 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
     // ถ้าบล็อกจะยืนยันงานประเภทนั้นไม่ได้เลย แต่ถ้าไม่เตือน ราคาที่พิมพ์ผิด
     // จะถูกล็อกเข้าบัญชีโดยไม่มีใครสังเกต
     const expectedCost = basePrice + totalDropFee;
+
+    /**
+     * ราคาในใบงานตรงกับเรทตามน้ำมันของ "วันที่ต้องการรถ" ไหม
+     *
+     * นี่คือจุดสุดท้ายที่แก้ราคาได้ก่อนถูกล็อกเข้าบัญชี ราคาน้ำมันอาจปรับหลังจาก
+     * ที่ผู้ใช้สร้างใบงาน (โดยเฉพาะงานที่จองล่วงหน้า) เรทของวันงานจึงอาจไม่ใช่
+     * ตัวเดียวกับตอนกรอก — ต้องตรวจซ้ำที่นี่ ไม่ใช่เชื่อราคาที่บันทึกไว้
+     */
+    const fuelMatch = fuelRateOptions.find(o =>
+        o.subcontractor === (editData.subcontractor || '').trim()
+        && Math.abs(o.price - (editData.cost || 0)) < 0.01
+    );
+    /** มีเรทของผู้รับเหมารายนี้ แต่ราคาไม่ตรง = ราคาเปลี่ยนไปแล้ว */
+    const fuelExpected = fuelRateOptions.find(o => o.subcontractor === (editData.subcontractor || '').trim());
+    const fuelPriceStale = !fuelMatch && !!fuelExpected;
+
     const priceMatchesMaster = !matchedPricing
         || Math.abs((editData.cost || 0) - expectedCost) < 0.01;
     const priceGap = (editData.cost || 0) - expectedCost;
 
     // ตรวจสอบว่าข้อมูลพื้นฐานครบหรือไม่
+    //
+    // ราคาถูกต้องเมื่อตรงกับ "แหล่งใดแหล่งหนึ่ง" — ราคากลางหรือเรทตามน้ำมัน
+    // เดิมบังคับว่าต้องมีราคากลางเท่านั้น ทำให้งานที่ใช้เรทของหน่วยงาน (ซึ่ง 32
+    // เส้นทางไม่มีในราคากลางเลยสักเส้น) ยืนยันไม่ได้และค้างอยู่ขั้นนี้ตลอดไป
     const isDataComplete = !!(
         editData.subcontractor &&
         editData.truckType &&
         editData.cost > 0 &&
         isFleetInfoComplete &&
-        hasPriceMatch
+        (hasPriceMatch || !!fuelMatch)
     );
 
     return (
@@ -363,6 +394,43 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
                                 <p className="text-sm font-black text-rose-900 mb-1">ไม่พบราคากลางในระบบ (Master Pricing Missing)</p>
                                 <p className="text-xs font-bold text-rose-700">
                                     เส้นทางนี้ ({job.origin} → {job.destination}) สำหรับบริษัท {editData.subcontractor} ยังไม่ได้ระบุราคากลาง กรุณาแจ้งแอดมินให้เพิ่มราคาก่อนยืนยัน
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/*
+                        เรทตามน้ำมันของวันงานเปลี่ยนไปจากราคาที่บันทึกไว้
+
+                        นี่คือจุดสุดท้ายก่อนราคาถูกล็อกเข้าบัญชี งานที่จองล่วงหน้าอาจถูก
+                        สร้างตอนน้ำมันราคาหนึ่ง แล้วน้ำมันปรับก่อนถึงวันงาน — ต้องแก้ที่นี่
+                        ไม่ใช่ปล่อยให้วางบิลด้วยราคาที่หน่วยงานไม่ได้กำหนด
+                    */}
+                    {fuelPriceStale && fuelExpected && (
+                        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex items-start gap-3">
+                            <AlertTriangle size={20} className="text-amber-700 shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                                <p className="text-sm font-black text-amber-900 mb-1">เรทตามน้ำมันเปลี่ยนไปแล้ว</p>
+                                <p className="text-xs font-bold text-amber-800">
+                                    ณ วันที่ต้องการรถ ({formatDate(job.dateOfService)}) ดีเซล <b>{fuelDiesel.toFixed(2)}</b> บาท
+                                    {' '}เรทของหน่วยงานคือ <b>฿{formatThaiCurrency(fuelExpected.price)}</b> (ช่วง {fuelExpected.fuelBand})
+                                    {' '}แต่ใบงานนี้ระบุ <b>฿{formatThaiCurrency(editData.cost || 0)}</b>
+                                    {' '}({fuelExpected.price < (editData.cost || 0) ? 'สูงกว่า' : 'ต่ำกว่า'} ฿{formatThaiCurrency(Math.abs((editData.cost || 0) - fuelExpected.price))})
+                                    <br />กด "ย้อนกลับ" เพื่อแก้ราคาให้ตรงกับเรท — ราคานี้หน่วยงานเป็นผู้กำหนด ไม่ควรต่างจากที่ประกาศ
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ราคาตรงกับเรทตามน้ำมัน — บอกที่มาให้ผู้ตรวจเห็นว่าไม่ใช่ราคาลอย ๆ */}
+                    {fuelMatch && (
+                        <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 flex items-start gap-3">
+                            <ShieldCheck size={20} className="text-emerald-600 shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                                <p className="text-sm font-black text-emerald-900 mb-1">ราคาตรงกับเรทตามน้ำมันของหน่วยงาน</p>
+                                <p className="text-xs font-bold text-emerald-700">
+                                    ดีเซล {fuelDiesel.toFixed(2)} บาท ณ วันที่ต้องการรถ ({formatDate(job.dateOfService)})
+                                    {' '}· ช่วง {fuelMatch.fuelBand} · ฿{formatThaiCurrency(fuelMatch.price)}
                                 </p>
                             </div>
                         </div>

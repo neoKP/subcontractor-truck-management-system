@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Job, JobStatus, AccountingStatus, UserRole, AuditLog, PriceMatrix, SubcontractorMaster } from '../types';
 import { Search, Download, CheckCircle, Clock, TrendingUp, AlertCircle, User } from 'lucide-react';
 import { formatDate, formatThaiCurrency, generateUUID } from '../utils/format';
 import { db, ref, get, authReady } from '../firebaseConfig';
 import { canConfirmJob, markJobReviewed, describeChanges } from '../utils/confirmJob';
 import ReviewConfirmModal from './ReviewConfirmModal';
+import { useJobFuelRate } from '../utils/useJobFuelRate';
+import { watchActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
+import { findFuelRateOptions } from '../utils/fuelRateLookup';
+import { oilPriceAtDate } from '../utils/oilPriceAtDate';
+import { useOilPrice } from '../utils/useOilPrice';
+import { todayIsoLocal } from '../utils/oilRounds';
 import DispatcherActionModal from './DispatcherActionModal';
 
 
@@ -34,6 +40,22 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
     // กันกดยืนยันซ้ำระหว่างที่ยังบันทึกไม่เสร็จ
     const [confirming, setConfirming] = useState(false);
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+
+    /**
+     * เรทตามน้ำมันของงานที่กำลังตรวจ ณ วันที่ต้องการรถ
+     *
+     * ต้องตรวจซ้ำที่นี่ ไม่ใช่เชื่อราคาที่บันทึกไว้ตอนสร้างใบงาน เพราะนี่คือจุด
+     * สุดท้ายก่อนราคาถูกล็อกเข้าบัญชี งานที่จองล่วงหน้าอาจถูกสร้างตอนน้ำมัน
+     * ราคาหนึ่ง แล้วน้ำมันปรับก่อนถึงวันงาน
+     */
+    const jobFuel = useJobFuelRate(
+        {
+            origin: selectedJob?.origin,
+            destination: selectedJob?.destination,
+            truckType: selectedJob?.truckType,
+        },
+        selectedJob?.dateOfService
+    );
     const [editingJob, setEditingJob] = useState<Job | null>(null);
     const [filterView, setFilterView] = useState<'all' | 'incomplete' | 'complete'>('all');
 
@@ -51,6 +73,38 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
     );
 
     // Check if price matches Master Pricing
+    /**
+     * เรทตามน้ำมันของ "ทุกงาน" ในหน้านี้
+     *
+     * โหลดรุ่นเรทครั้งเดียวแล้วเช็คทีละใบ — ถ้าใช้ hook ต่อใบจะยิงโหลดซ้ำหลายสิบรอบ
+     * ราคาน้ำมันยึดวันที่ต้องการรถของแต่ละใบ ไม่ใช่วันนี้
+     */
+    const [fuelVersion, setFuelVersion] = useState<FuelRateVersion | null>(null);
+    useEffect(() => watchActiveFuelRates(v => setFuelVersion(v), () => setFuelVersion(null)), []);
+    const liveOil = useOilPrice();
+
+
+    /** ราคาในใบงานตรงกับเรทตามน้ำมันของวันที่ต้องการรถไหม */
+    const hasFuelRateMatch = (job: Job) => {
+        // ใช้เรทรุ่นล่าสุดเสมอ — หน่วยงานแก้เรทแล้วเราต้องตาม (ข้อตกลงกับหน่วยงาน)
+        //
+        // งานที่ราคายังไม่ถูกล็อกจึงถูกวัดด้วยเรทปัจจุบัน ถ้าหน่วยงานส่งเรทใหม่ที่
+        // ราคาต่างไป งานนั้นจะขึ้นเตือนให้แก้ราคาก่อนยืนยัน ไม่ใช่ผ่านไปด้วยราคาเก่า
+        // (ใบงานยังเก็บ fuelRateVersionId ไว้เพื่อตรวจย้อนว่าตอนตกลงใช้เรทรุ่นไหน)
+        const rows = fuelVersion?.rows ?? [];
+        if (!rows.length) return false;
+        const oilAt = oilPriceAtDate(liveOil.byDate, job.dateOfService, todayIsoLocal());
+        if (!oilAt.usable) return false;
+        return findFuelRateOptions(
+            rows,
+            { origin: job.origin || '', destination: job.destination || '', truckType: job.truckType || '' },
+            oilAt.diesel
+        ).some(o =>
+            o.subcontractor === (job.subcontractor || '').trim()
+            && Math.abs(o.price - (job.cost || 0)) < 0.01
+        );
+    };
+
     const hasPriceMatch = (job: Job) => {
         return priceMatrix.some(p =>
             (p.origin || '').trim() === (job.origin || '').trim() &&
@@ -70,7 +124,9 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
     // POD moved to Job Confirmation step - not required here
     const isFleetInfoComplete = (job: Job) => {
         const infoDone = !!(job.driverName && job.driverPhone && job.licensePlate);
-        const priceValid = hasPriceMatch(job);
+        // ราคาถูกต้องเมื่อตรงกับแหล่งใดแหล่งหนึ่ง — ราคากลาง หรือเรทตามน้ำมัน
+        // เดิมตรวจแต่ราคากลาง งานที่ใช้เรทของหน่วยงานจึงค้างอยู่กลุ่ม "ข้อมูลไม่ครบ" ตลอดไป
+        const priceValid = hasPriceMatch(job) || hasFuelRateMatch(job);
         return infoDone && priceValid;
     };
 
@@ -422,6 +478,8 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                     }}
                     user={user}
                     priceMatrix={priceMatrix}
+                    fuelRateOptions={jobFuel.options}
+                    fuelDiesel={jobFuel.diesel}
                     isConfirming={confirming}
                     onConfirm={async () => {
                         if (confirming) return;
@@ -434,7 +492,9 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
                             const snap = await get(ref(db, `jobs/${jobId}`));
                             const latest = snap.val() as Job | null;
 
-                            const check = canConfirmJob(latest, priceMatrix);
+                            // ตรวจเรทจาก "ฉบับล่าสุด" ไม่ใช่ค่าที่ค้างในจอ — เส้นทางหรือวันที่
+                            // อาจถูกแก้ระหว่างที่หน้านี้เปิดค้าง
+                            const check = canConfirmJob(latest, priceMatrix, hasFuelRateMatch(latest));
                             if (!check.ok || !latest) {
                                 setConfirming(false);
                                 if ((window as any).Swal) {

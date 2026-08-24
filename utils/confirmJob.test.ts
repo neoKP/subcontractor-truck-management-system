@@ -170,3 +170,39 @@ describe('describeChanges', () => {
             .toEqual(['driverName', 'subcontractor']);
     });
 });
+
+describe('canConfirmJob — งานที่ใช้เรทตามน้ำมัน', () => {
+    /** ราคากลางที่ไม่มีเส้นทางของงานนี้ */
+    const otherRoutes = [
+        { origin: 'ที่อื่น', destination: 'ที่อื่น', truckType: '6w', subcontractor: 'KNN' },
+    ];
+
+    it('ยืนยันได้เมื่อมีเรทตามน้ำมันรองรับ แม้ไม่มีราคากลาง', () => {
+        // บั๊กเดิม: 32 เส้นทางที่หน่วยงานให้เรทมาไม่มีในราคากลางเลยสักเส้น
+        // งานกลุ่มนี้จึงค้างอยู่ขั้นตรวจทานตลอดไป ยืนยันไม่ได้
+        expect(canConfirmJob(mk(), otherRoutes, true).ok).toBe(true);
+    });
+
+    it('ไม่มีทั้งราคากลางและเรท ยังบล็อกเหมือนเดิม', () => {
+        const r = canConfirmJob(mk(), otherRoutes, false);
+        expect(r.ok).toBe(false);
+        expect(r.reason).toBe('incomplete');
+    });
+
+    it('ไม่ส่งค่าเรทมา = ตรวจแต่ราคากลางเหมือนเดิม', () => {
+        expect(canConfirmJob(mk(), otherRoutes).ok).toBe(false);
+    });
+
+    it('มีราคากลางอยู่แล้ว ไม่ต้องพึ่งเรท', () => {
+        const withPrice = [
+            { origin: 'สมุทรสาคร', destination: 'แม่สอด', truckType: '6w', subcontractor: 'KNN' },
+        ];
+        expect(canConfirmJob(mk(), withPrice, false).ok).toBe(true);
+    });
+
+    it('เรทรองรับก็ไม่ข้ามการตรวจอย่างอื่น', () => {
+        // ข้อมูลไม่ครบยังต้องถูกบล็อก ไม่ว่าจะมีเรทหรือไม่
+        expect(canConfirmJob(mk({ licensePlate: '' }), otherRoutes, true).ok).toBe(false);
+        expect(canConfirmJob(mk({ status: JobStatus.COMPLETED }), otherRoutes, true).ok).toBe(false);
+    });
+});
