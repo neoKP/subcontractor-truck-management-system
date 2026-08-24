@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+/*
+ * บอก Tailwind ให้สแกนเฉพาะไฟล์โค้ด
+ *
+ * ค่าเริ่มต้นของ v4 คือสแกนทั้งโปรเจกต์ ซึ่งรวมไฟล์ .xlsx ไฟล์รูป และไฟล์อื่น
+ * ที่ไม่ใช่ข้อความ — ตัวสแกน (oxide) พยายามอ่านเป็นตัวอักษรแล้วพังด้วย
+ * "RangeError: Invalid code point" ตอน build บน Linux
+ *
+ * ระบุเองจึงทั้งแก้ปัญหาและทำให้ build เร็วขึ้น
+ */
+@source "./App.tsx";
+@source "./index.tsx";
+@source "./constants.ts";
+@source "./types.ts";
+@source "./components/**/*.{ts,tsx}";
+@source "./utils/**/*.{ts,tsx}";
+
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
 
 :root {
