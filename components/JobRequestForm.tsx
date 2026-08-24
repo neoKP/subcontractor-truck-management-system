@@ -3,9 +3,12 @@ import React, { useState } from 'react';
 import { jobYearCode, formatJobId, reserveJobSeq, nextSeqFromJobs } from '../utils/jobId';
 import { Job, JobStatus, UserRole, PriceMatrix, SubcontractorMaster } from '../types';
 import { MASTER_DATA } from '../constants';
-import { Truck, MapPin, ClipboardCheck, ArrowRight, ArrowLeft, CheckCircle2, Zap, Search, Info, AlertTriangle, ShieldCheck, LayoutPanelTop } from 'lucide-react';
+import { Truck, MapPin, ClipboardCheck, ArrowRight, ArrowLeft, CheckCircle2, Zap, Search, Info, AlertTriangle, ShieldCheck, LayoutPanelTop, Fuel } from 'lucide-react';
 import { formatDate } from '../utils/format';
 import { sendJobNotification } from '../utils/telegramNotify';
+import { watchActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
+import { findFuelRateOptions, hasFuelRateRoute, matchSelectedFuelRate } from '../utils/fuelRateLookup';
+import { useOilPrice } from '../utils/useOilPrice';
 
 interface JobRequestFormProps {
   /** บันทึกใบงาน — throw เมื่อเขียนไม่สำเร็จ ฟอร์มจะแจ้งผู้ใช้เอง */
@@ -27,6 +30,16 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  /**
+   * เรทค่าขนส่งตามราคาน้ำมัน — แหล่งราคาที่สองนอกจากราคากลาง
+   *
+   * เฝ้าดูรุ่นที่ใช้งานแทนโหลดครั้งเดียว เพราะฟอร์มถูกเปิดค้างได้นาน
+   * ถ้ามีคนอัปเรทรอบใหม่ระหว่างนั้น ต้องเห็นราคาใหม่ ไม่ใช่สร้างงานด้วยเรทเก่า
+   */
+  const [fuelRates, setFuelRates] = useState<FuelRateVersion | null>(null);
+  React.useEffect(() => watchActiveFuelRates(v => setFuelRates(v), () => setFuelRates(null)), []);
+  const oil = useOilPrice();
   const [formData, setFormData] = useState({
     dateOfService: '',
     origin: '',
@@ -41,6 +54,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     driverPhone: '',
     licensePlate: '',
     cost: 0,
+    sellingPrice: 0,
     drops: [] as { location: string; status: 'PENDING' | 'COMPLETED'; podUrl?: string; completedAt?: string }[],
     paymentType: '' as '' | 'CASH' | 'CREDIT',
     paymentAccount: '',
@@ -137,6 +151,16 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     }));
   };
 
+  /**
+   * จำนวนจุดส่งที่คิดเงินได้ — นับเฉพาะจุดที่กรอกชื่อสถานที่แล้ว
+   *
+   * ต้องใช้ตัวเดียวกันทั้งตอนแสดงราคาบนจอและตอนบันทึก เดิมจอนับจากทุกแถวรวม
+   * แถวว่างที่ผู้ใช้เผลอกด "เพิ่มจุด" ไว้ ทำให้ราคาบนจอสูงกว่าที่บันทึกจริง
+   * จุดละ 1,000 บาทในบางเส้นทาง และทำให้ตัวตรวจราคาตอนบันทึกเข้าใจผิดว่า
+   * ผู้ใช้เลือกราคามาจากคนละแหล่ง
+   */
+  const billableDropCount = (formData.drops || []).filter(d => (d.location || '').trim()).length;
+
   const handleSave = async () => {
     // No need to check step < 3 here as this is bound to the save button
 
@@ -189,14 +213,31 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     // Otherwise pick the CHEAPEST matching row deterministically — never an
     // arbitrary first match (which previously caused the wrong sub's price to be used).
     const selectedSub = (formData.subcontractor || '').trim();
-    const matchedPricing = priceMatrix
+    const matchingRows = priceMatrix
       .filter((p: PriceMatrix) =>
         (p.origin || '').trim() === (formData.origin || '').trim() &&
         (p.destination || '').trim() === (formData.destination || '').trim() &&
         (p.truckType || '').trim() === (formData.truckType || '').trim() &&
         (!selectedSub || (p.subcontractor || '').trim() === selectedSub)
       )
-      .sort((a: PriceMatrix, b: PriceMatrix) => (a.basePrice || 0) - (b.basePrice || 0))[0];
+      .sort((a: PriceMatrix, b: PriceMatrix) => (a.basePrice || 0) - (b.basePrice || 0));
+
+    // ผู้รับเหมารายเดียวกันมีได้หลายแถวในเส้นทางเดียว (คนละเงื่อนไข คนละราคา)
+    // ถ้าเอาแถวถูกสุดเสมอ จะไม่ตรงกับแถวที่ผู้ใช้กดเลือกบนจอ แล้วตัวตรวจราคา
+    // จะเข้าใจว่าราคาไม่ตรงกับราคากลาง — บล็อกการบันทึกทั้งที่ผู้ใช้เลือกถูก
+    //
+    // เทียบทั้งต้นทุนและราคาขาย เพราะสองแถวมีต้นทุนเท่ากันแต่ราคาขายต่างกันได้
+    // (ราคาขายคือส่วนที่ไปเก็บกับลูกค้า ผิดแถวคือรายได้ผิด)
+    const pickedCost = Number(formData.cost);
+    const pickedSelling = Number(formData.sellingPrice);
+    const rowTotal = (p: PriceMatrix, base: number) => base + (billableDropCount * (p.dropOffFee || 0));
+    const matchedPricing = (Number.isFinite(pickedCost) && pickedCost > 0
+      ? (matchingRows.find(p =>
+            rowTotal(p, p.basePrice || 0) === pickedCost &&
+            Number.isFinite(pickedSelling) &&
+            rowTotal(p, p.sellingBasePrice || 0) === pickedSelling)
+          ?? matchingRows.find(p => rowTotal(p, p.basePrice || 0) === pickedCost))
+      : undefined) ?? matchingRows[0];
 
     // ราคาที่ใช้จริงไม่ได้ (NaN / ไม่ใช่ตัวเลข) ต้องถือว่า "ไม่มีราคา" ไม่ใช่ปล่อยผ่าน
     // ถ้าปล่อยไป cleanJob() จะแปลงเป็น 0 เงียบ ๆ แล้วใบงานจะมีต้นทุน 0 บาท
@@ -204,7 +245,81 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     const hasUsablePrice = !!matchedPricing
       && Number.isFinite(matchedPricing.basePrice)
       && Number.isFinite(matchedPricing.sellingBasePrice);
-    const hasPricing = hasUsablePrice;
+
+    /**
+     * เรทตามราคาน้ำมันก็ถือว่า "มีราคา" เหมือนราคากลาง
+     *
+     * เส้นทางที่หน่วยงานให้เรทมา ส่วนใหญ่ไม่มีในราคากลาง ถ้านับเฉพาะราคากลาง
+     * งานที่เลือกเรทน้ำมันไว้แล้วจะถูกตั้งเป็น "รอตรวจสอบราคา" และจัดรถไม่ได้
+     * ทั้งที่ราคาชัดเจนอยู่แล้ว
+     *
+     * ตรวจกับตารางเรทอีกครั้งตรงนี้ ไม่เชื่อค่าที่ค้างอยู่ในฟอร์ม เพราะผู้ใช้
+     * อาจเลือกเรทแล้วย้อนไปแก้เส้นทางหรือประเภทรถ ทำให้ราคาที่ค้างอยู่ไม่ใช่
+     * ของเส้นทางที่กำลังบันทึกจริง
+     */
+    const fuelMatch = matchSelectedFuelRate(
+      fuelRates?.rows ?? [],
+      { origin: formData.origin, destination: formData.destination, truckType: formData.truckType },
+      oil.diesel,
+      { subcontractor: selectedSub, cost: formData.cost }
+    );
+
+    // นับเฉพาะจุดที่กรอกชื่อสถานที่แล้ว — ค่าดร็อปจุดละ 1,000 บาทในบางเส้นทาง
+    // ถ้านับจุดว่างด้วย ผู้ใช้ที่เผลอกด "เพิ่มจุด" แล้วไม่กรอกจะถูกคิดเงินเกินโดยไม่รู้ตัว
+    const matrixCost = hasUsablePrice
+      ? (matchedPricing?.basePrice ?? 0) + (billableDropCount * (matchedPricing?.dropOffFee || 0))
+      : 0;
+    const matrixSellingPrice = hasUsablePrice
+      ? (matchedPricing?.sellingBasePrice ?? 0) + (billableDropCount * (matchedPricing?.dropOffFee || 0))
+      : 0;
+
+    /**
+     * เส้นทางเดียวมีได้ทั้งราคากลางและเรทตามน้ำมัน และราคาต้นทุนอาจบังเอิญเท่ากัน
+     * ถ้าตัดสินจากต้นทุนอย่างเดียว งานที่ผู้ใช้เลือก "ราคากลาง" จะถูกบันทึกเป็น
+     * เรทน้ำมัน แล้วราคาขายกลายเป็น 0 ทั้งที่ราคากลางมีราคาขายอยู่
+     *
+     * ราคาขายจึงเป็นตัวแยก: ตัวเลือกราคากลางตั้งราคาขายไว้ด้วย ส่วนเรทของหน่วยงาน
+     * ไม่มีราคาขายมาให้ (ตั้งเป็น 0 ให้บัญชีกรอกทีหลัง)
+     */
+    const selectedCost = Number(formData.cost);
+    const selectedSellingPrice = Number(formData.sellingPrice);
+    const selectedMatchesMatrix = !!selectedSub
+      && hasUsablePrice
+      && Number.isFinite(selectedCost)
+      && Number.isFinite(selectedSellingPrice)
+      && selectedCost === matrixCost
+      && selectedSellingPrice === matrixSellingPrice;
+    const selectedFuelMatch = !selectedMatchesMatrix ? fuelMatch : undefined;
+
+    /**
+     * ราคาที่จะบันทึกต้องเป็นราคาที่ผู้ใช้เห็นตอนกดเลือก
+     *
+     * ฟอร์มเปิดค้างได้นาน ระหว่างนั้นราคาน้ำมันขยับหรือมีคนอัปเรทรอบใหม่ได้
+     * ราคาที่เลือกไว้จึงอาจไม่ตรงกับเรทปัจจุบันแล้ว
+     *
+     * ถ้าปล่อยผ่าน ระบบจะตกไปใช้ราคากลางแทนเงียบ ๆ — ผู้ใช้เห็น 2,040 บนจอ
+     * แต่ใบงานถูกบันทึกที่ 2,100 โดยไม่มีอะไรเตือน จึงต้องหยุดให้เลือกใหม่
+     */
+    const pickedFromFuelBlock = !!selectedSub
+      && Number.isFinite(selectedCost) && selectedCost > 0
+      && !selectedMatchesMatrix;
+    if (priceMode === 'standard' && pickedFromFuelBlock && !selectedFuelMatch) {
+      setIsSubmitting(false);
+      const msg = hasFuelRateRoute(
+        fuelRates?.rows ?? [],
+        { origin: formData.origin, destination: formData.destination, truckType: formData.truckType }
+      )
+        ? `เรทของเส้นทางนี้เปลี่ยนไปแล้ว (ราคาน้ำมันปัจจุบัน ${oil.diesel.toFixed(2)} บาท) กรุณาเลือกราคาใหม่อีกครั้ง`
+        : 'ราคาที่เลือกไว้ใช้กับเส้นทางหรือประเภทรถปัจจุบันไม่ได้แล้ว กรุณาเลือกราคาใหม่อีกครั้ง';
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({ icon: 'warning', title: 'ราคาไม่ตรงกับที่แสดงอยู่', text: msg });
+      } else {
+        alert(msg);
+      }
+      return;
+    }
+
+    const hasPricing = hasUsablePrice || !!selectedFuelMatch;
     const isSpotRateJob = priceMode === 'spot';
     const initialStatus = isSpotRateJob || hasPricing ? JobStatus.NEW_REQUEST : JobStatus.PENDING_PRICING;
 
@@ -224,19 +339,22 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
         .map(d => ({ ...d, location: d.location.trim() })),
     };
 
-    // นับเฉพาะจุดที่กรอกชื่อสถานที่แล้ว — ค่าดร็อปจุดละ 1,000 บาทในบางเส้นทาง
-    // ถ้านับจุดว่างด้วย ผู้ใช้ที่เผลอกด "เพิ่มจุด" แล้วไม่กรอกจะถูกคิดเงินเกินโดยไม่รู้ตัว
-    const dropCount = (formData.drops || []).filter(d => (d.location || '').trim()).length;
     const newJob: Job = {
       ...cleanFormData,
       id: jobId,
       status: initialStatus,
+      // เรทตามน้ำมันมาเป็นราคาเดียวจบ ไม่มีค่าจุดส่งแยกให้บวก — หน่วยงานรวมมาให้แล้ว
+      // ถ้าใช้ matchedPricing (ซึ่งเป็น undefined เมื่อเส้นทางไม่มีในราคากลาง)
+      // ใบงานจะถูกบันทึกด้วยต้นทุน 0 บาททั้งที่หน้าจอแสดงราคาชัดเจน
       cost: isSpotRateJob
         ? spotCostNum
-        : hasPricing ? (matchedPricing?.basePrice ?? 0) + (dropCount * (matchedPricing?.dropOffFee || 0)) : 0,
-      sellingPrice: isSpotRateJob
+        : selectedFuelMatch ? selectedFuelMatch.price
+        : hasPricing ? matrixCost : 0,
+      // ราคาขายยังไม่มีในเรทของหน่วยงาน — ปล่อย 0 ให้ฝ่ายบัญชีกรอกทีหลัง
+      // เหมือนงาน spot ไม่ใช่บั๊ก
+      sellingPrice: isSpotRateJob || selectedFuelMatch
         ? 0
-        : hasPricing ? (matchedPricing?.sellingBasePrice ?? 0) + (dropCount * (matchedPricing?.dropOffFee || 0)) : 0,
+        : hasPricing ? matrixSellingPrice : 0,
       requestedBy: user.id,
       requestedByName: user.name,
       createdAt: new Date().toISOString(),
@@ -301,6 +419,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
   );
   const spotCostNum = parseFloat(spotCost.replace(/,/g, '')) || 0;
 
+
   // ถ้าเลือกผู้รับเหมาไว้ ราคาที่ใช้ต้องเป็นของรายนั้น ไม่ใช่ของรายอื่นในเส้นทางเดียวกัน
   // เดิมเช็คแค่ว่า "เส้นทางนี้มีราคากลาง" จึงกดบันทึกได้ทั้งที่รายที่เลือกไม่มีราคา
   // แล้วใบงานกลายเป็นรอตรวจสอบราคา + ราคา 0 ทั้งที่หน้าจอบอกว่าสร้างได้
@@ -313,9 +432,23 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
       )
     : currentMatchedPricing;
 
+  /**
+   * ราคาที่เลือกไว้มาจากเรทตามน้ำมันไหม
+   *
+   * ใช้ฟังก์ชันเดียวกับตอนบันทึก เพื่อไม่ให้ปุ่มกับตัวบันทึกตัดสินคนละแบบ
+   * เส้นทางที่หน่วยงานให้เรทมาส่วนใหญ่ไม่มีในราคากลาง ถ้าเช็คแค่ราคากลาง
+   * ปุ่มบันทึกจะเทาค้างพอดีกับเส้นทางที่ฟีเจอร์นี้ตั้งใจรองรับ
+   */
+  const fuelSelection = matchSelectedFuelRate(
+    fuelRates?.rows ?? [],
+    { origin: formData.origin, destination: formData.destination, truckType: formData.truckType },
+    oil.diesel,
+    { subcontractor: formData.subcontractor, cost: formData.cost }
+  );
+
   const canSaveJob = priceMode === 'spot'
     ? (formData.subcontractor !== '' && spotCostNum > 0)
-    : !!pricingForChosenSub;
+    : (!!pricingForChosenSub || !!fuelSelection);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -659,6 +792,17 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
             );
             const hasPricing = matchedPricing.length > 0;
 
+            // เรทตามราคาน้ำมัน — คนละชุดกับราคากลาง เพราะราคาเปลี่ยนตามน้ำมัน
+            // จึงต้องแยกกล่องแสดง ไม่ปนกันจนผู้ใช้เข้าใจว่าเป็นราคาคงที่เหมือนกัน
+            const route = {
+              origin: formData.origin,
+              destination: formData.destination,
+              truckType: formData.truckType,
+            };
+            const fuelOptions = findFuelRateOptions(fuelRates?.rows ?? [], route, oil.diesel);
+            // มีเส้นทางในตารางแต่ไม่มีราคาที่น้ำมันวันนี้ — ต้องบอกให้ต่างจาก "ไม่มีเส้นทาง"
+            const fuelRouteExists = hasFuelRateRoute(fuelRates?.rows ?? [], route);
+
             return (
               <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
 
@@ -900,14 +1044,19 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                         <div className="grid grid-cols-1 gap-3">
                           {matchedPricing
                             .sort((a, b) => {
-                              const totalA = a.basePrice + (formData.drops.length * (a.dropOffFee || 0));
-                              const totalB = b.basePrice + (formData.drops.length * (b.dropOffFee || 0));
+                              const totalA = a.basePrice + (billableDropCount * (a.dropOffFee || 0));
+                              const totalB = b.basePrice + (billableDropCount * (b.dropOffFee || 0));
                               return totalA - totalB;
                             })
                             .map((p, idx) => {
-                              const isSelected = formData.subcontractor === p.subcontractor;
-                              const dropFeeTotal = (formData.drops.length) * (p.dropOffFee || 0);
+                              const dropFeeTotal = billableDropCount * (p.dropOffFee || 0);
                               const totalWithDrops = p.basePrice + dropFeeTotal;
+                              // เทียบราคาด้วย ไม่ใช่แค่ชื่อผู้รับเหมา — รายเดียวกันมีได้หลายแถวราคา
+                              // ถ้าเทียบแค่ชื่อ ทุกแถวของรายนั้นจะขึ้นว่าถูกเลือกพร้อมกัน
+                              // และกดแถวอื่นจะกลายเป็นยกเลิกการเลือกแทนที่จะสลับแถว
+                              const isSelected = formData.subcontractor === p.subcontractor
+                                && Number(formData.cost) === totalWithDrops
+                                && Number(formData.sellingPrice) === p.sellingBasePrice + dropFeeTotal;
                               const isCheapest = idx === 0;
 
                               return (
@@ -954,9 +1103,9 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                                           <div className={`flex items-center gap-1 text-[10px] font-bold ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
                                             <span>Base: ฿{p.basePrice.toLocaleString()}</span>
                                           </div>
-                                          {formData.drops.length > 0 && (
+                                          {billableDropCount > 0 && (
                                             <div className={`flex items-center gap-1 text-[10px] font-bold ${isSelected ? 'text-white' : 'text-blue-600'}`}>
-                                              <span>Drop(x{formData.drops.length}): ฿{dropFeeTotal.toLocaleString()}</span>
+                                              <span>Drop(x{billableDropCount}): ฿{dropFeeTotal.toLocaleString()}</span>
                                             </div>
                                           )}
                                         </div>
@@ -993,6 +1142,111 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                 </div>
                 )}
 
+                {/* ===== เรทค่าขนส่งตามราคาน้ำมัน ===== */}
+                {priceMode === 'standard' && (fuelOptions.length > 0 || fuelRouteExists) && (
+                  <div className="bg-amber-50/60 border border-amber-200 rounded-[2rem] p-6 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-600 border border-amber-200 shrink-0">
+                        <Fuel size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-amber-700 uppercase tracking-widest">เรทค่าขนส่งตามราคาน้ำมัน</h4>
+                        <p className="text-[10px] font-bold text-amber-600/80">
+                          หน่วยงานกำหนดราคาไว้ตามช่วงราคาน้ำมัน · ดีเซลที่ใช้คิด {oil.diesel.toFixed(2)} บาท/ลิตร
+                        </p>
+                      </div>
+                    </div>
+
+                    {fuelOptions.length === 0 ? (
+                      // มีเส้นทางในตาราง แต่ราคาน้ำมันวันนี้ไม่อยู่ในช่วงที่หน่วยงานกำหนดไว้
+                      // ต้องบอกให้ชัดว่าเป็นคนละเรื่องกับ "ไม่มีเส้นทางนี้" ไม่งั้นผู้ใช้จะเข้าใจผิด
+                      <div className="bg-white/70 rounded-2xl p-4 border border-amber-200">
+                        <p className="text-xs font-bold text-amber-800">
+                          เส้นทางนี้มีในตารางเรท แต่หน่วยงานยังไม่ได้กำหนดราคาที่ราคาน้ำมัน {oil.diesel.toFixed(2)} บาท
+                        </p>
+                        <p className="text-[10px] font-bold text-amber-600 mt-1">
+                          ใช้ราคากลางด้านบน หรือสอบถามเรทช่วงนี้จากหน่วยงานก่อน — ระบบไม่คำนวณราคาแทนหน่วยงาน
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3">
+                        {fuelOptions.map((opt, idx) => {
+                          const dropFeeTotal = 0;   // เรทของหน่วยงานรวมค่าจุดส่งไว้แล้ว ไม่บวกซ้ำ
+                          const isSelected =
+                            formData.subcontractor === opt.subcontractor && formData.cost === opt.price;
+
+                          return (
+                            <button
+                              key={`fuel-${idx}`}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setFormData(prev => ({ ...prev, subcontractor: '', cost: 0, sellingPrice: 0, paymentType: '', paymentAccount: '' }));
+                                } else {
+                                  // วิธีจ่ายเงินไม่ได้มากับไฟล์เรท จึงดึงจากทะเบียนผู้รับเหมา
+                                  // ไม่งั้นงานเงินสดจะบันทึกได้โดยไม่มีเลขบัญชี เพราะตัวกันเช็คจาก paymentType
+                                  const master = subcontractorMasters.find(m => m.name === opt.subcontractor);
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    subcontractor: opt.subcontractor,
+                                    cost: opt.price,
+                                    // ราคาขายยังไม่มีในเรทของหน่วยงาน — ปล่อย 0 ให้ฝ่ายบัญชีกรอก
+                                    sellingPrice: 0,
+                                    paymentType: master?.paymentType || 'CREDIT',
+                                    paymentAccount: master?.paymentAccount || '',
+                                  }));
+                                }
+                              }}
+                              className={`group relative w-full text-left p-4 rounded-2xl border-2 transition-all duration-300 ${isSelected
+                                ? 'bg-gradient-to-r from-amber-500 to-orange-600 border-amber-600 shadow-xl shadow-amber-200 -translate-y-1'
+                                : 'bg-white border-amber-100 hover:border-amber-300 hover:shadow-md'
+                                }`}
+                            >
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-4">
+                                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${isSelected ? 'bg-white/20 text-white' : 'bg-amber-50 text-amber-500 group-hover:bg-amber-100'
+                                    }`}>
+                                    <Truck size={24} />
+                                  </div>
+                                  <div>
+                                    <h4 className={`font-black text-sm mb-1 ${isSelected ? 'text-white' : 'text-slate-800'}`}>
+                                      {opt.subcontractor}
+                                    </h4>
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                      {/* ต้องบอกช่วงราคาน้ำมันเสมอ — ราคานี้จะเปลี่ยนเมื่อน้ำมันขยับข้ามช่วง */}
+                                      <span className={`text-[10px] font-bold ${isSelected ? 'text-amber-100' : 'text-amber-600'}`}>
+                                        ช่วงน้ำมัน {opt.fuelBand}
+                                      </span>
+                                      {opt.truckSpec && (
+                                        <span className={`text-[10px] font-bold ${isSelected ? 'text-amber-100' : 'text-slate-400'}`}>
+                                          {opt.truckSpec}
+                                        </span>
+                                      )}
+                                      {opt.note && (
+                                        <span className={`text-[10px] font-bold ${isSelected ? 'text-amber-100' : 'text-slate-400'}`}>
+                                          {opt.note}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isSelected ? 'text-amber-100' : 'text-slate-400'}`}>
+                                    เรทน้ำมัน
+                                  </p>
+                                  <p className={`text-xl font-black ${isSelected ? 'text-white' : 'text-amber-600'}`}>
+                                    ฿{opt.price.toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="bg-blue-50/50 border border-blue-100 rounded-[2rem] p-8 space-y-8">
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -1018,13 +1272,19 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                           title="Select Subcontractor"
                           onChange={e => {
                             const sub = e.target.value;
-                            const match = priceMatrix.find(p =>
-                              p.origin === formData.origin &&
-                              p.destination === formData.destination &&
-                              p.truckType === formData.truckType &&
-                              p.subcontractor === sub
-                            );
-                            const dropFeeTotal = (formData.drops.length) * (match?.dropOffFee || 0);
+                            // ผู้รับเหมารายเดียวมีได้หลายแถวราคาในเส้นทางเดียว
+                            // ที่นี่ผู้ใช้เลือกแค่ "รายไหน" ยังไม่ได้ระบุแถวราคา
+                            // จึงต้องเลือกแบบกำหนดแน่นอน (ถูกสุด) เหมือนที่ตัวบันทึกทำ
+                            // ไม่ใช่หยิบแถวแรกที่เจอ ซึ่งขึ้นกับลำดับข้อมูลในฐานข้อมูล
+                            const match = priceMatrix
+                              .filter(p =>
+                                p.origin === formData.origin &&
+                                p.destination === formData.destination &&
+                                p.truckType === formData.truckType &&
+                                p.subcontractor === sub
+                              )
+                              .sort((a, b) => (a.basePrice || 0) - (b.basePrice || 0))[0];
+                            const dropFeeTotal = billableDropCount * (match?.dropOffFee || 0);
                             setFormData({
                               ...formData,
                               subcontractor: sub,
