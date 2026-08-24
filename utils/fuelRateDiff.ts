@@ -1,4 +1,5 @@
 import { findRateAt, type FuelRateRow } from './fuelRateParser';
+import { canonicalSubcontractor } from './subcontractorAliases';
 
 /**
  * เทียบไฟล์ที่กำลังจะอัปโหลด กับรุ่นที่ใช้งานอยู่
@@ -33,9 +34,14 @@ export interface RateDiff {
 /**
  * กุญแจระบุเส้นทาง — ต้องตรงกับที่ระบบใช้จับคู่งานกับเรท
  * รวมหมายเหตุด้วยเพราะเส้นทางเดียวกันแยกตามพิกัดน้ำหนักได้ (4w กับ 4wj)
+ *
+ * ชื่อบริษัทถูกแปลงเป็นชื่อมาตรฐานก่อนเทียบ เพราะหน่วยงานเขียนชื่อเจ้าเดียวกัน
+ * ได้หลายแบบ (เช่น "รถร่วมคุณหนึ่ง" กับ "รถร่วมคุณวสรรณ์") ถ้าเทียบดิบ ๆ ไฟล์
+ * รอบถัดไปจะถูกรายงานว่า "เพิ่มใหม่ทั้งหมด + เส้นทางเดิมหายทั้งหมด" ทั้งที่
+ * ไม่มีอะไรเปลี่ยน ทำให้ผู้ใช้ตัดสินใจจากข้อมูลที่ผิด
  */
 export const rowKey = (r: FuelRateRow): string =>
-    [r.company, r.origin, r.destination, r.truckType, r.note, r.section ?? '']
+    [canonicalSubcontractor(r.company), r.origin, r.destination, r.truckType, r.note, r.section ?? '']
         .map(v => (v || '').trim().toLowerCase().replace(/\s+/g, ' '))
         .join('|');
 

@@ -100,3 +100,27 @@ describe('rowKey', () => {
         expect(rowKey(mk({ section: 'นีโอสยาม วางบิล sunlee' }))).not.toBe(rowKey(mk({})));
     });
 });
+
+describe('ชื่อบริษัทที่หน่วยงานเขียนต่างกัน', () => {
+    it('ชื่อพ้องของเจ้าเดียวกันได้กุญแจเดียวกัน', () => {
+        expect(rowKey(mk({ company: 'รถร่วมคุณหนึ่ง' })))
+            .toBe(rowKey(mk({ company: 'รถร่วมคุณวสรรณ์' })));
+    });
+
+    it('คนละเจ้ายังแยกกันเหมือนเดิม', () => {
+        expect(rowKey(mk({ company: 'KNN' })))
+            .not.toBe(rowKey(mk({ company: 'YSK' })));
+    });
+
+    it('ไฟล์ที่ใช้ชื่อเดิมต้องถูกมองว่า "ไม่เปลี่ยนแปลง" ไม่ใช่ "เพิ่มใหม่ทั้งหมด"', () => {
+        // เคสจริง: ในระบบเก็บชื่อ "รถร่วมคุณวสรรณ์" แต่หน่วยงานส่งไฟล์ใหม่ที่ยังเขียน
+        // "รถร่วมคุณหนึ่ง" — ถ้าเทียบชื่อดิบ จะรายงานว่าเพิ่ม 1 + หาย 1 ทั้งที่ไม่มีอะไรเปลี่ยน
+        const incoming = [mk({ company: 'รถร่วมคุณหนึ่ง' })];
+        const current = [mk({ company: 'รถร่วมคุณวสรรณ์' })];
+        const d = diffFuelRates(incoming, current, 38.39);
+
+        expect(d.added).toHaveLength(0);
+        expect(d.removed).toHaveLength(0);
+        expect(d.unchanged).toHaveLength(1);
+    });
+});

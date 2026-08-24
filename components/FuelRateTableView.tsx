@@ -7,6 +7,7 @@ import { findRateAt, type FuelRateRow } from '../utils/fuelRateParser';
 import { watchActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
 import { useOilPrice } from '../utils/useOilPrice';
 import { pageCount, pageNumbers as buildPageNumbers, pageSlice, PAGE_SIZE } from '../utils/pagination';
+import { canonicalSubcontractor } from '../utils/subcontractorAliases';
 
 const money = (n: number): string =>
     n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -42,7 +43,19 @@ const FuelRateTableView: React.FC = () => {
         return stop;
     }, []);
 
-    const rows = version?.rows ?? [];
+    /**
+     * แสดงชื่อบริษัทเป็นชื่อมาตรฐาน โดยไม่แก้ไฟล์ที่หน่วยงานส่งมา
+     *
+     * หน่วยงานเขียนชื่อเจ้าเดียวกันได้หลายแบบ (เช่น "รถร่วมคุณหนึ่ง" กับ
+     * "รถร่วมคุณวสรรณ์") ถ้าแสดงตามไฟล์ดิบ ตัวกรองบริษัทจะมีชื่อซ้ำซ้อน และ
+     * ผู้ใช้จะหาเรทไม่เจอเพราะเลือกชื่อคนละแบบกับที่ใช้ในใบงาน
+     *
+     * แปลงตอนแสดงผลแทนตอนบันทึก เพื่อให้ข้อมูลดิบยังตรงกับไฟล์ต้นฉบับเสมอ
+     */
+    const rows = useMemo(
+        () => (version?.rows ?? []).map(r => ({ ...r, company: canonicalSubcontractor(r.company) })),
+        [version]
+    );
 
     const companies = useMemo(
         () => [...new Set(rows.map(r => r.company).filter(Boolean))].sort(),
