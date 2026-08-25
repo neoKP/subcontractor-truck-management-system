@@ -248,3 +248,63 @@ control (empty_text)  80-98 ms
 
 **ห้ามพึ่งเหตุผลว่า "ลองแล้วไม่เห็นทำงาน"** เพราะสิ่งที่ทำให้มันไม่ทำงาน
 คือ extension ที่เพิ่งถูกเปิดไปแล้ว
+
+## การผูกกันที่ซ่อนอยู่: probe ยิงไปที่ upload.php
+
+`resolveBaseUrl()` ตัดสินว่า endpoint ไหนใช้ได้ **จากการ POST ไปที่
+`upload.php`** ไม่ใช่ `telegram-notify.php` (ดู `utils/nasUpload.ts`
+ฟังก์ชัน `probe`)
+
+**ผลที่ตามมา: ถ้า `upload.php` พัง การแจ้งเตือนจะพังตามไปด้วย ทั้งที่
+proxy ปกติดีทุกอย่าง**
+
+ตัวอย่างจริง: 2026-08-25 ช่วงบ่าย `/web/api/` ตอบ 500 ทั้งโฟลเดอร์จากไฟล์
+ที่ถูกอัปแบบขาดไบต์ ถ้าโค้ดชุดนี้อยู่บน production แล้ว การแจ้งเตือนจะเงียบ
+ไปด้วยโดยไม่มีใครรู้ เพราะ probe หา endpoint ไม่เจอ
+
+**แปลว่าทดสอบการแจ้งเตือนแยกจากการอัปโหลดไม่ได้** — สองระบบผูกกันผ่าน probe
+
+ยังไม่ต้องแก้ตอนนี้ แต่เมื่อไหร่ที่ต้องแก้ มีสองทาง:
+- เปลี่ยน probe ให้ยิง endpoint ที่ตัวเองใช้
+- แยก resolve คนละชุดสำหรับแต่ละ endpoint
+
+## ตรวจ localStorage ก่อนทดสอบจากเบราว์เซอร์
+
+`resolveBaseUrl()` อ่านค่าจาก localStorage **3 คีย์** และค่าค้างจะทำให้เกิด
+ผลลบปลอมที่โทษ proxy ทั้งที่เป็นค่าค้างในเครื่องผู้ทดสอบ
+
+รันใน Console ก่อนกดปุ่มทดสอบ — **ทั้งสามตัวควรได้ `null`**:
+
+```js
+localStorage.getItem('NAS_API_BASE_CACHE')     // ลัดวงจร! อ่านก่อนตัวอื่นทั้งหมด
+localStorage.getItem('NAS_API_BASE_OVERRIDE')  // candidate ตัวแรก
+localStorage.getItem('NAS_API_TUNNEL')         // candidate ตัวที่สอง
+```
+
+ถ้าตัวไหนไม่ใช่ `null`:
+
+```js
+['NAS_API_BASE_CACHE','NAS_API_BASE_OVERRIDE','NAS_API_TUNNEL']
+  .forEach(k => localStorage.removeItem(k));
+location.reload();
+```
+
+**`NAS_API_BASE_CACHE` สำคัญที่สุดในสามตัว** — บรรทัด 85-91 ของ
+`nasUpload.ts` คืนค่าจาก cache นี้ทันทีและ **ไม่แตะรายการ candidate เลย**
+ถ้ายังไม่เกิน 10 นาที (`10 * 60 * 1000`)
+
+ผลคือถ้าเครื่องเคยชี้ไป endpoint ที่ตายไปแล้วภายใน 10 นาทีที่ผ่านมา
+การล้างแค่ OVERRIDE กับ TUNNEL จะไม่พอ ต้องล้าง CACHE ด้วย
+
+ลำดับที่โค้ดใช้จริง:
+
+```
+1. NAS_API_BASE_CACHE (ถ้าอายุ < 10 นาที)  → คืนทันที ไม่ดูตัวอื่น
+2. NAS_API_BASE_OVERRIDE
+3. NAS_API_TUNNEL
+4. https://neosiam.dscloud.biz/api
+5. http://192.168.1.82/api          (ข้ามอัตโนมัติเมื่อหน้าเว็บเป็น https)
+```
+
+ข้อ 5 ถูกข้ามเสมอเมื่อเปิดจาก Vercel (https) เพราะโค้ดกันไม่ให้เรียก http
+จากหน้า https — ดังนั้นบนเว็บ production เหลือทางเดียวคือข้อ 4
