@@ -23,11 +23,6 @@ declare const Swal: any;
 
 const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs, priceMatrix, subcontractorMasters, onShowSummary, user }) => {
   const [step, setStep] = useState(1);
-  // วันนี้ในรูป yyyy-mm-dd ตามเวลาเครื่อง — ใช้เป็นขอบล่างของวันที่ต้องการรถ
-  const todayIso = React.useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }, []);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -602,8 +597,15 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                     id="date-service"
                     required
                     type="date"
-                    /* ห้ามย้อนหลัง — ใบงานวันที่ผ่านไปแล้วทำให้แผนงานและรายงานรายวันเพี้ยน */
-                    min={todayIso}
+                    /*
+                      เลือกย้อนหลังได้ — การบันทึกงานหลังวันที่วิ่งจริงเป็นเรื่องปกติของที่นี่
+                      (799 จาก 2,499 ใบในระบบถูกสร้างย้อนหลัง ส่วนใหญ่ 1-7 วัน สูงสุด 72 วัน)
+                      เดิมใส่ min ห้ามย้อนหลัง คนจึงต้องไปแก้วันที่ทีหลังผ่านหน้าอื่น
+                      ซึ่งเลี่ยงการตรวจของฟอร์มนี้ไปทั้งชุด
+
+                      เรทตามราคาน้ำมันคิดจากวันที่ต้องการรถอยู่แล้ว งานย้อนหลังจึงได้ราคา
+                      ของวันนั้นจริง ไม่ใช่ราคาวันนี้
+                    */
                     className="w-full px-5 py-4 rounded-2xl border border-slate-100 bg-slate-50/50 focus:bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-800"
                     value={formData.dateOfService}
                     onKeyDown={(e) => e.preventDefault()}
