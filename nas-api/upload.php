@@ -47,17 +47,24 @@ $ALLOWED_TYPES = array('image/webp', 'image/jpeg', 'image/jpg', 'image/png', 'im
 // ===== CORS =====
 // ตอบเฉพาะโดเมนที่รู้จัก · CORS กันได้แค่เบราว์เซอร์ ไม่กัน curl หรือสคริปต์
 // ด่านที่กันได้จริงคือ API key ด้านล่าง — ตอน deploy ขึ้นโดเมนจริงต้องเพิ่มโดเมนนั้นที่นี่
+// เพิ่มโดเมนใหม่ที่นี่แล้วต้องเพิ่มใน serve.php ให้ตรงกันเสมอ
+// ไม่ใส่ URL ราย deployment (…-asjgwoa4n.vercel.app) เพราะเปลี่ยนทุกครั้งที่ deploy
+// และไม่ใช้รูปแบบ *.vercel.app เพราะโดเมนย่อยพวกนั้นใครสมัครก็ได้
+//
+// ⚠️ `vercel alias ls` แสดงไม่ครบ — มันลิสต์เฉพาะ alias ที่ผูกไว้ ไม่รวมโดเมนที่ Vercel
+// ตั้งให้โปรเจกต์อัตโนมัติ ตรวจ 2026-08-25 พบว่า …-syst.vercel.app (ไม่มี -eight)
+// ก็เสิร์ฟเว็บตัวเดียวกันแต่ไม่โผล่ในลิสต์ · ยืนยันว่าเป็นของเราด้วยการเทียบกับโปรเจกต์อื่น
+// ในบัญชีเดียวกัน (logistics-delivery-kpi-management.vercel.app ก็เป็นแบบเดียวกัน)
+// ส่วนชื่อมั่ว ๆ ที่ลองยิงดูตอบ 404 หมด แปลว่าไม่ใช่ catch-all ของ Vercel
+// เวลาเพิ่มโดเมนคราวหน้า ให้ curl ดูของจริงด้วย อย่าเชื่อ `vercel alias ls` อย่างเดียว
 $ALLOWED_ORIGINS = array(
     'http://localhost:3000',
+    'http://localhost:5173',
     'http://192.168.1.82',
     'https://neosiam.dscloud.biz',
-    // ⚠️ ก่อน deploy ขึ้นใช้งานจริง ต้องเพิ่มโดเมนของหน้าเว็บที่นี่ด้วย
-    // (เช่น 'https://ชื่อไซต์.netlify.app') ไม่งั้นการอัปโหลดรูป POD จากเครื่องผู้ใช้จะถูกบล็อก
-    // ต้องเพิ่มให้ครบทั้ง upload.php · serve.php · diag.php
-    // ⚠️ ต้องแทนที่บรรทัดล่างด้วยโดเมน Vercel จริงของโปรเจกต์นี้ก่อน deploy
-    //    ดูได้ที่ Vercel > โปรเจกต์ subcontractor-truck-management-system > Domains
-    //    สคริปต์ deploy จะไม่ยอมทำงานตราบใดที่ยังเป็นข้อความตัวยึดนี้
-    'https://REPLACE-ME.vercel.app',
+    'https://subcontractor-truck-management-syst.vercel.app',
+    'https://subcontractor-truck-management-syst-eight.vercel.app',
+    'https://subcontractor-truck-management-system-prats-projects-95416bd3.vercel.app',
 );
 $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
 // เครื่องนักพัฒนา: ยอมทุกพอร์ตของ localhost/127.0.0.1

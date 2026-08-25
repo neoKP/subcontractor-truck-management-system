@@ -7,7 +7,9 @@ DEST=/volume1/web/api
 SECRETS=/volume1/nas-secrets
 STAGE=/tmp/nas-api-deploy
 STAMP=$(date +%Y%m%d-%H%M)
-APPFILES="upload.php serve.php diag.php list-files.php"
+# ต้องตรงกับ $files ใน deploy-nas-api.ps1 เสมอ — สคริปต์นี้ exit 1 ถ้าไฟล์ใน STAGE ไม่ครบ
+# diag.php และ list-files.php ถูกถอดออกแล้ว (2026-08-25) ดูเหตุผลใน deploy-nas-api.ps1
+APPFILES="upload.php serve.php"
 
 echo "== ตรวจไฟล์ที่ stage ไว้ =="
 for f in api-key.php $APPFILES; do
@@ -17,7 +19,7 @@ head -c 200 "$STAGE/api-key.php" | grep -q "^<?php" || { echo "!! api-key.php �
 grep -q "return" "$STAGE/api-key.php" || { echo "!! api-key.php ไม่มี return — หยุด"; exit 1; }
 
 # กันพลาด: โค้ดใหม่ต้องชี้ไปที่ path ใหม่ ไม่ใช่ไฟล์ข้าง ๆ ตัวเอง
-for f in upload.php list-files.php; do
+for f in upload.php; do
   grep -q "$SECRETS/api-key.php" "$STAGE/$f" || \
     echo "!! เตือน: $f ไม่มีสตริง $SECRETS/api-key.php — ตรวจว่าอ่านคีย์จาก path ใหม่จริงหรือยัง"
 done

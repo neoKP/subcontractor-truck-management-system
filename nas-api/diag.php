@@ -1,4 +1,11 @@
 <?php
+// ห้าม deploy ไฟล์นี้ขึ้น NAS — ไม่มีด่านตรวจคีย์ และเปิดโครงสร้างโฟลเดอร์ให้คนนอกอ่าน
+// ถ้าจะใช้ ต้องใส่ ALLOWED_ORIGINS จริง + เพิ่มการตรวจ X-API-Key ก่อนเสมอ
+//
+// ถูกถอดออกจาก $files ใน deploy/deploy-nas-api.ps1 แล้ว (2026-08-25)
+// CORS ข้างล่างกันได้แค่เบราว์เซอร์ ไม่ได้กัน curl — จึงไม่ใช่ด่านตรวจสิทธิ์
+// ฝั่งเว็บไม่ได้เรียกไฟล์นี้แล้วเช่นกัน (utils/nasUpload.ts เปลี่ยนไป probe upload.php แทน)
+//
 // Diagnostic v2 — ค้นหา path จริงบน NAS
 // ลบไฟล์นี้ทิ้งหลังใช้งาน!
 header('Content-Type: application/json; charset=utf-8');

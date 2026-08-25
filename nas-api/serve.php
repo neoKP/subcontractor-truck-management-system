@@ -13,15 +13,17 @@ $UPLOAD_DIRS = array(
 // CORS — ตอบเฉพาะโดเมนที่รู้จัก
 // หมายเหตุสำคัญ: CORS กันได้แค่เบราว์เซอร์ ไม่กัน curl หรือสคริปต์
 // ตอน deploy ขึ้นโดเมนจริง ต้องเพิ่มโดเมนนั้นในรายการนี้ด้วย
+// ต้องตรงกับ $ALLOWED_ORIGINS ใน upload.php เสมอ — รูปที่อัปได้แต่แสดงไม่ได้ก็ไม่มีประโยชน์
+// ⚠️ `vercel alias ls` แสดงไม่ครบ (ไม่รวมโดเมนที่ Vercel ตั้งให้อัตโนมัติ)
+//    ดูคำอธิบายเต็มใน upload.php ก่อนเพิ่ม/ลบโดเมนที่นี่
 $ALLOWED_ORIGINS = array(
     'http://localhost:3000',
+    'http://localhost:5173',
     'http://192.168.1.82',
     'https://neosiam.dscloud.biz',
-    // ⚠️ ก่อน deploy ต้องเพิ่มโดเมน Vercel จริงของหน้าเว็บที่นี่ ให้ตรงกับ upload.php
-    // ⚠️ ต้องแทนที่บรรทัดล่างด้วยโดเมน Vercel จริงของโปรเจกต์นี้ก่อน deploy
-    //    ดูได้ที่ Vercel > โปรเจกต์ subcontractor-truck-management-system > Domains
-    //    สคริปต์ deploy จะไม่ยอมทำงานตราบใดที่ยังเป็นข้อความตัวยึดนี้
-    'https://REPLACE-ME.vercel.app',
+    'https://subcontractor-truck-management-syst.vercel.app',
+    'https://subcontractor-truck-management-syst-eight.vercel.app',
+    'https://subcontractor-truck-management-system-prats-projects-95416bd3.vercel.app',
 );
 $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
 // เครื่องนักพัฒนา: ยอมทุกพอร์ตของ localhost/127.0.0.1

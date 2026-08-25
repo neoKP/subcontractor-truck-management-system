@@ -1,0 +1,7 @@
+# สคริปต์ที่ต้องรันบน Synology NAS (sh) — ต้องเป็น LF เท่านั้น
+# ถ้า git แปลงเป็น CRLF ตอน checkout บรรทัด #!/bin/sh จะกลายเป็น "#!/bin/sh\r"
+# แล้ว NAS จะฟ้อง "no such file or directory" ซึ่งอ่านไม่ออกว่าเกิดจากอะไร
+*.sh text eol=lf
+
+# ไฟล์ PHP ถูก scp ขึ้น NAS (Linux) เหมือนกัน
+*.php text eol=lf

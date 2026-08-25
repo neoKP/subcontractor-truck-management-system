@@ -17,7 +17,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 # copy-to-drive.php ถูกถอดออกจาก repo แล้ว — ไม่อัป และจะถูกลบออกจาก NAS โดยสคริปต์ฝั่ง NAS
-$files = @("api-key.php","upload.php","serve.php","diag.php","list-files.php")
+#
+# diag.php และ list-files.php ถูกถอดออกจากรายการนี้ (2026-08-25)
+#   diag.php      ไม่ตรวจคีย์เลย และคายรายชื่อไฟล์ใน /volume1, /volume1/homes,
+#                 จำนวนรูป POD, ชื่อผู้ใช้ที่รัน PHP และ path จริงบนดิสก์ ให้ใครก็ได้ที่ยิงถึง
+#                 (CORS กันได้แค่เบราว์เซอร์ ไม่ได้กัน curl) หัวไฟล์ก็เขียนเองว่าให้ลบทิ้งหลังใช้
+#   list-files.php ไม่มีโค้ดฝั่งเว็บเรียกใช้เลย — ไม่ต้องมีบน NAS
+# ทั้งสองไฟล์ยังอยู่ใน repo ไว้ใช้ตอนแก้ปัญหา แต่ไม่ถูกอัปขึ้นเครื่องจริงอีกต่อไป
+$files = @("api-key.php","upload.php","serve.php")
 
 Write-Host "== ตรวจไฟล์ต้นทางใน $Src ==" -ForegroundColor Cyan
 foreach ($f in $files) {
@@ -37,7 +44,9 @@ Get-ChildItem $Src -Filter *.txt -ErrorAction SilentlyContinue | ForEach-Object 
 
 # โดเมนของหน้าเว็บต้องเป็นค่าจริง ไม่ใช่ตัวยึด — ถ้ายังไม่ได้ใส่ การอัปโหลดจากเว็บจริง
 # จะถูกเบราว์เซอร์บล็อกทันทีหลัง deploy และจะหาสาเหตุยากเพราะข้อความที่เห็นคือ CORS error
-foreach ($f in @('upload.php', 'serve.php', 'diag.php', 'list-files.php')) {
+# ตรวจเฉพาะไฟล์ที่อัปขึ้นจริง — diag.php/list-files.php ไม่ได้ถูกอัปแล้ว
+# ถ้ายังตรวจอยู่ ตัวยึด REPLACE-ME ที่ค้างในไฟล์ที่ไม่ได้ใช้จะทำให้ deploy หยุดโดยไม่มีเหตุผล
+foreach ($f in @('upload.php', 'serve.php')) {
   $p = Join-Path $Src $f
   if (-not (Test-Path $p)) { continue }
   if ((Get-Content $p -Raw) -match 'REPLACE-ME') {

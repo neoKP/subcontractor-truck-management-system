@@ -32,14 +32,40 @@ const getCandidates = (): string[] => {
     return uniq(list);
 };
 
+/**
+ * เช็คว่า base ไหนใช้ได้ — ยิงไปที่ upload.php ตัวจริง ไม่ใช่ diag.php
+ *
+ * เดิมใช้ diag.php เป็นตัวเคาะประตู ซึ่งผิดฝาผิดตัว 2 ทาง:
+ *   1. diag.php ไม่ตรวจคีย์ และเปิดโครงสร้างโฟลเดอร์ทั้ง NAS ให้คนนอกอ่านได้
+ *      เป็นไฟล์ที่ควรถูกปิด ไม่ใช่ไฟล์ที่ระบบต้องพึ่งพา
+ *   2. พอปิดมันทิ้ง (404) การอัปโหลดตายทั้งระบบ ทั้งที่ upload.php ยังทำงานปกติดี
+ * ตัวชี้วัดว่า "อัปโหลดได้ไหม" จึงควรถามไฟล์ที่ใช้อัปโหลดจริงเท่านั้น
+ *
+ * เกณฑ์ที่ใช้: upload.php ตอบ HTTP 200 เสมอ แล้วใส่ผลไว้ใน JSON body
+ * (ห้ามใช้ status อื่น เพราะ Nginx ของ Synology จะแทน response ที่ไม่ใช่ 200
+ *  ด้วยหน้า error ของตัวเอง แล้ว CORS header จะหาย — ดู NAS-UPLOAD-GUIDE ข้อ 2)
+ * ดังนั้น 401 จะไม่เกิดขึ้นกับ NAS ตัวนี้ ต้องดูที่ body ว่าเป็น JSON ของเราจริงหรือเปล่า
+ * ซึ่งกันหน้า login ของ router หรือ captive portal ที่ตอบ 200 มาหลอกได้ด้วย
+ */
 const probe = async (base: string): Promise<boolean> => {
     try {
         const c = new AbortController();
         const timer = setTimeout(() => c.abort(), 2500);
-        const res = await fetch(`${base}/diag.php`, { method: 'GET', cache: 'no-store', signal: c.signal });
+        // POST เปล่า ไม่ใส่คีย์ — upload.php หยุดที่ด่านตรวจคีย์ ไม่แตะดิสก์เลย
+        // ไม่ใส่ header เพิ่ม เพื่อให้เป็น simple request จะได้ไม่ต้องมี preflight
+        const res = await fetch(`${base}/upload.php`, {
+            method: 'POST',
+            cache: 'no-store',
+            signal: c.signal,
+        });
         clearTimeout(timer);
-        return res.ok;
+        // เผื่อเวอร์ชันในอนาคตที่ไม่ได้อยู่หลัง Nginx ของ Synology แล้วตอบ 401 ได้จริง
+        if (res.status === 401) return true;
+        if (!res.ok) return false;
+        const body = await res.json().catch(() => null);
+        return !!body && typeof body.success === 'boolean';
     } catch {
+        // รวมกรณี CORS บล็อกด้วย — ถ้าอ่าน response ไม่ได้ ก็อัปโหลดไม่ได้อยู่ดี
         return false;
     }
 };
