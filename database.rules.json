@@ -1,13 +1,13 @@
 {
-  "//": "Phase 2 security rules — DO NOT deploy until Phase 1 (anonymous auth in firebaseConfig.ts) is live AND the Anonymous provider is enabled in the Firebase Console, otherwise the whole app loses DB access. Deploy with: firebase deploy --only database",
-  "//2": "WARNING: this only blocks unauthenticated REST. The custom login still reads /users (with plaintext passwords) client-side, so any signed-in (even anonymous) client can read them. Fixing that requires Phase 3 (real Firebase Auth + server-side login + password hashing).",
   "rules": {
     ".read": false,
     ".write": false,
     "jobs": {
       ".read": "auth != null",
       ".write": "auth != null",
-      ".indexOn": ["dateOfService"]
+      ".indexOn": [
+        "dateOfService"
+      ]
     },
     "priceMatrix": {
       ".read": "auth != null",
@@ -30,23 +30,18 @@
       ".write": "auth != null"
     },
     "jobCounters": {
-      "//": "ตัวนับเลขใบงานรายปี — เขียนผ่าน transaction เท่านั้น กันเลขซ้ำเมื่อสร้างงานพร้อมกัน",
       ".read": "auth != null",
       ".write": "auth != null"
     },
     "invoiceCounters": {
-      "//": "ตัวนับเลขใบแจ้งหนี้รถร่วมรายปี — เขียนผ่าน transaction เท่านั้น กันเลขซ้ำเมื่อออกใบพร้อมกัน",
       ".read": "auth != null",
       ".write": "auth != null"
     },
     "fuelRates": {
-      "//": "ตารางเรทค่าขนส่งตามราคาน้ำมันที่หน่วยงานส่งมา — เก็บเป็นรุ่น ไม่ทับของเดิม",
-      "//2": "TODO(ระยะที่ 4): ควรจำกัดสิทธิ์เขียนเฉพาะ admin/accountant แต่ทำไม่ได้จนกว่าจะย้ายไป Firebase Auth จริง — ตอนนี้ทุก client เป็น anonymous เหมือนกันหมด rules จึงแยกบทบาทไม่ได้ (ปัญหาเดียวกับ priceMatrix/invoices) ดู docs/SECURITY_REMEDIATION_PLAN_TH.md",
       ".read": "auth != null",
       ".write": "auth != null"
     },
     "oilPrice": {
-      "//": "ราคาดีเซล ปตท. — Cloud Function fetchOilPrice เขียนผ่าน Admin SDK ซึ่งข้าม rules อยู่แล้ว จึงปิด write ฝั่ง client ไว้ กันคนแก้ราคาน้ำมันที่ใช้คิดค่าขนส่ง",
       ".read": "auth != null",
       ".write": false
     }
