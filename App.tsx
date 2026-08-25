@@ -31,7 +31,7 @@ import MigrationTool from './components/MigrationTool';
 import SubcontractorMasterView from './components/SubcontractorMasterView';
 import { migrateBase64ToStorage } from './utils/migrateBase64ToStorage';
 import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3, ShieldAlert, Building2 } from 'lucide-react';
-import { db, ref, onValue, set, remove, get, query, limitToLast } from './firebaseConfig';
+import { db, ref, onValue, set, remove, get, query, limitToLast, authReady } from './firebaseConfig';
 
 // Initial Users Data for Seeding
 const INITIAL_USERS = [
@@ -122,6 +122,20 @@ const App: React.FC = () => {
   // Now: Jobs uses limitToLast, Logs uses get() one-time, Users seed separated
   // ============================================================
   React.useEffect(() => {
+    /**
+     * ต้องรอให้ล็อกอินเสร็จก่อนอ่านข้อมูล
+     *
+     * กฎฐานข้อมูลที่เข้มขึ้น (auth != null) จะปฏิเสธทุกคำขอที่ยังไม่ได้ล็อกอิน
+     * ถ้าต่อ listener ทันทีตอนเปิดหน้า คำขอจะถูกปฏิเสธและหน้าจอว่างเปล่า
+     * โดยไม่มี error ให้เห็น — ผู้ใช้จะเห็นแค่ระบบไม่มีข้อมูล
+     *
+     * ตอนนี้กฎยังเปิดอยู่จึงยังไม่จำเป็น แต่ต้องมีก่อน deploy กฎเข้ม
+     * ไม่งั้นเว็บจะใช้งานไม่ได้ทั้งระบบทันทีที่กฎมีผล
+     */
+    let cancelled = false;
+    const stops: Array<() => void> = [];
+
+    const startListeners = () => {
     // --- 1. JOBS: Realtime listener with limitToLast ---
     // ⚠️ limitToLast(500) used to hide ~1,173 older jobs from the ENTIRE app — any job
     // below the most recent 500 IDs was never loaded, so it couldn't be found anywhere.
@@ -246,11 +260,21 @@ const App: React.FC = () => {
       }
     });
 
+    // เก็บตัวถอด listener ไว้ให้ cleanup เรียกครบทุกตัว
+    // (เดิม unsubscribeSubMasters ถูกสร้างแต่ไม่เคยถูกเรียก — listener ค้างทุกครั้งที่ถอด)
+    stops.push(unsubscribeJobs, unsubscribePricing, unsubscribeSubMasters, unsubscribeInvoices, unsubscribeUsers);
+    };
+
+    // ถ้าล็อกอินไม่สำเร็จก็ต่อ listener ไปตามเดิม — ตอนกฎยังเปิดอยู่ยังอ่านได้
+    // และเมื่อกฎเข้มแล้ว Firebase จะปฏิเสธเอง ดีกว่าค้างรอจนหน้าจอว่างตลอดไป
+    authReady.finally(() => {
+      if (cancelled) return;   // ผู้ใช้ออกจากหน้าไปก่อนล็อกอินเสร็จ
+      startListeners();
+    });
+
     return () => {
-      unsubscribeJobs();
-      unsubscribePricing();
-      unsubscribeInvoices();
-      unsubscribeUsers();
+      cancelled = true;
+      for (const stop of stops) stop();
     };
   }, []);
 
