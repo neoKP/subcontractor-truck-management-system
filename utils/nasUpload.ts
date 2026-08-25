@@ -70,7 +70,15 @@ const probe = async (base: string): Promise<boolean> => {
     }
 };
 
-const resolveBaseUrl = async (): Promise<string> => {
+/**
+ * หา base URL ของ NAS ที่ใช้ได้จริง
+ *
+ * export ออกมาเพราะ notifyTelegram ต้องใช้ตัวเดียวกัน ไม่ใช่ค่าคงที่ของตัวเอง
+ * ที่นี่มี localStorage override และ fallback ไป 192.168.1.82 ซึ่งเป็นทางที่มือถือ
+ * ในวงแลนใช้ถ่ายรูป POD — ถ้าการแจ้งเตือนใช้ base คนละตัว มันจะทำงานบนเดสก์ท็อป
+ * แต่เงียบบนมือถือ ซึ่งเป็นอาการที่หาสาเหตุยากมาก
+ */
+export const resolveBaseUrl = async (): Promise<string> => {
     if (cachedBase) return cachedBase;
     if (typeof window !== 'undefined') {
         try {

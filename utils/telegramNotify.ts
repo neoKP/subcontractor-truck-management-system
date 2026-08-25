@@ -1,9 +1,9 @@
 import { Job } from '../types';
+import { notifyTelegram } from './notifyTelegram';
 
-const BOT_TOKEN = import.meta.env.VITE_TELEGRAM_BOT_TOKEN as string | undefined;
-const CHAT_ID   = import.meta.env.VITE_TELEGRAM_CHAT_ID   as string | undefined;
-
-const BASE_URL = () => `https://api.telegram.org/bot${BOT_TOKEN}`;
+// bot token กับ chat id ไม่อยู่ที่นี่แล้ว — ย้ายไปอยู่บน NAS (/volume1/nas-secrets/)
+// ไฟล์นี้เหลือหน้าที่เดียวคือ "ประกอบข้อความ" ส่วนการยิงจริงเป็นของ notifyTelegram
+// เหตุผล: VITE_ ทำให้ค่าถูกฝังลง bundle สาธารณะ เปลี่ยน token กี่รอบก็หลุดอีก
 
 const STATUS_EMOJI: Record<string, string> = {
   'New Request':     '🆕',
@@ -41,61 +41,27 @@ function buildJobMessage(job: Job, event: string): string {
   return lines.join('\n');
 }
 
-async function postJSON(endpoint: string, body: object): Promise<void> {
-  if (!BOT_TOKEN || !CHAT_ID) {
-    console.warn('[Telegram] BOT_TOKEN or CHAT_ID not set — skipping notification.');
-    return;
-  }
-  try {
-    const res = await fetch(`${BASE_URL()}/${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      console.warn(`[Telegram] ${endpoint} failed:`, err);
-    }
-  } catch (e) {
-    console.warn('[Telegram] Network error:', e);
-  }
-}
-
 /**
- * ส่งแจ้งเตือน Telegram พร้อมรูปภาพ (ถ้ามี)
- * - 0 รูป  → sendMessage
- * - 1 รูป  → sendPhoto  (caption = ข้อความ)
- * - 2+ รูป → sendMediaGroup (caption บนรูปแรก, max 10)
+ * ส่งแจ้งเตือน Telegram
+ *
+ * ตอนนี้เป็นข้อความล้วน (sendMessage) เท่านั้น — proxy บน NAS ยังไม่รองรับรูป
+ * รูป POD จะกลับมาในรอบถัดไป พร้อมกับการอัปไฟล์ขึ้น Telegram ตรง ๆ
+ * (ไม่ใช่ส่ง URL ของ serve.php ให้ Telegram ไปดึงเอง เพราะวิธีนั้นได้ผลก็ต่อเมื่อ
+ *  serve.php ไม่มีการยืนยันตัวตน ซึ่งเป็นช่องโหว่ที่กำลังจะปิด)
+ *
+ * imageUrls ยังรับไว้เพื่อไม่ให้จุดเรียกทั้งสามที่ต้องแก้ตาม — จำนวนรูปถูกต่อท้าย
+ * ข้อความแทน จะได้ไม่เงียบหายไปเฉย ๆ
  */
 export async function sendJobNotification(
   job: Job,
   event: string,
   imageUrls: string[] = [],
 ): Promise<void> {
-  const message = buildJobMessage(job, event);
+  let message = buildJobMessage(job, event);
+  if (imageUrls.length > 0) {
+    message += `
 
-  if (imageUrls.length === 0) {
-    await postJSON('sendMessage', {
-      chat_id: CHAT_ID,
-      text: message,
-      parse_mode: 'HTML',
-    });
-  } else if (imageUrls.length === 1) {
-    await postJSON('sendPhoto', {
-      chat_id: CHAT_ID,
-      photo: imageUrls[0],
-      caption: message,
-      parse_mode: 'HTML',
-    });
-  } else {
-    const media = imageUrls.slice(0, 10).map((url, i) => ({
-      type: 'photo',
-      media: url,
-      ...(i === 0 ? { caption: message, parse_mode: 'HTML' } : {}),
-    }));
-    await postJSON('sendMediaGroup', {
-      chat_id: CHAT_ID,
-      media,
-    });
+📷 แนบรูป ${imageUrls.length} รูป (ดูในระบบ)`;
   }
+  await notifyTelegram(message, { html: true });
 }
