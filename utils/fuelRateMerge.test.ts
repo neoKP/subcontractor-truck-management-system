@@ -11,7 +11,7 @@ import type { FuelRateRow } from './fuelRateParser';
 
 const mk = (over: Partial<FuelRateRow> = {}): FuelRateRow => ({
     seq: 0,
-    company: 'รถร่วมคุณวสรรณ์',
+    company: 'รถร่วมวสรรณ์',
     origin: 'อาหารสากล (นครปฐม)',
     destination: 'CJ ขอนแก่น',
     truckType: '4w',
@@ -66,7 +66,7 @@ describe('mergeFuelRateRows', () => {
     it('ชื่อบริษัทที่เป็นชื่อพ้องกันถือเป็นเจ้าเดียวกัน', () => {
         // rowKey ใช้ canonicalSubcontractor ชื่อพ้องจึงต้องทับกัน ไม่ใช่เพิ่มแถวซ้ำ
         const current = [mk({ company: 'รถร่วมคุณหนึ่ง', bands: [{ fuelFrom: 28.99, fuelTo: 40, price: 1000 }] })];
-        const incoming = [mk({ company: 'รถร่วมคุณวสรรณ์', bands: [{ fuelFrom: 28.99, fuelTo: 40, price: 2000 }] })];
+        const incoming = [mk({ company: 'รถร่วมวสรรณ์', bands: [{ fuelFrom: 28.99, fuelTo: 40, price: 2000 }] })];
 
         const merged = mergeFuelRateRows(current, incoming);
 

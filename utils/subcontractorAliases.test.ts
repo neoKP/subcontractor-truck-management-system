@@ -3,22 +3,22 @@ import { canonicalSubcontractor, isSameSubcontractor, aliasesOf } from './subcon
 
 describe('canonicalSubcontractor', () => {
     it('แปลงชื่อที่หน่วยงานใช้ในไฟล์เรทเป็นชื่อในระบบ', () => {
-        expect(canonicalSubcontractor('รถร่วมคุณหนึ่ง')).toBe('รถร่วมคุณวสรรณ์');
+        expect(canonicalSubcontractor('รถร่วมคุณหนึ่ง')).toBe('รถร่วมวสรรณ์');
     });
 
     it('รวมชื่อที่สะกดต่างกันของเจ้าเดียวกัน', () => {
-        expect(canonicalSubcontractor('รถร่วมวสรรณ์')).toBe('รถร่วมคุณวสรรณ์');
-        expect(canonicalSubcontractor('รถร่วมนายวสรรณ์')).toBe('รถร่วมคุณวสรรณ์');
+        expect(canonicalSubcontractor('รถร่วมวสรรณ์')).toBe('รถร่วมวสรรณ์');
+        expect(canonicalSubcontractor('รถร่วมนายวสรรณ์')).toBe('รถร่วมวสรรณ์');
         expect(canonicalSubcontractor('วิวัฒน์ทราน')).toBe('วิวัฒน์ทรานส์');
     });
 
     it('ชื่อมาตรฐานไม่ถูกเปลี่ยน', () => {
-        expect(canonicalSubcontractor('รถร่วมคุณวสรรณ์')).toBe('รถร่วมคุณวสรรณ์');
+        expect(canonicalSubcontractor('รถร่วมคุณวสรรณ์')).toBe('รถร่วมวสรรณ์');
         expect(canonicalSubcontractor('วิวัฒน์ทรานส์')).toBe('วิวัฒน์ทรานส์');
     });
 
     it('ตัดช่องว่างหัวท้ายและยุบช่องว่างซ้ำ', () => {
-        expect(canonicalSubcontractor('  รถร่วมคุณหนึ่ง  ')).toBe('รถร่วมคุณวสรรณ์');
+        expect(canonicalSubcontractor('  รถร่วมคุณหนึ่ง  ')).toBe('รถร่วมวสรรณ์');
         expect(canonicalSubcontractor('เบญจวรรณ   ขนส่ง')).toBe('เบญจวรรณ ขนส่ง');
     });
 
@@ -57,14 +57,14 @@ describe('isSameSubcontractor', () => {
 
 describe('aliasesOf', () => {
     it('คืนชื่อพ้องทั้งหมดของชื่อมาตรฐาน', () => {
-        expect(aliasesOf('รถร่วมคุณวสรรณ์').sort()).toEqual(
-            ['รถร่วมคุณหนึ่ง', 'รถร่วมนายวสรรณ์', 'รถร่วมวสรรณ์',
+        expect(aliasesOf('รถร่วมวสรรณ์').sort()).toEqual(
+            ['รถร่วมคุณหนึ่ง', 'รถร่วมนายวสรรณ์', 'รถร่วมคุณวสรรณ์',
                 'รถร่วม วสรรณ์', 'รถร่วม คุณวสรรณ์'].sort()
         );
     });
 
     it('ถามด้วยชื่อพ้องก็ได้คำตอบเดียวกัน', () => {
-        expect(aliasesOf('รถร่วมคุณหนึ่ง').sort()).toEqual(aliasesOf('รถร่วมคุณวสรรณ์').sort());
+        expect(aliasesOf('รถร่วมคุณหนึ่ง').sort()).toEqual(aliasesOf('รถร่วมวสรรณ์').sort());
     });
 
     it('ชื่อที่ไม่มีชื่อพ้องได้อาร์เรย์ว่าง', () => {
@@ -72,7 +72,7 @@ describe('aliasesOf', () => {
     });
 });
 
-describe('รถร่วมคุณวสรรณ์ — ทุกสะกดต้องเป็นเจ้าเดียวกัน', () => {
+describe('รถร่วมวสรรณ์ — ทุกสะกดต้องเป็นเจ้าเดียวกัน', () => {
     // ผู้ใช้ยืนยัน 26 ส.ค. 2569: สามชื่อนี้คือเจ้าเดียวกัน
     // "รถร่วม วสรรณ์" มาจากไฟล์เรท v3 ซึ่งเขียนแบบเว้นวรรคและไม่มี "คุณ"
     it.each([
@@ -82,11 +82,11 @@ describe('รถร่วมคุณวสรรณ์ — ทุกสะก�
         'รถร่วมวสรรณ์',
         'รถร่วมนายวสรรณ์',
         'รถร่วม คุณวสรรณ์',
-    ])('%s -> รถร่วมคุณวสรรณ์', (name) => {
-        expect(canonicalSubcontractor(name)).toBe('รถร่วมคุณวสรรณ์');
+    ])('%s -> รถร่วมวสรรณ์', (name) => {
+        expect(canonicalSubcontractor(name)).toBe('รถร่วมวสรรณ์');
     });
 
     it('เว้นวรรคเกินหรือช่องว่างหัวท้ายก็ยังจับคู่ได้', () => {
-        expect(canonicalSubcontractor('  รถร่วม  วสรรณ์  ')).toBe('รถร่วมคุณวสรรณ์');
+        expect(canonicalSubcontractor('  รถร่วม  วสรรณ์  ')).toBe('รถร่วมวสรรณ์');
     });
 });

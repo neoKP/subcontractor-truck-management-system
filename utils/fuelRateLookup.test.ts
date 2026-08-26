@@ -34,7 +34,7 @@ describe('findFuelRateOptions', () => {
 
     it('คืนชื่อผู้รับเหมาเป็นชื่อมาตรฐาน ไม่ใช่ชื่อดิบในไฟล์', () => {
         const out = findFuelRateOptions([realRow()], query, 38.39);
-        expect(out[0].subcontractor).toBe('รถร่วมคุณวสรรณ์');
+        expect(out[0].subcontractor).toBe('รถร่วมวสรรณ์');
     });
 
     it('บอกช่วงราคาน้ำมันที่ราคานี้ใช้ — ผู้ใช้ต้องรู้ว่าราคามาจากไหน', () => {
@@ -115,7 +115,7 @@ describe('hasFuelRateRoute', () => {
 
 describe('matchSelectedFuelRate — ตัวเดียวกันที่ปุ่มบันทึกและตัวบันทึกใช้', () => {
     const rows = [realRow()];
-    const picked = { subcontractor: 'รถร่วมคุณวสรรณ์', cost: 2040 };
+    const picked = { subcontractor: 'รถร่วมวสรรณ์', cost: 2040 };
 
     it('ยืนยันราคาที่เลือกจากเรทได้', () => {
         expect(matchSelectedFuelRate(rows, query, 38.39, picked)?.price).toBe(2040);
@@ -172,7 +172,7 @@ describe('เส้นทางที่มีทั้งราคากลา�
             && form.sellingPrice === matrix!.selling;
         const fuel = matchSelectedFuelRate(
             [realRow()], query, 38.39,
-            { subcontractor: 'รถร่วมคุณวสรรณ์', cost: form.cost }
+            { subcontractor: 'รถร่วมวสรรณ์', cost: form.cost }
         );
         const useFuel = matchesMatrix ? undefined : fuel;
         return {
@@ -224,7 +224,7 @@ describe('ราคาที่เลือกไว้ล้าสมัยร�
         return pickedFromFuelBlock && !selectedFuelMatch;
     };
 
-    const picked = { sub: 'รถร่วมคุณวสรรณ์', cost: 2040, sellingPrice: 0 };
+    const picked = { sub: 'รถร่วมวสรรณ์', cost: 2040, sellingPrice: 0 };
 
     it('น้ำมันขยับข้ามช่วงหลังเลือก ต้องหยุด ไม่ใช่ใช้ราคากลางแทนเงียบ ๆ', () => {
         // เคสจริง: เลือกเรท 2,040 ที่ 38.39 แล้วน้ำมันขึ้นเป็น 39.50 (เรทกลายเป็น 2,080)
@@ -238,7 +238,7 @@ describe('ราคาที่เลือกไว้ล้าสมัยร�
 
     it('เลือกราคากลางไว้ ไม่ถูกบล็อก', () => {
         expect(shouldBlock(
-            { sub: 'รถร่วมคุณวสรรณ์', cost: 2100, sellingPrice: 2500 },
+            { sub: 'รถร่วมวสรรณ์', cost: 2100, sellingPrice: 2500 },
             { cost: 2100, selling: 2500 },
             39.5
         )).toBe(false);
@@ -374,7 +374,7 @@ describe('แหล่งราคาตามแท็บที่เลือ�
         return { source: selectedFuelMatch ? 'fuel' : (hasPricing ? 'matrix' : 'none'), hasPricing, blocked };
     };
 
-    const fuelPick = { sub: 'รถร่วมคุณวสรรณ์', cost: 2040, selling: 0 };
+    const fuelPick = { sub: 'รถร่วมวสรรณ์', cost: 2040, selling: 0 };
 
     it('แท็บเรท: ใช้ราคาจากเรทเท่านั้น', () => {
         const r = decide('fuel', fuelPick, { cost: 2100, selling: 2500 });
@@ -383,7 +383,7 @@ describe('แหล่งราคาตามแท็บที่เลือ�
 
     it('แท็บเรท: ราคาบังเอิญตรงราคากลาง ก็ยังต้องมาจากเรท', () => {
         // ถ้ายอมให้ราคากลางชนะ ใบงานจะบันทึกราคาขาย 2,500 ทั้งที่หน้าจออยู่แท็บเรท
-        const r = decide('fuel', { sub: 'รถร่วมคุณวสรรณ์', cost: 2040, selling: 2040 }, { cost: 2040, selling: 2040 });
+        const r = decide('fuel', { sub: 'รถร่วมวสรรณ์', cost: 2040, selling: 2040 }, { cost: 2040, selling: 2040 });
         expect(r.source).toBe('fuel');
     });
 
@@ -394,7 +394,7 @@ describe('แหล่งราคาตามแท็บที่เลือ�
     });
 
     it('แท็บราคากลาง: ใช้ราคากลางตามปกติ', () => {
-        const r = decide('standard', { sub: 'รถร่วมคุณวสรรณ์', cost: 2100, selling: 2500 }, { cost: 2100, selling: 2500 });
+        const r = decide('standard', { sub: 'รถร่วมวสรรณ์', cost: 2100, selling: 2500 }, { cost: 2100, selling: 2500 });
         expect(r.source).toBe('matrix');
         expect(r.blocked).toBe(false);
     });
