@@ -25,21 +25,93 @@ $ALLOWED_ORIGINS = array(
     'https://subcontractor-truck-management-syst-eight.vercel.app',
     'https://subcontractor-truck-management-system-prats-projects-95416bd3.vercel.app',
 );
+
+function normalizeOriginForMatch($url) {
+    if (!is_string($url) || $url === '') {
+        return '';
+    }
+
+    $parts = @parse_url($url);
+    if (!is_array($parts) || !isset($parts['scheme'], $parts['host'])) {
+        return '';
+    }
+
+    $scheme = strtolower($parts['scheme']);
+    $host = strtolower($parts['host']);
+    $origin = $scheme . '://' . $host;
+
+    if (isset($parts['port'])
+        && !(($scheme === 'https' && (int) $parts['port'] === 443)
+            || ($scheme === 'http' && (int) $parts['port'] === 80))) {
+        $origin .= ':' . (int) $parts['port'];
+    }
+
+    return $origin;
+}
+
 $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
+$originForMatch = normalizeOriginForMatch($origin);
 // เครื่องนักพัฒนา: ยอมทุกพอร์ตของ localhost/127.0.0.1
 // (vite.config ตั้งไว้ 3000 แต่ถ้าพอร์ตชนจะเลื่อนเป็น 3001 เอง และ 127.0.0.1 นับเป็นคนละ origin)
-$isLocalDev = (bool) preg_match('#^http://(localhost|127\.0\.0\.1)(:[0-9]+)?\z#i', $origin);
+$isLocalDev = (bool) preg_match('#^http://(localhost|127\.0\.0\.1)(:[0-9]+)?\z#i', $originForMatch);
 // เครื่องในวงแลนเดียวกัน เช่น เปิดเว็บจากมือถือเพื่อถ่ายรูป POD (http://192.168.x.x:3000)
 // ยอมเฉพาะช่วง IP ส่วนตัวเท่านั้น เว็บสาธารณะยังเรียกไม่ได้
-$isPrivateLan = (bool) preg_match('#^http://(10\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+|192\.168\.[0-9.]+)(:[0-9]+)?\z#', $origin);
+$isPrivateLan = (bool) preg_match('#^http://(10\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+|192\.168\.[0-9.]+)(:[0-9]+)?\z#', $originForMatch);
 // ไม่ใช้รูปแบบ *.vercel.app หรือ *.netlify.app อีกต่อไป — โดเมนย่อยพวกนั้นใครสมัครก็ได้
 // เว็บของคนอื่นบนโฮสต์เดียวกันจึงเรียก endpoint นี้จากเบราว์เซอร์ของผู้ใช้ที่ถือคีย์อยู่ได้
 // (คีย์ถูกฝังในบันเดิล JS ตอน build จึงถือว่าผู้ใช้ทุกคนมีคีย์อยู่ในมือ)
 // ต้องระบุโดเมนตรงตัวเท่านั้น · preview ของ Vercel ได้โดเมนสุ่มต่อ branch
 // ถ้าจำเป็นต้องทดสอบจาก preview ให้เพิ่มโดเมนนั้นชั่วคราวแล้วถอดออกเมื่อเสร็จ
-if (in_array($origin, $ALLOWED_ORIGINS, true) || $isLocalDev || $isPrivateLan) {
+if (in_array($originForMatch, $ALLOWED_ORIGINS, true) || $isLocalDev || $isPrivateLan) {
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Vary: Origin');
+}
+
+/*
+  ===== ด่านตรวจว่าใครเป็นคนขอรูป =====
+
+  ไฟล์ที่เสิร์ฟจากที่นี่คือรูป POD ซึ่งเป็นหลักฐานการส่งของลูกค้า
+  มีชื่อผู้รับ ลายเซ็น และบางใบมีที่อยู่กับเบอร์โทร
+  เดิมไม่มีการตรวจอะไรเลย ใครมี URL ก็เปิดดูได้ และส่งต่อให้คนอื่นเปิดได้ด้วย
+
+  ทำไมไม่ตรวจด้วย X-API-Key เหมือน upload.php และ telegram-notify.php:
+  รูปถูกแสดงด้วยแท็ก <img src="..."> ในหน้าเว็บ ซึ่ง **เบราว์เซอร์ไม่ยอมให้
+  แนบ header เองกับแท็ก img** ถ้าบังคับให้ต้องมีคีย์ รูปทุกใบในระบบจะพังทันที
+  และ URL ที่เก็บไว้ในใบงานหลายพันใบก็ใช้ไม่ได้อีกเลย
+
+  จึงตรวจจาก Referer แทน — เบราว์เซอร์ส่งค่านี้เองเมื่อโหลดรูปจากหน้าเว็บ
+  แต่จะไม่มีค่านี้เมื่อมีคนเอา URL ไปเปิดตรง ๆ ในแท็บใหม่ หรือส่งต่อทางแชต
+
+  ⚠️ ข้อจำกัดที่ต้องรู้: Referer ปลอมได้ด้วย curl บรรทัดเดียว
+  ด่านนี้จึงกัน "คนทั่วไปที่ได้ลิงก์ไป" ไม่ได้กัน "ผู้โจมตีที่ตั้งใจ"
+  การป้องกันที่แข็งแรงกว่าคือ signed URL ที่หมดอายุได้ แต่ต้องแก้ URL
+  ที่เก็บไว้แล้วทั้งหมด จึงแยกเป็นงานต่างหาก
+
+  ที่ด่านนี้กันได้จริง:
+    - เปิด URL ตรงจากแท็บใหม่ / วางในแชต / บุ๊กมาร์กแล้วส่งต่อ
+    - เว็บอื่นเอา URL ไปฝังเป็นรูปในหน้าตัวเอง (hotlink)
+    - บอทที่ไล่เดา path
+*/
+$referer = isset($_SERVER['HTTP_REFERER']) ? (string) $_SERVER['HTTP_REFERER'] : '';
+
+// ตัดเอาเฉพาะส่วน scheme://host[:port] ออกมาเทียบ ไม่สนใจ path ที่ตามมา
+$refOrigin = normalizeOriginForMatch($referer);
+
+$refLocalDev   = (bool) preg_match('#^http://(localhost|127\.0\.0\.1)(:[0-9]+)?\z#i', $refOrigin);
+$refPrivateLan = (bool) preg_match('#^http://(10\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+|192\.168\.[0-9.]+)(:[0-9]+)?\z#', $refOrigin);
+$refererOk = in_array($refOrigin, $ALLOWED_ORIGINS, true) || $refLocalDev || $refPrivateLan;
+
+// Origin ถูกส่งมาด้วยในบางกรณี (เช่น fetch/XHR) — ยอมรับได้เหมือนกัน
+$originOk = in_array($originForMatch, $ALLOWED_ORIGINS, true) || $isLocalDev || $isPrivateLan;
+
+if (!$refererOk && !$originOk) {
+    // ตอบ 403 พร้อมข้อความสั้น ๆ ไม่บอกว่าไฟล์มีอยู่จริงหรือไม่
+    // (ไฟล์นี้ไม่ได้อยู่หลังกฎ "ต้องตอบ 200 เสมอ" เพราะไม่ได้ถูกเรียกด้วย fetch
+    //  ที่ต้องอ่าน JSON — เป็นแท็ก img ซึ่งแค่ต้องการให้โหลดไม่สำเร็จ)
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Forbidden';
+    exit;
 }
 
 $rawFile = isset($_GET['file']) ? $_GET['file'] : '';
