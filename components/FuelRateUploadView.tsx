@@ -46,6 +46,13 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
     const [dragging, setDragging] = useState(false);
     const [parsing, setParsing] = useState(false);
     const [saving, setSaving] = useState(false);
+    /*
+      โหมดบันทึก — ตั้งต้นเป็น merge เสมอ
+
+      หน่วยงานส่งไฟล์มาทีละเจ้า ไม่ใช่ไฟล์รวมทุกเจ้า การ replace โดยไม่ตั้งใจ
+      จึงลบเรทของเจ้าอื่นทิ้งทั้งหมด · ค่าเริ่มต้นที่ปลอดภัยกว่าคือเก็บของเดิมไว้
+    */
+    const [mode, setMode] = useState<'merge' | 'replace'>('merge');
     const [preview, setPreview] = useState<ParseResult | null>(null);
     const [fileName, setFileName] = useState('');
     const [note, setNote] = useState('');
@@ -154,7 +161,8 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
 
         // เส้นทางที่หายไปจากไฟล์ใหม่ = งานเส้นทางนั้นหาเรทไม่เจอทันทีที่บันทึก
         // ต้องยืนยันแยกจากคำเตือนอื่น เพราะเป็นการ "ลบของที่ใช้อยู่" ไม่ใช่แค่ข้อมูลน่าสงสัย
-        if (diff && diff.removed.length) {
+        // โหมด merge ไม่ลบเส้นทางเดิม จึงไม่ต้องเตือนเรื่องเส้นทางหาย
+        if (mode === 'replace' && diff && diff.removed.length) {
             const list = document.createElement('div');
             list.style.cssText = 'text-align:left;font-size:13px;line-height:1.7';
             const head = document.createElement('div');
@@ -239,11 +247,14 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                 issues: preview.issues,
                 note: note.trim(),
                 rows: preview.rows,
+                mode,
             });
             await Swal.fire({
                 icon: 'success',
                 title: 'บันทึกเรียบร้อย',
-                text: `บันทึก ${preview.rows.length} เส้นทาง และตั้งเป็นรุ่นที่ใช้งานแล้ว`,
+                text: mode === 'merge'
+                    ? `รวม ${preview.rows.length} เส้นทางจากไฟล์เข้ากับรุ่นเดิมแล้ว — เส้นทางที่ไฟล์ไม่มียังอยู่ครบ`
+                    : `บันทึก ${preview.rows.length} เส้นทาง (แทนที่ทั้งหมด) และตั้งเป็นรุ่นที่ใช้งานแล้ว`,
                 timer: 2200,
                 showConfirmButton: false,
             });
@@ -485,13 +496,72 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                                 )}
 
                                 {diff.removed.length > 0 && (
-                                    <p className="text-[11px] text-amber-700 font-bold mt-3 leading-relaxed">
-                                        ⚠️ มี {diff.removed.length} เส้นทางที่อยู่ในรุ่นเดิมแต่ไม่มีในไฟล์นี้ —
-                                        ถ้าบันทึก งานเส้นทางเหล่านั้นจะหาเรทไม่เจอทันที
-                                        <br />เช่น {diff.removed.slice(0, 2).map(c => `${c.row.origin} → ${c.row.destination}`).join(' · ')}
-                                        {diff.removed.length > 2 && ` และอีก ${diff.removed.length - 2} เส้นทาง`}
-                                    </p>
+                                    mode === 'merge' ? (
+                                        <p className="text-[11px] text-emerald-700 font-bold mt-3 leading-relaxed">
+                                            ✅ มี {diff.removed.length} เส้นทางที่อยู่ในรุ่นเดิมแต่ไม่มีในไฟล์นี้ —
+                                            โหมด "เพิ่ม/อัปเดต" จะเก็บไว้ตามเดิม ไม่หาย
+                                        </p>
+                                    ) : (
+                                        <p className="text-[11px] text-red-700 font-bold mt-3 leading-relaxed">
+                                            ⚠️ มี {diff.removed.length} เส้นทางที่อยู่ในรุ่นเดิมแต่ไม่มีในไฟล์นี้ —
+                                            โหมด "แทนที่ทั้งหมด" จะลบทิ้ง งานเส้นทางเหล่านั้นจะหาเรทไม่เจอทันที
+                                            <br />เช่น {diff.removed.slice(0, 2).map(c => `${c.row.origin} → ${c.row.destination}`).join(' · ')}
+                                            {diff.removed.length > 2 && ` และอีก ${diff.removed.length - 2} เส้นทาง`}
+                                        </p>
+                                    )
                                 )}
+                            </div>
+                        )}
+
+                        {/*
+                          เลือกวิธีบันทึก — วางไว้ติดกับกล่องเปรียบเทียบ เพราะตัวเลข
+                          "หายไป N" ข้างบนเปลี่ยนความหมายไปตามโหมดที่เลือก
+                          ต้องเห็นพร้อมกัน ไม่ใช่แยกไปอยู่ใกล้ปุ่มบันทึก
+                        */}
+                        {diff && !diff.isFirstUpload && (
+                            <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 mb-6">
+                                <div className="text-[11px] font-black uppercase tracking-widest text-slate-500 mb-3">
+                                    วิธีบันทึก
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${mode === 'merge' ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                                        <input
+                                            type="radio"
+                                            name="fuel-rate-mode"
+                                            checked={mode === 'merge'}
+                                            onChange={() => setMode('merge')}
+                                            className="mt-0.5"
+                                        />
+                                        <span>
+                                            <span className="block text-[12px] font-black text-slate-800">
+                                                เพิ่ม / อัปเดต <span className="text-emerald-600">(แนะนำ)</span>
+                                            </span>
+                                            <span className="block text-[11px] text-slate-600 leading-relaxed mt-0.5">
+                                                เส้นทางใหม่จะถูกเพิ่ม · เส้นทางที่ซ้ำ (บริษัท ต้นทาง ปลายทาง ประเภทรถ ตรงกัน)
+                                                จะใช้ราคาจากไฟล์ใหม่ · <b>เส้นทางเดิมที่ไฟล์นี้ไม่มี ยังอยู่ครบ</b>
+                                            </span>
+                                        </span>
+                                    </label>
+
+                                    <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${mode === 'replace' ? 'border-red-300 bg-red-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                                        <input
+                                            type="radio"
+                                            name="fuel-rate-mode"
+                                            checked={mode === 'replace'}
+                                            onChange={() => setMode('replace')}
+                                            className="mt-0.5"
+                                        />
+                                        <span>
+                                            <span className="block text-[12px] font-black text-slate-800">
+                                                แทนที่ทั้งหมด
+                                            </span>
+                                            <span className="block text-[11px] text-slate-600 leading-relaxed mt-0.5">
+                                                ใช้เฉพาะเส้นทางในไฟล์นี้ · <b className="text-red-600">เส้นทางเดิมที่ไฟล์ไม่มีจะถูกลบ</b>
+                                                {' '}— เลือกเมื่อไฟล์นี้เป็นไฟล์รวมทุกเจ้าเท่านั้น
+                                            </span>
+                                        </span>
+                                    </label>
+                                </div>
                             </div>
                         )}
 

@@ -1,5 +1,6 @@
 import { db, ref, set, get, remove, onValue, authReady } from '../firebaseConfig';
 import type { FuelRateRow, ParseIssue } from './fuelRateParser';
+import { mergeFuelRateRows } from './fuelRateMerge';
 
 /**
  * เก็บ/อ่านตารางเรทค่าขนส่งตามราคาน้ำมันใน RTDB
@@ -71,26 +72,82 @@ export interface SaveVersionInput {
     issues: ParseIssue[];
     note: string;
     rows: FuelRateRow[];
+    /**
+     * วิธีรวมกับรุ่นที่ใช้อยู่
+     *
+     * 'merge'   — เพิ่มเส้นทางใหม่ อัปเดตเส้นทางที่ซ้ำ และ **คงเส้นทางเดิมที่ไฟล์ไม่มีไว้**
+     * 'replace' — ใช้เฉพาะแถวในไฟล์ เส้นทางเดิมที่ไม่มีในไฟล์จะหายไป
+     *
+     * ค่าเริ่มต้นเป็น 'merge' เพราะหน่วยงานส่งไฟล์มาทีละเจ้า ไม่ใช่ไฟล์รวมทุกเจ้า
+     * การ replace โดยไม่ตั้งใจจึงลบเรทของเจ้าอื่นทิ้งทั้งหมด
+     */
+    mode?: 'merge' | 'replace';
 }
+
 
 /** บันทึกรุ่นใหม่และตั้งเป็นรุ่นที่ใช้งาน — คืน id ของรุ่นที่สร้าง */
 export async function saveFuelRateVersion(input: SaveVersionInput): Promise<string> {
     await authReady;
     const id = makeVersionId();
+
+    /*
+      โหมด merge ต้องอ่านรุ่นที่ใช้อยู่มารวมก่อน
+
+      อ่านตรงนี้ ไม่ใช่รับมาจากหน้าจอ เพราะระหว่างที่ผู้ใช้ดูตัวอย่างไฟล์
+      อาจมีคนอื่นอัปโหลดรุ่นใหม่ไปแล้ว ถ้ารวมกับสิ่งที่หน้าจอถืออยู่
+      งานของคนนั้นจะหายไปเงียบ ๆ
+    */
+    let finalRows = input.rows;
+    let baseActiveId: string | null = null;
+
+    if ((input.mode ?? 'merge') === 'merge') {
+        const active = await loadActiveFuelRates();
+        if (active && active.rows.length) {
+            baseActiveId = active.id;
+            finalRows = mergeFuelRateRows(active.rows, input.rows);
+        }
+    }
+
     const version: FuelRateVersion = {
         id,
         fileName: input.fileName,
         uploadedBy: input.uploadedBy,
         uploadedAt: new Date().toISOString(),
         layout: input.layout,
-        rowCount: input.rows.length,
+        rowCount: finalRows.length,
         issues: input.issues,
         note: input.note,
-        rows: input.rows,
+        rows: finalRows,
     };
     const { rows, ...meta } = version;
     await set(ref(db, `${VERSIONS_PATH}/${id}`), stripUndefined(version));
     await set(ref(db, `${META_PATH}/${id}`), stripUndefined(meta));
+
+    /*
+      กันสองคนอัปโหลดชนกัน
+
+      โหมด merge อ่านรุ่นที่ใช้อยู่มารวม ถ้าระหว่างนั้นมีคนอื่นอัปโหลดเสร็จก่อน
+      การเขียน activeId ทับจะทำให้เส้นทางที่เขาเพิ่งเพิ่มหายไปทั้งชุด
+      (รุ่นของเรารวมมาจากฐานเก่าที่ยังไม่มีของเขา)
+
+      ตรวจว่า activeId ยังเป็นตัวเดิมที่เราอ่านมาหรือเปล่าก่อนเปลี่ยน
+      ถ้าไม่ใช่ = มีคนแทรก ให้หยุดแล้วบอกผู้ใช้ไปอัปใหม่ ดีกว่าลบงานคนอื่นเงียบ ๆ
+
+      รุ่นที่เขียนไปแล้วยังอยู่ใน versions/ ไม่ได้หาย แค่ไม่ถูกตั้งเป็นรุ่นใช้งาน
+      จึงไม่มีข้อมูลตกค้างที่ทำอันตราย
+    */
+    if (baseActiveId !== null) {
+        const nowSnap = await get(ref(db, ACTIVE_PATH));
+        const nowActive = nowSnap.val() as string | null;
+        if (nowActive !== baseActiveId) {
+            throw new Error(
+                'มีคนอื่นอัปโหลดเรทใหม่ระหว่างที่คุณกำลังตรวจไฟล์ — ' +
+                'ยังไม่ได้เปลี่ยนรุ่นที่ใช้งาน กรุณาอัปโหลดไฟล์นี้ใหม่อีกครั้ง ' +
+                'เพื่อให้รวมกับรุ่นล่าสุด'
+            );
+        }
+    }
+
     await set(ref(db, ACTIVE_PATH), id);
     return id;
 }
