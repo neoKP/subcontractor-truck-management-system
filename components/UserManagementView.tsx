@@ -140,9 +140,23 @@ const UserManagementView: React.FC<UserManagementViewProps> = ({
                     return false;
                 }
 
-                // เว้นช่องรหัสผ่านไว้ = ไม่เปลี่ยน — ช่องนี้ไม่แสดงรหัสเดิมแล้ว
-                // จึงต้องคงค่าเดิมไว้เอง ไม่งั้นการแก้ชื่อจะล้างรหัสผ่านทิ้ง
-                return { ...user, password: password || user.password, name, role };
+                /*
+                  เว้นช่องรหัสผ่านไว้ = ไม่เปลี่ยน
+
+                  เดิมคงค่าเดิมด้วย `password || user.password` ซึ่งใช้ไม่ได้อีกแล้ว
+                  เพราะ user ที่ส่งมาไม่มีฟิลด์ password ติดมา (App.tsx ตัดออกตอนโหลด)
+                  ถ้าเขียนแบบเดิมจะได้ undefined แล้วรหัสของคนนั้นจะหายไปจากฐานข้อมูล
+
+                  ตอนนี้จึง "ไม่ส่งคีย์ password ไปเลย" เมื่อเว้นว่าง แล้วให้ update()
+                  ฝั่ง App.tsx คงค่าเดิมในฐานข้อมูลไว้เอง — ค่าเดิมไม่ต้องเดินทาง
+                  ผ่านเบราว์เซอร์อีกต่อไป
+                */
+                const { password: _omit, ...rest } = user as any;
+                const payload: any = { ...rest, name, role };
+                if (password) {
+                    payload.password = password;
+                }
+                return payload;
             }
         }).then((result: any) => {
             if (result.isConfirmed) {

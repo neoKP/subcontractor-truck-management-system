@@ -31,7 +31,7 @@ import MigrationTool from './components/MigrationTool';
 import SubcontractorMasterView from './components/SubcontractorMasterView';
 import { migrateBase64ToStorage } from './utils/migrateBase64ToStorage';
 import { ShieldCheck, Truck, Receipt, Tag, Search, PieChart, ClipboardCheck, Users, TrendingUp, LayoutPanelTop, BarChart3, ShieldAlert, Building2 } from 'lucide-react';
-import { db, ref, onValue, set, remove, get, query, limitToLast, authReady } from './firebaseConfig';
+import { db, ref, onValue, set, update, remove, get, query, limitToLast, authReady } from './firebaseConfig';
 
 // Initial Users Data for Seeding
 const INITIAL_USERS = [
@@ -251,10 +251,24 @@ const App: React.FC = () => {
     const unsubscribeUsers = onValue(usersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        let allUsers = Object.values(data);
+        /*
+          ถอดรหัสผ่านออกก่อนเก็บลง state
+
+          เดิมส่งทั้งก้อนไปให้หน้าล็อกอิน เพราะการตรวจรหัสทำในเบราว์เซอร์
+          แปลว่ารหัสของทุกคนเดินทางมาถึงเครื่องทุกเครื่องที่เปิดหน้านี้ กด F12 ก็เห็นครบ
+
+          การตัดตรงนี้ไม่ได้ปิดช่องโหว่ — /users ยังอ่านได้ด้วย anonymous token
+          แต่ทำให้รหัสไม่ถูกส่งมาโดยอัตโนมัติตอนเปิดหน้า และเป็นขั้นที่ต้องทำก่อน
+          จะย้ายการตรวจรหัสไปฝั่งเซิร์ฟเวอร์
+        */
+        let allUsers = Object.values(data).map((u: any) => {
+          const { password, ...safe } = u;
+          return safe;
+        });
         const field001Exists = allUsers.some((u: any) => u.username === 'FIELD001');
         if (!field001Exists) {
-          allUsers.unshift(INITIAL_USERS[0]);
+          const { password, ...safeSeed } = INITIAL_USERS[0] as any;
+          allUsers.unshift(safeSeed);
         }
         setUsers(allUsers);
       }
@@ -375,8 +389,18 @@ const App: React.FC = () => {
     });
   }, [priceMatrix, jobs]); // Runs whenever price matrix or jobs list changes
 
+  /**
+   * บันทึกข้อมูลผู้ใช้
+   *
+   * ใช้ update() ไม่ใช่ set() — set() เขียนทับทั้ง node ดังนั้นถ้า object ที่ส่งมา
+   * ไม่มีฟิลด์ password (ซึ่งตอนนี้ถูกตัดออกตอนโหลดแล้ว) รหัสผ่านของคนนั้น
+   * จะหายไปทันที แค่แก้ชื่อก็ทำให้คนนั้นเข้าระบบไม่ได้อีกเลย
+   *
+   * update() เขียนเฉพาะคีย์ที่ส่งไป คีย์อื่นในฐานข้อมูลคงเดิม
+   * การเปลี่ยนรหัสจึงต้องส่ง password มาด้วยตัวจริงเท่านั้นจึงจะมีผล
+   */
   const handleUserUpdate = (user: any) => {
-    set(ref(db, `users/${user.id}`), user);
+    update(ref(db, `users/${user.id}`), user);
   };
 
   const handleUserDelete = (userId: string) => {

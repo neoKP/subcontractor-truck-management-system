@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { UserRole, USER_ROLE_LABELS } from '../types';
 import { Truck, Lock, User, KeyRound, AlertCircle, ArrowRight, ChevronDown, Check, Search } from 'lucide-react';
+import { db, ref, get } from '../firebaseConfig';
 
 
 interface LoginPageProps {
@@ -24,13 +25,54 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users }) => {
 
     const selectedUser = users.find(u => u.username === username);
 
+    const [isChecking, setIsChecking] = useState(false);
+
+    /**
+     * ตรวจรหัสผ่าน
+     *
+     * รายชื่อที่อยู่ใน props ไม่มีฟิลด์ password แล้ว (App.tsx ตัดออกตอนโหลด)
+     * จึงต้องอ่านของคนที่เลือกทีละคนตอนกดเข้าสู่ระบบ แทนที่จะให้รหัสของทุกคน
+     * เดินทางมาถึงเบราว์เซอร์ตั้งแต่ตอนเปิดหน้า
+     *
+     * ยังเป็นการเทียบฝั่ง client อยู่ ซึ่งยังไม่ปลอดภัยจริง — ขั้นต่อไปคือย้าย
+     * การเทียบไปฝั่งเซิร์ฟเวอร์แล้วลบฟิลด์ password ทิ้ง ดูขั้นที่ 3-4 ของแผน
+     */
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
 
         const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
 
         if (user) {
-            if (password === user.password) {
+            if (isChecking) return;
+            setIsChecking(true);
+            let stored: string | null = null;
+            try {
+                const snap = await get(ref(db, `users/${user.id}/password`));
+                stored = snap.exists() ? String(snap.val()) : null;
+            } catch {
+                stored = null;
+            } finally {
+                setIsChecking(false);
+            }
+
+            if (stored === null) {
+                // อ่านรหัสไม่ได้ — เน็ตขาด หรือกฎฐานข้อมูลไม่อนุญาต
+                // ห้ามปล่อยผ่าน และต้องไม่บอกว่า "รหัสผิด" เพราะยังไม่ได้เทียบเลย
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'เชื่อมต่อไม่ได้',
+                        text: 'ตรวจสอบรหัสผ่านไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
+                        icon: 'error',
+                        confirmButtonColor: '#ef4444',
+                        customClass: { popup: 'rounded-[2rem]' }
+                    });
+                } else {
+                    alert('เชื่อมต่อไม่ได้ กรุณาลองใหม่');
+                }
+                return;
+            }
+
+            if (password === stored) {
                 // Password Match
                 onLogin({ id: user.id, name: user.name, role: user.role });
             } else {
