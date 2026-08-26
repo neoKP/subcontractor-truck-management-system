@@ -104,7 +104,38 @@ $refererOk = in_array($refOrigin, $ALLOWED_ORIGINS, true) || $refLocalDev || $re
 // Origin ถูกส่งมาด้วยในบางกรณี (เช่น fetch/XHR) — ยอมรับได้เหมือนกัน
 $originOk = in_array($originForMatch, $ALLOWED_ORIGINS, true) || $isLocalDev || $isPrivateLan;
 
-if (!$refererOk && !$originOk) {
+/*
+  ด่านสำรอง: กันไม่ให้ "ผู้ใช้จริง" โดนปฏิเสธเพราะ Referer ถูกตัดทิ้ง
+
+  ปัญหาของการดูแค่ Referer/Origin คือมีผู้ใช้จริงที่ไม่ส่งทั้งสองอย่าง:
+  เบราว์เซอร์ในแอป LINE/Facebook, ส่วนขยายกันโฆษณาที่ตัด Referer,
+  policy ขององค์กรบางแห่ง · คนไทยเปิดลิงก์ใน LINE เป็นปกติ ถ้าไม่กันเคสนี้
+  คนขับหรือฝ่ายบัญชีอาจเห็นรูปหายทั้งหน้าโดยไม่รู้สาเหตุ
+
+  Sec-Fetch-Site เป็น header ที่เบราว์เซอร์ใส่มาเอง หน้าเว็บสั่งให้ตัดทิ้งไม่ได้
+  (ต่างจาก Referer ที่ Referrer-Policy สั่งได้) ค่าที่สนใจ:
+    none        = ผู้ใช้พิมพ์ URL เอง / เปิดจากบุ๊กมาร์ก / วางลิงก์ในแท็บใหม่
+    cross-site  = มีหน้าเว็บสั่งโหลด (ทั้งหน้าเราและหน้าคนอื่น)
+
+  หน้าเว็บเราอยู่ vercel.app ส่วนรูปอยู่ dscloud.biz จึงเป็น cross-site
+  แต่หน้าเว็บของคนอื่นที่เอารูปไป hotlink ก็ได้ cross-site เหมือนกัน
+  **การยอมรับ cross-site เฉย ๆ จึงเท่ากับเปิดให้ hotlink ได้**
+
+  ทางออก: ยอมรับ cross-site เฉพาะตอนที่ "ไม่มี Referer มาเลย" เท่านั้น
+  เพราะหน้าเว็บที่ hotlink ตามปกติจะส่ง Referer ของตัวเองมาด้วย (แล้วตกด่านแรก)
+  ส่วนเบราว์เซอร์ที่ตัด Referer ทิ้งจะไม่มีค่านี้ — ซึ่งคือเคสที่เราต้องการช่วย
+
+  ยังไม่สมบูรณ์: เว็บที่ตั้ง Referrer-Policy: no-referrer เองก็เข้าข่ายนี้
+  แต่แลกกับการที่ผู้ใช้จริงเปิดรูปไม่ได้แล้ว ผมเลือกให้ผู้ใช้ใช้งานได้ก่อน
+*/
+$secFetchSite = isset($_SERVER['HTTP_SEC_FETCH_SITE'])
+    ? strtolower(trim((string) $_SERVER['HTTP_SEC_FETCH_SITE']))
+    : '';
+$hasReferer = ($referer !== '');
+$secFetchOk = !$hasReferer
+    && in_array($secFetchSite, array('same-origin', 'same-site', 'cross-site'), true);
+
+if (!$refererOk && !$originOk && !$secFetchOk) {
     // ตอบ 403 พร้อมข้อความสั้น ๆ ไม่บอกว่าไฟล์มีอยู่จริงหรือไม่
     // (ไฟล์นี้ไม่ได้อยู่หลังกฎ "ต้องตอบ 200 เสมอ" เพราะไม่ได้ถูกเรียกด้วย fetch
     //  ที่ต้องอ่าน JSON — เป็นแท็ก img ซึ่งแค่ต้องการให้โหลดไม่สำเร็จ)
