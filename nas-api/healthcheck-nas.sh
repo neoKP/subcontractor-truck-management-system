@@ -4,7 +4,16 @@
 
 set -eu
 
-ENDPOINT="${ENDPOINT:-https://neosiam.dscloud.biz/api/diag.php}"
+# ค่าเริ่มต้นต้องชี้ไป endpoint ที่ "มีอยู่จริงและตั้งใจให้อยู่ถาวร"
+#
+# เดิมชี้ไป diag.php ซึ่งถูกถอดออกจาก webroot โดยตั้งใจ (ตัวไฟล์เขียนเองว่า
+# ห้าม deploy และให้ลบทิ้งหลังใช้) — พอมันหายไป การตรวจจะได้ 404 ทุกครั้ง
+# แล้ว -f ทำให้ curl ถือว่าล้มเหลว → รีสตาร์ต Web Station + Nginx ทุกคืน
+# โดยที่ระบบไม่ได้มีอะไรผิดเลย · อาการที่ตามมาคือ API กับรูป POD สะดุดสั้น ๆ
+# ตอนเที่ยงคืน ซึ่งถ้ามีคนรายงานจะชี้ไปผิดที่ (นึกว่า serve.php มีปัญหา)
+#
+# test.php เป็นไฟล์ถาวรขนาด 71 ไบต์ ตอบ 200 — เบาและไม่มีข้อมูลอะไรให้รั่ว
+ENDPOINT="${ENDPOINT:-https://neosiam.dscloud.biz/api/test.php}"
 CURL="/usr/bin/curl"
 LOGGER="/usr/bin/logger"
 LOGTAG="nas-health"
