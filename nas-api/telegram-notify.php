@@ -11,6 +11,12 @@
 declare(strict_types=1);
 
 const SECRETS_DIR   = '/volume1/nas-secrets';
+// โฟลเดอร์ที่เก็บรูป POD — ต้องตรงกับ $UPLOAD_DIRS ใน serve.php เสมอ
+// NAS อ่านไฟล์จากดิสก์ตัวเองแล้วอัปขึ้น Telegram โดยตรง ไม่ผ่าน serve.php
+// เพราะ serve.php บังคับ Referer ซึ่งเซิร์ฟเวอร์ของ Telegram ไม่ส่งมา
+const UPLOAD_DIRS   = ['/volume1/Operation/paweewat/subcontractor-truck-management', '/tmp/nas-uploads'];
+const MAX_PHOTOS    = 10;                 // Telegram: อัลบั้มละไม่เกิน 10 รูป
+const MAX_PHOTO_MB  = 10;
 const MAX_TEXT_LEN  = 3500;
 const RATE_PER_MIN  = 30;                 // กันสแปม: กี่ข้อความต่อนาที (รวมทุกคน)
 const RATE_FILE     = '/tmp/tg-notify-rate.json';
@@ -37,6 +43,70 @@ function secret(string $file): string {
     // (กฎเดียวกับ upload.php บรรทัด 14-18)
     /** @var mixed $v */ $v = @require $path;
     return is_string($v) ? trim($v) : '';
+}
+
+/*
+  ดึง "path ในคลังรูป" ออกจากค่าที่ client ส่งมา
+
+  รับได้สองแบบ:
+    pod-images/JRS-2026-2533/x.webp                        (path ตรง ๆ)
+    https://host/api/serve.php?file=pod-images/…/x.webp     (URL ที่เก็บใน DB)
+
+  แบบที่สองเอาเฉพาะค่า file= ส่วนโฮสต์ทิ้งทั้งหมด — ไม่ว่า URL จะชี้ไปที่ไหน
+  เราก็อ่านไฟล์จากดิสก์ของเราเองเสมอ จึงไม่มีทางถูกหลอกให้ไปดึงจากเครื่องอื่น
+*/
+function extract_media_path(string $raw): string {
+    $raw = trim($raw);
+    if ($raw === '') { return ''; }
+
+    // เป็น URL ไหม — ถ้าใช่ ดึง query string ออกมาหา file=
+    if (stripos($raw, 'http://') === 0 || stripos($raw, 'https://') === 0) {
+        $q = @parse_url($raw, PHP_URL_QUERY);
+        if (!is_string($q) || $q === '') { return ''; }
+        parse_str($q, $params);
+        $raw = isset($params['file']) && is_string($params['file']) ? $params['file'] : '';
+        if ($raw === '') { return ''; }
+    }
+
+    /*
+      ทำความสะอาดแบบเดียวกับ serve.php — ตัวกรองอักขระยอมให้ "." กับ "/" ผ่าน
+      จึงยังส่ง ../ เข้ามาได้ ต้องตัด segment ".." ทิ้งอีกชั้น
+      ถ้าโดนตัดอะไรออก แปลว่า path ผิดปกติ — ปฏิเสธไปเลย อย่าเดาว่าเขาหมายถึงอะไร
+    */
+    $clean = preg_replace('/[^a-zA-Z0-9_\-\/\.]/', '_', $raw);
+    $segments = [];
+    foreach (explode('/', $clean) as $seg) {
+        if ($seg === '' || $seg === '.' || $seg === '..') { continue; }
+        $segments[] = $seg;
+    }
+    $rel = implode('/', $segments);
+    return ($rel === $clean) ? $rel : '';
+}
+
+/*
+  หาไฟล์จริงบนดิสก์จาก path — คืนค่าว่างถ้าหาไม่เจอหรืออยู่นอกคลังรูป
+
+  ยืนยันด้วย realpath อีกชั้นก่อนคืนค่า เพราะการกรองด้วยข้อความอย่างเดียวไม่พอ
+  symlink พาออกนอกโฟลเดอร์ได้โดยที่ path ดูปกติ (กฎเดียวกับ upload.php)
+*/
+function resolve_media_file(string $rel): string {
+    if ($rel === '') { return ''; }
+
+    $ext = strtolower(pathinfo($rel, PATHINFO_EXTENSION));
+    // ส่งได้เฉพาะรูป — PDF ส่งเป็น sendPhoto ไม่ได้ และไม่ควรเดาชนิดให้ Telegram
+    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true)) { return ''; }
+
+    foreach (UPLOAD_DIRS as $dir) {
+        $candidate = $dir . '/' . $rel;
+        $real = realpath($candidate);
+        $base = realpath($dir);
+        if ($real === false || $base === false) { continue; }
+        if (strpos($real . DIRECTORY_SEPARATOR, $base . DIRECTORY_SEPARATOR) !== 0) { continue; }
+        if (!is_file($real) || !is_readable($real)) { continue; }
+        if (filesize($real) > MAX_PHOTO_MB * 1024 * 1024) { continue; }
+        return $real;
+    }
+    return '';
 }
 
 // ---------------------------------------------------------------- CORS
@@ -91,6 +161,30 @@ if (mb_strlen($text) > MAX_TEXT_LEN)  { $text = mb_substr($text, 0, MAX_TEXT_LEN
 $parseMode = ($in['parse_mode'] ?? '') === 'HTML' ? 'HTML' : null;
 $silent    = !empty($in['silent']);
 
+/*
+  รูปแนบ — client ส่งมาเป็น "path ในคลังรูป" เท่านั้น ไม่ใช่ URL
+
+  เหตุผลที่ไม่รับ URL: ถ้ารับ URL แล้วให้ NAS ไปดึงเอง จะกลายเป็นช่อง SSRF
+  (สั่งให้ NAS ยิงไปที่เครื่องใดก็ได้ในวงแลนแทนตัวเอง) ซึ่งเป็นช่องเดียวกับที่
+  upload.php เคยมีแล้วถอดออกไปแล้ว · รับเฉพาะ path แล้วประกอบเองฝั่งเซิร์ฟเวอร์
+  จึงไม่มีทางให้ชี้ออกนอกคลังรูปได้
+
+  เว็บเก็บ URL เต็ม (…/serve.php?file=pod-images/…) จึงยอมให้ส่ง URL มาได้
+  แต่เราดึงเอาเฉพาะค่า file= ออกมาใช้ ส่วนที่เหลือทิ้งทั้งหมด
+*/
+$photos = [];
+$rawPhotos = $in['photos'] ?? [];
+if (is_array($rawPhotos)) {
+    foreach ($rawPhotos as $rawPhoto) {
+        if (!is_string($rawPhoto) || $rawPhoto === '') { continue; }
+        $rel = extract_media_path($rawPhoto);
+        if ($rel === '') { continue; }
+        $abs = resolve_media_file($rel);
+        if ($abs !== '') { $photos[] = $abs; }
+        if (count($photos) >= MAX_PHOTOS) { break; }
+    }
+}
+
 // ---------------------------------------------------------------- auth ชั้นที่ 2 (ทางเลือก): Firebase ID token
 if (REQUIRE_FIREBASE_AUTH) {
     $jwt = (string) ($_SERVER['HTTP_X_FIREBASE_TOKEN'] ?? '');
@@ -113,21 +207,39 @@ $token  = secret('telegram-token.php');   // <?php return 'ตัวเลข:�
 $chatId = secret('telegram-chat.php');    // <?php return '-1001234567890';
 if ($token === '' || $chatId === '') { reply(500, ['ok' => false, 'error' => 'server_misconfigured']); }
 
+/**
+ * ยิงไป Telegram หนึ่งครั้ง
+ *
+ * $fields เป็น array ธรรมดา = ส่งเป็น JSON (sendMessage)
+ * ถ้ามี CURLFile ปนอยู่ = ส่งเป็น multipart (sendMediaGroup พร้อมไฟล์)
+ * คืน [$res, $code, $err] ให้ผู้เรียกตัดสินใจเอง
+ */
+function tg_call(string $token, string $method, array $fields, bool $multipart, int $timeout = 10): array {
+    $ch = curl_init("https://api.telegram.org/bot{$token}/{$method}");
+    $opts = [
+        CURLOPT_POST           => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => $timeout,
+    ];
+    if ($multipart) {
+        // ห้าม json_encode ตรงนี้ — CURLFile ต้องไปกับ multipart เท่านั้น
+        $opts[CURLOPT_POSTFIELDS] = $fields;
+    } else {
+        $opts[CURLOPT_POSTFIELDS] = json_encode($fields, JSON_UNESCAPED_UNICODE);
+        $opts[CURLOPT_HTTPHEADER] = ['Content-Type: application/json'];
+    }
+    curl_setopt_array($ch, $opts);
+    $res  = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+    return [$res, $code, $err];
+}
+
 $payload = ['chat_id' => $chatId, 'text' => $text, 'disable_notification' => $silent];
 if ($parseMode !== null) { $payload['parse_mode'] = $parseMode; }
 
-$ch = curl_init("https://api.telegram.org/bot{$token}/sendMessage");
-curl_setopt_array($ch, [
-    CURLOPT_POST           => true,
-    CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_UNICODE),
-    CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT        => 10,
-]);
-$res  = curl_exec($ch);
-$code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$err  = curl_error($ch);
-curl_close($ch);
+[$res, $code, $err] = tg_call($token, 'sendMessage', $payload, false);
 
 if ($res === false || $code >= 400) {
     // log ฝั่งเซิร์ฟเวอร์เท่านั้น — ห้ามส่ง $res ดิบ กลับไปให้ client (มี token ปนได้)
@@ -145,7 +257,48 @@ if ($res === false || $code >= 400) {
     reply(502, ['ok' => false, 'error' => 'telegram_failed'] + ($hint !== '' ? ['reason' => $hint] : []));
 }
 
-reply(200, ['ok' => true]);
+/*
+  ส่งรูปเป็นอัลบั้มตามหลังข้อความ
+
+  ทำไมส่งแยกจากข้อความ ไม่ใช่ใส่เป็น caption ของรูปแรก:
+    - ข้อความรายละเอียดงานยาวกว่าที่ caption รองรับได้ดี (caption จำกัด 1024 ตัว
+      ส่วนข้อความธรรมดารับได้ 4096) และจะถูกย่อจนอ่านไม่ครบ
+    - ถ้าส่งรูปพลาด ข้อความแจ้งเตือนยังไปถึงอยู่ดี — สำคัญกว่ารูป
+
+  ความล้มเหลวตรงนี้ไม่ทำให้ทั้งคำขอล้มเหลว เพราะข้อความส่งไปแล้ว
+  แค่รายงานกลับไปว่ารูปไม่ครบ ให้คนเปิดดูในระบบแทน
+*/
+$photoSent = 0;
+$photoError = '';
+
+if (count($photos) > 0) {
+    $media  = [];
+    $files  = [];
+    foreach ($photos as $i => $abs) {
+        $key = 'photo' . $i;
+        $media[] = ['type' => 'photo', 'media' => 'attach://' . $key];
+        $files[$key] = new CURLFile($abs);
+    }
+
+    $fields = [
+        'chat_id' => $chatId,
+        'media'   => json_encode($media, JSON_UNESCAPED_UNICODE),
+        'disable_notification' => $silent ? 'true' : 'false',
+    ] + $files;
+
+    // อัปไฟล์จริงหลายใบ ใช้เวลานานกว่าส่งข้อความมาก จึงให้เวลามากกว่า
+    [$pRes, $pCode, $pErr] = tg_call($token, 'sendMediaGroup', $fields, true, 60);
+
+    if ($pRes === false || $pCode >= 400) {
+        error_log('telegram-notify: sendMediaGroup ตอบ ' . $pCode . ' ' . $pErr . ' ' . substr((string) $pRes, 0, 200));
+        $photoError = 'photo_failed';
+    } else {
+        $photoSent = count($photos);
+    }
+}
+
+reply(200, ['ok' => true] + ($photoSent > 0 ? ['photos_sent' => $photoSent] : [])
+                          + ($photoError !== '' ? ['photo_error' => $photoError] : []));
 
 // ================================================================ PHASE 2
 /** ตรวจ Firebase ID token (RS256) กับใบรับรองสาธารณะของ Google */

@@ -24,6 +24,16 @@ export type NotifyOptions = {
     silent?: boolean;
     /** เลิกรอถ้าเกินกี่ ms (ค่าเริ่มต้น 8000) */
     timeoutMs?: number;
+    /**
+     * รูปแนบ — ส่ง URL ที่ระบบเก็บไว้ได้เลย (…/serve.php?file=…)
+     *
+     * NAS จะดึงเอาเฉพาะส่วน file= แล้วอ่านไฟล์จากดิสก์ตัวเองไปอัปขึ้น Telegram
+     * ไม่ได้ให้ Telegram มาโหลดจาก URL — วิธีนั้นใช้ไม่ได้แล้วเพราะ serve.php
+     * บังคับ Referer ซึ่งเซิร์ฟเวอร์ของ Telegram ไม่ส่งมา
+     *
+     * Telegram จำกัดอัลบั้มละ 10 รูป ส่วนเกินถูกตัดทิ้งฝั่ง NAS
+     */
+    photos?: string[];
 };
 
 export type NotifyResult = { ok: true } | { ok: false; error: string };
@@ -44,7 +54,9 @@ export async function notifyTelegram(
     }
 
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 8000);
+    // อัปรูปหลายใบขึ้น Telegram ใช้เวลานานกว่าส่งข้อความมาก จึงรอนานขึ้นเมื่อมีรูป
+    const defaultTimeout = opts.photos && opts.photos.length > 0 ? 60000 : 8000;
+    const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? defaultTimeout);
 
     try {
         // ใช้ตัวเดียวกับการอัปโหลดรูป — resolveBaseUrl คืนค่าที่มี /api ติดมาแล้ว
@@ -61,6 +73,7 @@ export async function notifyTelegram(
                 text,
                 parse_mode: opts.html ? 'HTML' : undefined,
                 silent: opts.silent ?? false,
+                photos: opts.photos && opts.photos.length > 0 ? opts.photos : undefined,
             }),
             signal: ctrl.signal,
         });

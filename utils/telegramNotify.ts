@@ -41,16 +41,19 @@ function buildJobMessage(job: Job, event: string): string {
   return lines.join('\n');
 }
 
+/** Telegram ส่งอัลบั้มได้สูงสุด 10 รูปต่อข้อความ */
+const TG_ALBUM_LIMIT = 10;
+
 /**
- * ส่งแจ้งเตือน Telegram
+ * ส่งแจ้งเตือน Telegram พร้อมรูป POD
  *
- * ตอนนี้เป็นข้อความล้วน (sendMessage) เท่านั้น — proxy บน NAS ยังไม่รองรับรูป
- * รูป POD จะกลับมาในรอบถัดไป พร้อมกับการอัปไฟล์ขึ้น Telegram ตรง ๆ
- * (ไม่ใช่ส่ง URL ของ serve.php ให้ Telegram ไปดึงเอง เพราะวิธีนั้นได้ผลก็ต่อเมื่อ
- *  serve.php ไม่มีการยืนยันตัวตน ซึ่งเป็นช่องโหว่ที่กำลังจะปิด)
+ * ส่งเป็นสองข้อความ: รายละเอียดงานก่อน แล้วตามด้วยอัลบั้มรูป
+ * ไม่ใช้รูปแรกเป็น caption เพราะ caption จำกัด 1024 ตัวอักษร ข้อความจะถูกย่อ
+ * และถ้าส่งรูปพลาด ข้อความแจ้งเตือนยังไปถึงอยู่ดี ซึ่งสำคัญกว่ารูป
  *
- * imageUrls ยังรับไว้เพื่อไม่ให้จุดเรียกทั้งสามที่ต้องแก้ตาม — จำนวนรูปถูกต่อท้าย
- * ข้อความแทน จะได้ไม่เงียบหายไปเฉย ๆ
+ * NAS เป็นคนอ่านไฟล์จากดิสก์แล้วอัปขึ้น Telegram เอง เราส่งไปแค่ URL
+ * ที่ระบบเก็บไว้ — ให้ Telegram มาโหลดจาก URL ไม่ได้แล้ว เพราะ serve.php
+ * บังคับ Referer ซึ่งเซิร์ฟเวอร์ของ Telegram ไม่ส่งมา
  */
 export async function sendJobNotification(
   job: Job,
@@ -58,10 +61,17 @@ export async function sendJobNotification(
   imageUrls: string[] = [],
 ): Promise<void> {
   let message = buildJobMessage(job, event);
-  if (imageUrls.length > 0) {
+
+  // บอกให้รู้เมื่อรูปเกินที่ Telegram ส่งได้ จะได้ไม่เข้าใจว่ารูปหาย
+  if (imageUrls.length > TG_ALBUM_LIMIT) {
+    const rest = imageUrls.length - TG_ALBUM_LIMIT;
     message += `
 
-📷 แนบรูป ${imageUrls.length} รูป (ดูในระบบ)`;
+📷 แนบรูป ${imageUrls.length} รูป (แสดง ${TG_ALBUM_LIMIT} รูปแรก อีก ${rest} รูปดูในระบบ)`;
   }
-  await notifyTelegram(message, { html: true });
+
+  await notifyTelegram(message, {
+    html: true,
+    photos: imageUrls.slice(0, TG_ALBUM_LIMIT),
+  });
 }
