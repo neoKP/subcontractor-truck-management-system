@@ -89,24 +89,39 @@ function extract_media_path(string $raw): string {
   ยืนยันด้วย realpath อีกชั้นก่อนคืนค่า เพราะการกรองด้วยข้อความอย่างเดียวไม่พอ
   symlink พาออกนอกโฟลเดอร์ได้โดยที่ path ดูปกติ (กฎเดียวกับ upload.php)
 */
-function resolve_media_file(string $rel): string {
-    if ($rel === '') { return ''; }
+function resolve_media_file(string $rel): array {
+    if ($rel === '') { return ['', 'bad_path']; }
 
     $ext = strtolower(pathinfo($rel, PATHINFO_EXTENSION));
-    // ส่งได้เฉพาะรูป — PDF ส่งเป็น sendPhoto ไม่ได้ และไม่ควรเดาชนิดให้ Telegram
-    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true)) { return ''; }
+    /*
+      ส่งได้เฉพาะรูป — sendPhoto ส่ง PDF ไม่ได้ และไม่ควรเดาชนิดให้ Telegram
+      ระบบนี้มี POD ที่เป็น PDF อยู่จริง (serve.php บรรทัด 258 รองรับ application/pdf)
+      จึงต้องแยกเหตุผลนี้ออกมา ไม่ใช่ปล่อยให้หายเงียบเหมือนไฟล์ที่หาไม่เจอ
+    */
+    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true)) {
+        return ['', 'unsupported_type'];
+    }
 
+    /*
+      เก็บเหตุผลของ "ไฟล์ที่เจอแต่ใช้ไม่ได้" ไว้รายงาน
+
+      เดิม continue เฉย ๆ ทุกจุด ทำให้สี่สาเหตุออกมาเป็นความเงียบแบบเดียวกัน
+      (ไม่มีทั้ง photos_sent และ photo_error) แล้วคนไล่ปัญหาจะไปนั่งเทียบ
+      UPLOAD_DIRS ทั้งที่สาเหตุจริงอาจเป็นไฟล์ใหญ่เกินหรืออ่านไม่ได้
+    */
+    $reason = 'not_found';
     foreach (UPLOAD_DIRS as $dir) {
         $candidate = $dir . '/' . $rel;
         $real = realpath($candidate);
         $base = realpath($dir);
         if ($real === false || $base === false) { continue; }
         if (strpos($real . DIRECTORY_SEPARATOR, $base . DIRECTORY_SEPARATOR) !== 0) { continue; }
-        if (!is_file($real) || !is_readable($real)) { continue; }
-        if (filesize($real) > MAX_PHOTO_MB * 1024 * 1024) { continue; }
-        return $real;
+        if (!is_file($real)) { continue; }
+        if (!is_readable($real)) { $reason = 'unreadable'; continue; }
+        if (filesize($real) > MAX_PHOTO_MB * 1024 * 1024) { $reason = 'too_large'; continue; }
+        return [$real, ''];
     }
-    return '';
+    return ['', $reason];
 }
 
 // ---------------------------------------------------------------- CORS
@@ -173,14 +188,21 @@ $silent    = !empty($in['silent']);
   แต่เราดึงเอาเฉพาะค่า file= ออกมาใช้ ส่วนที่เหลือทิ้งทั้งหมด
 */
 $photos = [];
+$skipReason = '';
 $rawPhotos = $in['photos'] ?? [];
 if (is_array($rawPhotos)) {
     foreach ($rawPhotos as $rawPhoto) {
         if (!is_string($rawPhoto) || $rawPhoto === '') { continue; }
         $rel = extract_media_path($rawPhoto);
-        if ($rel === '') { continue; }
-        $abs = resolve_media_file($rel);
-        if ($abs !== '') { $photos[] = $abs; }
+        if ($rel === '') { $skipReason = $skipReason ?: 'bad_path'; continue; }
+        [$abs, $why] = resolve_media_file($rel);
+        if ($abs !== '') {
+            $photos[] = $abs;
+        } else {
+            // เก็บเหตุผลแรกที่เจอไว้รายงาน — ดีกว่าเงียบแล้วให้คนไปเดาเอง
+            $skipReason = $skipReason ?: $why;
+            error_log('telegram-notify: ข้ามรูป (' . $why . ') ' . $rel);
+        }
         if (count($photos) >= MAX_PHOTOS) { break; }
     }
 }
@@ -269,32 +291,66 @@ if ($res === false || $code >= 400) {
   แค่รายงานกลับไปว่ารูปไม่ครบ ให้คนเปิดดูในระบบแทน
 */
 $photoSent = 0;
-$photoError = '';
+$photoError = $skipReason;   // ถ้าไม่มีรูปผ่านด่านเลย อย่างน้อยบอกได้ว่าทำไม
 
+/*
+  sendMediaGroup รับ 2-10 ใบเท่านั้น — ไม่ใช่ "ไม่เกิน 10"
+
+  เอกสาร Bot API เขียนว่า media "must include 2-10 items" ดังนั้นการยัด
+  รูปใบเดียวลง sendMediaGroup จะถูกปฏิเสธทั้งก้อน · ใบงานที่แนบรูปใบเดียว
+  น่าจะเป็นเคสที่พบบ่อยที่สุดในระบบ ถ้าปล่อยไว้ผู้ใช้จะเจอ "ส่งรูปไม่ได้"
+  ตั้งแต่งานแรก แล้วสรุปว่าฟีเจอร์ทั้งอันพัง ทั้งที่งานที่มี 3 ใบทำงานได้ปกติ
+
+  จึงแยกเป็น sendPhoto เมื่อมีใบเดียว และแบ่งเป็นก้อนละ 10 เมื่อมีมากกว่านั้น
+  (ตอนนี้ฝั่งเว็บตัดมาที่ 10 อยู่แล้ว แต่ array_chunk กันไว้เผื่อวันหนึ่ง
+   มีคนเรียก endpoint นี้ตรง ๆ หรือเปลี่ยนลิมิตฝั่งเว็บ)
+*/
 if (count($photos) > 0) {
-    $media  = [];
-    $files  = [];
-    foreach ($photos as $i => $abs) {
-        $key = 'photo' . $i;
-        $media[] = ['type' => 'photo', 'media' => 'attach://' . $key];
-        $files[$key] = new CURLFile($abs);
+    $ok = true;
+    foreach (array_chunk($photos, MAX_PHOTOS) as $chunk) {
+        $t0 = microtime(true);
+
+        if (count($chunk) === 1) {
+            $fields = [
+                'chat_id' => $chatId,
+                'photo'   => new CURLFile($chunk[0]),
+                'disable_notification' => $silent ? 'true' : 'false',
+            ];
+            $method = 'sendPhoto';
+        } else {
+            $media = [];
+            $files = [];
+            foreach ($chunk as $i => $abs) {
+                $key = 'photo' . $i;
+                $media[] = ['type' => 'photo', 'media' => 'attach://' . $key];
+                $files[$key] = new CURLFile($abs);
+            }
+            $fields = [
+                'chat_id' => $chatId,
+                'media'   => json_encode($media, JSON_UNESCAPED_UNICODE),
+                'disable_notification' => $silent ? 'true' : 'false',
+            ] + $files;
+            $method = 'sendMediaGroup';
+        }
+
+        // อัปไฟล์จริงหลายใบ ใช้เวลานานกว่าส่งข้อความมาก จึงให้เวลามากกว่า
+        [$pRes, $pCode, $pErr] = tg_call($token, $method, $fields, true, 60);
+
+        // log เวลาที่ใช้ "ตอนสำเร็จ" ด้วย ไม่ใช่เฉพาะตอนพัง — อีกสองเดือนจะได้รู้
+        // จากล็อกว่าปกติใช้กี่วินาที แทนที่จะมารู้ตอนที่มันเริ่มพังแล้ว
+        error_log(sprintf(
+            'telegram-notify: %s %d ใบ ใช้ %.1f วิ (limit 60) code=%d',
+            $method, count($chunk), microtime(true) - $t0, $pCode
+        ));
+
+        if ($pRes === false || $pCode >= 400) {
+            error_log('telegram-notify: ' . $method . ' ล้มเหลว ' . $pErr . ' ' . substr((string) $pRes, 0, 200));
+            $ok = false;
+            break;   // ก้อนแรกพังแล้วก้อนถัดไปมักพังด้วยเหตุเดียวกัน อย่ายิงซ้ำให้เปลือง
+        }
+        $photoSent += count($chunk);
     }
-
-    $fields = [
-        'chat_id' => $chatId,
-        'media'   => json_encode($media, JSON_UNESCAPED_UNICODE),
-        'disable_notification' => $silent ? 'true' : 'false',
-    ] + $files;
-
-    // อัปไฟล์จริงหลายใบ ใช้เวลานานกว่าส่งข้อความมาก จึงให้เวลามากกว่า
-    [$pRes, $pCode, $pErr] = tg_call($token, 'sendMediaGroup', $fields, true, 60);
-
-    if ($pRes === false || $pCode >= 400) {
-        error_log('telegram-notify: sendMediaGroup ตอบ ' . $pCode . ' ' . $pErr . ' ' . substr((string) $pRes, 0, 200));
-        $photoError = 'photo_failed';
-    } else {
-        $photoSent = count($photos);
-    }
+    if (!$ok) { $photoError = 'photo_failed'; }
 }
 
 reply(200, ['ok' => true] + ($photoSent > 0 ? ['photos_sent' => $photoSent] : [])
