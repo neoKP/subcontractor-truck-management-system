@@ -15,7 +15,20 @@ const SECRETS_DIR   = '/volume1/nas-secrets';
 // NAS อ่านไฟล์จากดิสก์ตัวเองแล้วอัปขึ้น Telegram โดยตรง ไม่ผ่าน serve.php
 // เพราะ serve.php บังคับ Referer ซึ่งเซิร์ฟเวอร์ของ Telegram ไม่ส่งมา
 const UPLOAD_DIRS   = ['/volume1/Operation/paweewat/subcontractor-truck-management', '/tmp/nas-uploads'];
-const MAX_PHOTOS    = 10;                 // Telegram: อัลบั้มละไม่เกิน 10 รูป
+/*
+  สองค่านี้บังเอิญเท่ากันวันนี้ แต่คนละเรื่องกัน — อย่ารวมเป็นค่าเดียว
+
+  TG_MEDIA_GROUP_MAX คือกฎของ Telegram (sendMediaGroup รับ 2-10 รายการ)
+  เราเลือกไม่ได้ ถ้าแก้เป็นค่าอื่นอัลบั้มจะถูกปฏิเสธทั้งก้อน
+
+  MAX_PHOTOS คือเพดานที่ "เรา" ตั้งว่าจะส่งกี่รูปต่อหนึ่งใบงาน ปรับได้ตามต้องการ
+
+  ถ้าใช้ค่าเดียวกันแล้ววันหนึ่งมีคนอยากได้ 15 รูปต่อใบงาน เขาจะแก้ตัวเลขนี้
+  เป็น 15 แล้วขนาดก้อนกลายเป็น 15 ด้วย → Telegram ปฏิเสธทุกอัลบั้ม
+  โดยที่คนแก้ไม่มีทางเดาสาเหตุได้ เพราะเขาแค่ปรับ "จำนวนรูปสูงสุด"
+*/
+const TG_MEDIA_GROUP_MAX = 10;            // ลิมิตของ Telegram — ห้ามแก้
+const MAX_PHOTOS    = 10;                 // เพดานต่อใบงาน — ปรับได้
 const MAX_PHOTO_MB  = 10;
 const MAX_TEXT_LEN  = 3500;
 const RATE_PER_MIN  = 30;                 // กันสแปม: กี่ข้อความต่อนาที (รวมทุกคน)
@@ -307,7 +320,7 @@ $photoError = $skipReason;   // ถ้าไม่มีรูปผ่านด
 */
 if (count($photos) > 0) {
     $ok = true;
-    foreach (array_chunk($photos, MAX_PHOTOS) as $chunk) {
+    foreach (array_chunk($photos, TG_MEDIA_GROUP_MAX) as $chunk) {
         $t0 = microtime(true);
 
         if (count($chunk) === 1) {
