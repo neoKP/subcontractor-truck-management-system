@@ -62,9 +62,20 @@ $isPrivateLan = (bool) preg_match('#^http://(10\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[0
 // (คีย์ถูกฝังในบันเดิล JS ตอน build จึงถือว่าผู้ใช้ทุกคนมีคีย์อยู่ในมือ)
 // ต้องระบุโดเมนตรงตัวเท่านั้น · preview ของ Vercel ได้โดเมนสุ่มต่อ branch
 // ถ้าจำเป็นต้องทดสอบจาก preview ให้เพิ่มโดเมนนั้นชั่วคราวแล้วถอดออกเมื่อเสร็จ
+/*
+  Vary: Origin ต้องส่ง "ทุกครั้ง" ไม่ใช่เฉพาะตอน origin ผ่าน
+
+  คำตอบของ endpoint นี้ต่างกันตาม Origin/Referer ที่ส่งมา ถ้าไม่บอกไว้
+  แคชที่ไหนสักแห่งอาจจำคำตอบของ origin หนึ่งไปตอบให้อีก origin หนึ่ง
+  ต้องอยู่นอกบล็อก if เพราะกรณีที่ถูกปฏิเสธก็เป็นคำตอบที่ขึ้นกับ Origin เหมือนกัน
+
+  หมายเหตุ: หลังเปลี่ยนเป็น Cache-Control: private แคชกลางไม่เก็บอยู่แล้ว
+  ข้อนี้จึงเหลือเป็นความถูกต้องเชิงรูปแบบ ไม่ใช่ช่องโหว่ — แต่ไม่มีเหตุผล
+  ที่จะเขียนให้ผิดต่อไป
+*/
+header('Vary: Origin');
 if (in_array($originForMatch, $ALLOWED_ORIGINS, true) || $isLocalDev || $isPrivateLan) {
     header('Access-Control-Allow-Origin: ' . $origin);
-    header('Vary: Origin');
 }
 
 /*
@@ -176,6 +187,11 @@ if (!$refererOk && !$originOk && !$secFetchOk) {
     //  ที่ต้องอ่าน JSON — เป็นแท็ก img ซึ่งแค่ต้องการให้โหลดไม่สำเร็จ)
     http_response_code(403);
     header('Content-Type: text/plain; charset=utf-8');
+    // ห้ามเก็บคำตอบ "ปฏิเสธ" ไว้ใช้ซ้ำ — คำขอถัดไปอาจมาพร้อม Referer ที่ถูกต้อง
+    // แล้วควรได้รูปจริง ไม่ใช่ได้ 403 ที่ค้างอยู่ในแคช
+    // (403 ไม่ใช่ status ที่เบราว์เซอร์แคชเองโดยไม่มี header สั่ง ต่างจาก 404/410
+    //  ใส่ไว้เพื่อความชัดเจน ไม่ใช่เพราะจำเป็น)
+    header('Cache-Control: no-store');
     echo 'Forbidden';
     exit;
 }
