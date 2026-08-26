@@ -5,6 +5,8 @@
  * ค้นหาจาก Synology Drive ก่อน แล้ว fallback ไป /tmp/nas-uploads (รูปเก่า)
  */
 
+// ⚠️ ต้องตรงกับ UPLOAD_DIRS ใน telegram-notify.php เสมอ
+//    ถ้าไม่ตรง: หน้าเว็บยังแสดงรูปได้ แต่รูปจะไม่เข้า Telegram (photo_error: not_found)
 $UPLOAD_DIRS = array(
     '/volume1/Operation/paweewat/subcontractor-truck-management',
     '/tmp/nas-uploads'

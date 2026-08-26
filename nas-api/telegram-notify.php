@@ -11,7 +11,8 @@
 declare(strict_types=1);
 
 const SECRETS_DIR   = '/volume1/nas-secrets';
-// โฟลเดอร์ที่เก็บรูป POD — ต้องตรงกับ $UPLOAD_DIRS ใน serve.php เสมอ
+// โฟลเดอร์ที่เก็บรูป POD — ⚠️ ต้องตรงกับ $UPLOAD_DIRS (บรรทัด 8) ใน serve.php เสมอ
+// ถ้าไม่ตรง: serve.php ยังแสดงรูปได้ปกติ แต่ Telegram จะได้ photo_error: not_found
 // NAS อ่านไฟล์จากดิสก์ตัวเองแล้วอัปขึ้น Telegram โดยตรง ไม่ผ่าน serve.php
 // เพราะ serve.php บังคับ Referer ซึ่งเซิร์ฟเวอร์ของ Telegram ไม่ส่งมา
 const UPLOAD_DIRS   = ['/volume1/Operation/paweewat/subcontractor-truck-management', '/tmp/nas-uploads'];
@@ -28,7 +29,9 @@ const UPLOAD_DIRS   = ['/volume1/Operation/paweewat/subcontractor-truck-manageme
   โดยที่คนแก้ไม่มีทางเดาสาเหตุได้ เพราะเขาแค่ปรับ "จำนวนรูปสูงสุด"
 */
 const TG_MEDIA_GROUP_MAX = 10;            // ลิมิตของ Telegram — ห้ามแก้
-const MAX_PHOTOS    = 10;                 // เพดานต่อใบงาน — ปรับได้
+// ⚠️ ต้องเท่ากับ TG_ALBUM_LIMIT ใน utils/telegramNotify.ts เสมอ — ดูคำอธิบายที่นั่น
+//    ถ้าสองค่านี้ไม่ตรงกัน ข้อความในกลุ่มจะบอกจำนวนรูปไม่ตรงกับที่มีจริง
+const MAX_PHOTOS    = 10;                 // เพดานต่อใบงาน — ปรับได้ (ต้องแก้ทั้งสองไฟล์)
 const MAX_PHOTO_MB  = 10;
 const MAX_TEXT_LEN  = 3500;
 const RATE_PER_MIN  = 30;                 // กันสแปม: กี่ข้อความต่อนาที (รวมทุกคน)
