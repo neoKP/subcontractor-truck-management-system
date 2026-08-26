@@ -89,8 +89,17 @@ if (in_array($originForMatch, $ALLOWED_ORIGINS, true) || $isLocalDev || $isPriva
 
   ที่ด่านนี้กันได้จริง:
     - เปิด URL ตรงจากแท็บใหม่ / วางในแชต / บุ๊กมาร์กแล้วส่งต่อ
-    - เว็บอื่นเอา URL ไปฝังเป็นรูปในหน้าตัวเอง (hotlink)
     - บอทที่ไล่เดา path
+    - เว็บอื่นที่ฝังรูปแบบปกติ (ส่ง Referer ของตัวเองมา จึงตกด่านแรก)
+
+  ที่ด่านนี้ **กันไม่ได้** — เขียนไว้ตรง ๆ อย่าเข้าใจผิดว่าปลอดภัยแล้ว:
+    - เว็บอื่นที่ใส่ referrerpolicy="no-referrer" บนแท็ก img
+      แอตทริบิวต์เดียวก็ผ่านทางสำรอง Sec-Fetch-Site ได้
+    - curl หรือสคริปต์ที่ปลอม Referer เป็นโดเมนของเรา
+
+  เรายอมแลกตรงนี้เพื่อให้ผู้ใช้จริงที่เบราว์เซอร์ตัด Referer (LINE in-app,
+  ส่วนขยายกันโฆษณา) ยังเห็นรูปได้ · คนที่จะ hotlink ต้องมี URL อยู่ในมือก่อน
+  และคนที่มี URL อยู่แล้วจะส่งต่อยังไงก็ได้อยู่ดี แม้แต่แคปหน้าจอ
 */
 $referer = isset($_SERVER['HTTP_REFERER']) ? (string) $_SERVER['HTTP_REFERER'] : '';
 
@@ -132,8 +141,34 @@ $secFetchSite = isset($_SERVER['HTTP_SEC_FETCH_SITE'])
     ? strtolower(trim((string) $_SERVER['HTTP_SEC_FETCH_SITE']))
     : '';
 $hasReferer = ($referer !== '');
+/*
+  ทางสำรองนี้ต้องรัดสองอย่างเพิ่ม ไม่งั้นมันกว้างเกินไป:
+
+  (1) $origin ต้องว่าง — ถ้าเบราว์เซอร์บอกมาแล้วว่าผู้ขอคือใคร และไม่ใช่เรา
+      (เช่น evil.com เรียก fetch แบบ no-cors + referrerPolicy:'no-referrer'
+       ซึ่งได้ Referer ว่างแต่ Origin เป็น evil.com) ก็ไม่มีเหตุผลต้องใจดี
+      Origin ที่ถูกต้องยังผ่านทาง $originOk ข้างบนตามเดิม
+      และเคส LINE ที่เราต้องการช่วยเป็นแท็ก <img> ซึ่งไม่ส่ง Origin มาอยู่แล้ว
+      การรัดตรงนี้จึงไม่กระทบสิ่งที่กำลังแก้
+
+  (2) ถอด same-site ออก — หมายถึงโฮสต์อื่นใต้โดเมนจดทะเบียนเดียวกัน ซึ่งเราไม่มี
+      และ dscloud.biz เป็นโดเมน DDNS ที่ Synology แจกลูกค้าทุกคน
+      (<ชื่อคนอื่น>.dscloud.biz ก็มี) จะนับเป็น same-site หรือไม่ขึ้นกับ
+      Public Suffix List ซึ่งเราไม่ควรต้องไปพึ่ง · ถอดออกแล้วคำถามหายทั้งข้อ
+      โดยไม่มีผู้ใช้จริงคนไหนเสียประโยชน์
+
+  ขอบเขตที่ต้องรู้ — Sec-Fetch-* ไม่ได้มีทุกที่:
+    - ส่งเฉพาะใน secure context: บน http://192.168.1.82 (มือถือวงแลนถ่าย POD)
+      Chrome ไม่ส่ง header นี้เลย เคสแลนจึงพึ่ง Referer ล้วน ๆ ไม่มีตาข่ายสำรอง
+      (วันนี้ไม่พังเพราะ origin แลนอยู่ใน allowlist และส่ง Referer มาปกติ)
+    - Safari รองรับตั้งแต่ 16.4 (2023) และ LINE บน iOS ใช้ WKWebView
+      iPhone ที่เก่ากว่านั้นถ้า Referer หายก็ยัง 403
+      ถ้ามีรายงานว่ารูปไม่ขึ้น ให้ถามรุ่น iOS ก่อนเป็นอย่างแรก
+      อย่าเพิ่งสรุปว่าแพตช์ไม่ทำงาน
+*/
 $secFetchOk = !$hasReferer
-    && in_array($secFetchSite, array('same-origin', 'same-site', 'cross-site'), true);
+    && $origin === ''
+    && in_array($secFetchSite, array('same-origin', 'cross-site'), true);
 
 if (!$refererOk && !$originOk && !$secFetchOk) {
     // ตอบ 403 พร้อมข้อความสั้น ๆ ไม่บอกว่าไฟล์มีอยู่จริงหรือไม่
