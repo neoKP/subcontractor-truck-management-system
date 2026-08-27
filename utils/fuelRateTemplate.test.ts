@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
-import { buildFuelRateTemplate, checkAgainstMaster, TEMPLATE_SHEET, type RateMaster } from './fuelRateTemplate';
-import { parseFuelRateWorkbook, findRateAt, type ParseResult } from './fuelRateParser';
+import { buildFuelRateExport, buildFuelRateTemplate, checkAgainstMaster, collectBands, TEMPLATE_SHEET, type RateMaster } from './fuelRateTemplate';
+import { parseFuelRateWorkbook, findRateAt, TEMPLATE_MARKER, type FuelRateRow, type ParseResult } from './fuelRateParser';
 import { MASTER_DATA as REAL_MASTER } from '../constants';
 
 const MASTER: RateMaster = {
@@ -399,5 +399,209 @@ describe('แบบฟอร์มสองชุดช่วงราคาน�
         await wb.xlsx.load(buf);
         const ws = wb.getWorksheet(TEMPLATE_SHEET)!;
         expect(ws.getRow(5).getCell(7).value).toBe(28.99);
+    });
+});
+
+
+/*
+  ไฟล์ที่ปุ่ม Export สร้าง ต้องหน้าตาเหมือนแบบฟอร์มที่หน่วยงานกรอกมา
+
+  เดิม export เป็นราคาเดียว (ราคา ณ ราคาน้ำมันวันนี้) ซึ่งเทียบกับไฟล์ต้นฉบับ
+  ของหน่วยงานไม่ได้เลยเพราะคนละโครง และเห็นราคาแค่ 1 ช่วงจาก 33 ช่วงที่มีอยู่
+*/
+describe('buildFuelRateExport — ส่งออกให้เหมือนแบบฟอร์ม', () => {
+    /** เส้นทางตัวอย่างที่ใช้ช่วงราคาชุดหลัก */
+    const mkRow = (over: Partial<FuelRateRow> = {}): FuelRateRow => ({
+        seq: 1,
+        company: 'YSK TRANSPORT',
+        origin: 'คลอง13',
+        destination: 'ลำปาง',
+        truckType: '10W',
+        note: '',
+        bands: [
+            { fuelFrom: 28.99, fuelTo: 30.98, price: 1000 },
+            { fuelFrom: 30.99, fuelTo: 32.98, price: 1100 },
+        ],
+        ...over,
+    });
+
+    const openExport = async (rows: FuelRateRow[]) => {
+        const buf = await buildFuelRateExport(rows, { dieselPrice: 38.39 });
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(buf);
+        return wb.worksheets[0];
+    };
+
+    it('วางหัวไฟล์ตำแหน่งเดียวกับแบบฟอร์ม — ขอบช่วงแถว 5-6 หัวตารางแถว 7 ข้อมูลแถว 8', async () => {
+        const ws = await openExport([mkRow()]);
+
+        expect(String(ws.getRow(5).getCell(1).value)).toContain('ตั้งแต่');
+        expect(String(ws.getRow(6).getCell(1).value)).toContain('ถึง');
+        expect(ws.getRow(5).getCell(7).value).toBe(28.99);
+        expect(ws.getRow(6).getCell(7).value).toBe(30.98);
+        // หัวตารางต้องเรียงเหมือนแบบฟอร์ม
+        expect([1, 2, 3, 4, 5, 6].map(c => ws.getRow(7).getCell(c).value))
+            .toEqual(['ลำดับ', 'บริษัท', 'ต้นทาง', 'ปลายทาง', 'ประเภทรถ', 'หมายเหตุ']);
+        expect(ws.getRow(8).getCell(2).value).toBe('YSK TRANSPORT');
+    });
+
+    it('ช่องช่วงราคาในแถวหัวตารางต้องว่าง เหมือนแบบฟอร์ม', async () => {
+        const ws = await openExport([mkRow()]);
+
+        // ถ้าใส่ข้อความตรงนี้ ตัวอ่านจะนับแถวนี้เป็นขอบช่วงแล้วอ่านไฟล์เพี้ยน
+        expect(ws.getRow(7).getCell(7).value).toBeNull();
+        expect(ws.getRow(7).getCell(8).value).toBeNull();
+    });
+
+    it('หนึ่งคอลัมน์ต่อหนึ่งช่วงราคา และวางราคาตรงช่วง', async () => {
+        const ws = await openExport([mkRow()]);
+
+        expect(ws.getRow(8).getCell(7).value).toBe(1000);
+        expect(ws.getRow(8).getCell(8).value).toBe(1100);
+    });
+
+    it('ช่วงที่ยังไม่ตกลงราคาต้องเว้นว่าง ห้ามกลายเป็น 0', async () => {
+        const ws = await openExport([mkRow({
+            bands: [
+                { fuelFrom: 28.99, fuelTo: 30.98, price: null },
+                { fuelFrom: 30.99, fuelTo: 32.98, price: 1100 },
+            ],
+        })]);
+
+        // 0 แปลว่า "ขนส่งฟรี" ซึ่งผิดความหมายและกระทบการคิดเงิน
+        expect(ws.getRow(8).getCell(7).value).toBeNull();
+        expect(ws.getRow(8).getCell(8).value).toBe(1100);
+    });
+
+    it('ราคา 0 ในไฟล์ต้นฉบับต้องออกมาเป็นช่องว่าง ไม่ใช่ 0.00', async () => {
+        // หน่วยงานใส่ 0 แทน "ยังไม่ตกลงราคา" (ไฟล์จริงมี 168 ช่อง) — ระบบก็ตีความแบบนั้น
+        // ถ้าเขียน 0 ลงไฟล์ที่ส่งออก คนอ่านจะเข้าใจว่าขนส่งฟรี
+        const ws = await openExport([mkRow({
+            bands: [
+                { fuelFrom: 28.99, fuelTo: 30.98, price: 0 },
+                { fuelFrom: 30.99, fuelTo: 32.98, price: 1100 },
+            ],
+        })]);
+
+        expect(ws.getRow(8).getCell(7).value).toBeNull();
+        expect(ws.getRow(8).getCell(8).value).toBe(1100);
+    });
+
+    it('รวมช่วงจากทุกหน่วยงานที่ใช้ชุดต่างกัน ไม่ทิ้งชุดใดชุดหนึ่ง', async () => {
+        // ตารางหลักเริ่ม 28.99 · sunlee เริ่ม 30.00 — ถ้าเลือกชุดเดียวตายตัว อีกชุดจะหายทั้งแถบ
+        const rows = [
+            mkRow(),
+            mkRow({
+                company: 'พรแม่ย่า',
+                bands: [{ fuelFrom: 30.00, fuelTo: 31.99, price: 2000 }],
+            }),
+        ];
+        const bands = collectBands(rows);
+
+        expect(bands.map(b => b.from)).toEqual([28.99, 30.00, 30.99]);
+
+        const ws = await openExport(rows);
+        // แถวของ sunlee ต้องมีราคาอยู่ในคอลัมน์ของช่วง 30.00 เท่านั้น
+        expect(ws.getRow(9).getCell(8).value).toBe(2000);
+        expect(ws.getRow(9).getCell(7).value).toBeNull();
+        expect(ws.getRow(9).getCell(9).value).toBeNull();
+    });
+
+    it('เรียงช่วงจากถูกไปแพงเสมอ ไม่ว่าข้อมูลจะมาเรียงยังไง', () => {
+        const bands = collectBands([mkRow({
+            bands: [
+                { fuelFrom: 40.99, fuelTo: 42.98, price: 1 },
+                { fuelFrom: 28.99, fuelTo: 30.98, price: 2 },
+                { fuelFrom: 34.99, fuelTo: 36.98, price: 3 },
+            ],
+        })]);
+
+        expect(bands.map(b => b.from)).toEqual([28.99, 34.99, 40.99]);
+    });
+
+    it('เก็บชื่อตารางย่อยไว้ในหมายเหตุ ไม่ให้ข้อมูลหาย', async () => {
+        const ws = await openExport([mkRow({ note: 'พิกัด 3 ตัน', section: 'วางบิล sunlee' })]);
+
+        expect(String(ws.getRow(8).getCell(6).value)).toBe('พิกัด 3 ตัน · วางบิล sunlee');
+    });
+
+    it('ไฟล์ที่ออกไป ต้องอัปกลับเข้าระบบได้ ไม่ใช่เหมือนแค่หน้าตา', async () => {
+        const rows = [mkRow(), mkRow({ company: 'KNN DYNAMIC', truckType: '6W' })];
+        const buf = await buildFuelRateExport(rows, { dieselPrice: 38.39 });
+
+        const back = await parseFuelRateWorkbook(buf);
+
+        expect(back.rows).toHaveLength(2);
+        expect(back.rows[0].company).toBe('YSK TRANSPORT');
+        expect(back.rows[1].truckType).toBe('6W');
+        // ราคาต้องกลับมาเท่าเดิม ไม่ใช่แค่จำนวนแถวเท่ากัน
+        expect(findRateAt(back.rows[0], 29.5)?.price).toBe(1000);
+        expect(findRateAt(back.rows[0], 31.5)?.price).toBe(1100);
+    });
+
+    it('อัปกลับได้แม้เส้นทางแรกยังไม่มีราคาสักช่วง', async () => {
+        // ตัวอ่านหาคอลัมน์ช่วงราคาจากแถวข้อมูลแถวแรก ถ้าแถวนั้นว่างทั้งแถวจะหาไม่เจอ
+        // แล้วไฟล์ทั้งไฟล์อัปกลับไม่ได้ ทั้งที่แถวอื่นมีราคาครบ
+        const rows = [
+            mkRow({ company: 'พรแม่ย่า', truckType: '12W', bands: [
+                { fuelFrom: 28.99, fuelTo: 30.98, price: null },
+                { fuelFrom: 30.99, fuelTo: 32.98, price: 0 },
+            ] }),
+            mkRow(),
+        ];
+
+        const buf = await buildFuelRateExport(rows, { dieselPrice: 30 });
+        const back = await parseFuelRateWorkbook(buf);
+
+        expect(back.rows).toHaveLength(2);
+        // แถวที่มีราคาถูกยกขึ้นมาไว้แถวแรก ข้อมูลต้องไม่หายไปไหน
+        expect(back.rows.map(r => r.company).sort()).toEqual(['YSK TRANSPORT', 'พรแม่ย่า']);
+        expect(findRateAt(back.rows[0], 30)?.price).toBe(1000);
+    });
+
+    it('ตรึงหัวตารางและคอลัมน์ชื่อ เหมือนแบบฟอร์ม', async () => {
+        const ws = await openExport([mkRow()]);
+
+        expect(ws.views[0]).toMatchObject({ state: 'frozen', xSplit: 6, ySplit: 7 });
+    });
+
+    it('มีข้อความกำกับแบบฟอร์ม ไม่งั้นอัปกลับแล้วระบบข้ามการตรวจชื่อ', async () => {
+        const buf = await buildFuelRateExport([mkRow()], { dieselPrice: 38.39 });
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(buf);
+
+        // checkAgainstMaster ทำงานก็ต่อเมื่อเจอคำนี้ — ถ้าไม่มี ชื่อที่พิมพ์ผิดจะหลุดเข้าระบบ
+        expect(String(wb.worksheets[0].getRow(1).getCell(1).value)).toContain(TEMPLATE_MARKER);
+    });
+
+    /*
+      กันบั๊กที่ทำให้เรทหายทั้งที่มีราคาอยู่ (กระทบการคิดเงินโดยตรง)
+
+      เมื่อข้อมูลมาจากหลายหน่วยงานที่ใช้ชุดช่วงต่างกัน ไฟล์ที่ export จะมีคอลัมน์ช่วง
+      ที่คาบเกี่ยวกัน พออ่านกลับเข้ามา แถวหนึ่ง ๆ จะมีทั้งช่วงว่างและช่วงที่มีราคา
+      ครอบราคาน้ำมันเดียวกัน · ถ้า findRateAt หยุดที่ช่วงแรกที่ครอบ จะได้ "ไม่มีเรท"
+      ทั้งที่ราคาจริงอยู่ในช่วงถัดไป
+    */
+    it('เรทไม่หายหลังอัปกลับ แม้ข้อมูลจะมีชุดช่วงคาบเกี่ยวกัน', async () => {
+        const rows = [
+            mkRow(),  // ชุดหลัก 28.99–30.98 / 30.99–32.98
+            mkRow({
+                company: 'พรแม่ย่า',
+                truckType: '12W',
+                bands: [
+                    { fuelFrom: 30.00, fuelTo: 31.99, price: 2000 },
+                    { fuelFrom: 32.00, fuelTo: 33.99, price: 2100 },
+                ],
+            }),
+        ];
+
+        const buf = await buildFuelRateExport(rows, { dieselPrice: 30.50 });
+        const back = await parseFuelRateWorkbook(buf);
+
+        // ที่ 30.50 มีสองช่วงครอบ: 28.99–30.98 (ว่างสำหรับแถวนี้) กับ 30.00–31.99 (2000 บาท)
+        expect(findRateAt(back.rows[1], 30.50)?.price).toBe(2000);
+        expect(findRateAt(back.rows[0], 30.50)?.price).toBe(1000);
+        expect(findRateAt(back.rows[1], 32.50)?.price).toBe(2100);
+        expect(findRateAt(back.rows[0], 31.50)?.price).toBe(1100);
     });
 });

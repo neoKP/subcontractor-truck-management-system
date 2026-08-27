@@ -308,7 +308,8 @@ const probe = async (base: string): Promise<boolean> => {
   try {
     const c = new AbortController();
     const timer = setTimeout(() => c.abort(), 2500);
-    const res = await fetch(`${base}/diag.php`, { method: 'GET', cache: 'no-store', signal: c.signal });
+    // ใช้ test.php เคาะประตู — diag.php ถูกถอดออกจาก webroot แล้ว (ไม่ตรวจคีย์ + คายรายชื่อไฟล์)
+    const res = await fetch(`${base}/test.php`, { method: 'GET', cache: 'no-store', signal: c.signal });
     clearTimeout(timer);
     return res.ok;
   } catch { return false; }
@@ -410,11 +411,15 @@ export const uploadFilesToStorage = async (files: File[], basePath: string): Pro
   sh /volume1/scripts/sync-to-drive.sh
   ```
 
-- ตั้ง Health Check ทุก 5 นาที เพื่อรีสตาร์ท Web Station/Nginx อัตโนมัติ และรองรับรีสตาร์ท Cloudflared ถ้ากำหนด `CLOUDFLARED_CMD`:
+- ตั้ง Health Check ทุกชั่วโมง เพื่อรีสตาร์ท Web Station/Nginx อัตโนมัติ และรองรับรีสตาร์ท Cloudflared ถ้ากำหนด `CLOUDFLARED_CMD`:
 
   ```sh
-  ENDPOINT="https://neosiam.dscloud.biz/api/diag.php" sh /volume1/scripts/healthcheck-nas.sh
+  sh /volume1/scripts/healthcheck-nas.sh
   ```
+
+> **หมายเหตุ:** `diag.php` ถูกถอดออกจาก webroot ถาวรแล้ว (2026-08-25) เพราะไม่ตรวจคีย์และคายรายชื่อไฟล์ใน NAS ให้คนนอก
+> ห้ามใช้เป็น endpoint ตรวจสุขภาพอีก — จะได้ 404 ทุกครั้ง แล้วสคริปต์จะรีสตาร์ต Web Station ทิ้ง ๆ ขว้าง ๆ ทั้งที่ระบบปกติดี
+> ตัวสคริปต์ดักกรณีนี้ไว้แล้ว (เปลี่ยนไป `test.php` ให้เอง) แต่ควรแก้คำสั่งใน DSM ให้ถูกด้วย
 
 - Triggered Task (Boot‑up) สำหรับ Cloudflared:
 
@@ -442,3 +447,4 @@ export const uploadFilesToStorage = async (files: File[], basePath: string): Pro
 | 2026-02-23 | สร้าง Guide นี้ + แก้ไข fileUpload.ts ให้ส่งไป NAS แทน Firebase Storage |
 | 2026-02-23 | แก้ไข nasUpload.ts API Key ให้ตรงกับ upload.php บน NAS |
 | 2026-02-25 | อัปเดต nasUpload.ts ให้เลือก BASE URL แบบ fallback + cache, upload.php ให้ตอบ URL ตาม host/scheme และเพิ่ม MIME fallback, ย้ายสคริปต์ไป /volume1/scripts + เพิ่ม Health Check และ Cloudflared Boot‑up |
+| 2026-08-27 | Health Check: เลิกใช้ diag.php (ถูกถอดออกแล้ว) ใช้ค่าเริ่มต้น test.php · สคริปต์ดักคำสั่งเก่าและลองซ้ำ 2 ครั้งก่อนรีสตาร์ต |

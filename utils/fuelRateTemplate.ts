@@ -106,6 +106,181 @@ const listRange = (col: string, count: number): string =>
     `'${LIST_SHEET}'!$${col}$${LIST_FIRST_ROW}:$${col}$${LIST_FIRST_ROW + Math.max(count, 1) - 1}`;
 
 /**
+ * รวมช่วงราคาน้ำมันที่ "มีอยู่จริงในข้อมูล" ออกมาเป็นชุดเดียว เรียงจากถูกไปแพง
+ *
+ * ทำไมไม่ใช้ BAND_SETS ตรง ๆ: ข้อมูลจริงมาจากหลายหน่วยงานที่ใช้ช่วงคนละชุด
+ * (ตารางหลักเริ่ม 28.99 · sunlee เริ่ม 30.00) ถ้าเลือกชุดใดชุดหนึ่งมาตายตัว
+ * อีกชุดจะกลายเป็นช่องว่างทั้งแถบ ทั้งที่จริง ๆ มีราคาอยู่
+ *
+ * จึงไล่จากข้อมูลจริงแทน ได้กี่ช่วงก็เท่านั้น ไม่เดาแทนหน่วยงาน
+ */
+export function collectBands(rows: FuelRateRow[]): { from: number; to: number }[] {
+    const seen = new Map<string, { from: number; to: number }>();
+    for (const r of rows) {
+        for (const b of r.bands) {
+            // ปัดทศนิยม 2 ตำแหน่งก่อนทำกุญแจ กัน 28.990000001 กลายเป็นคนละช่วง
+            const from = Math.round(b.fuelFrom * 100) / 100;
+            const to = Math.round(b.fuelTo * 100) / 100;
+            const key = `${from}-${to}`;
+            if (!seen.has(key)) seen.set(key, { from, to });
+        }
+    }
+    return [...seen.values()].sort((a, b) => a.from - b.from || a.to - b.to);
+}
+
+/**
+ * ส่งออกเรทที่ระบบเก็บไว้ ให้หน้าตาเหมือนแบบฟอร์มที่หน่วยงานกรอกมา
+ *
+ * ทำไมต้องเหมือนแบบฟอร์ม: คนที่เปิดไฟล์นี้คือคนกลุ่มเดียวกับที่กรอกแบบฟอร์ม
+ * ถ้าคนละหน้าตา เขาต้องแปลงสายตาเองทุกครั้งว่าคอลัมน์ไหนคือช่วงราคาไหน
+ * และเทียบกับไฟล์ที่ส่งมาไม่ได้ทันที · ไฟล์ที่ออกไปจึงกรอกต่อแล้วอัปกลับเข้าระบบได้เลย
+ *
+ * ต่างจากแบบฟอร์มเปล่าตรงที่ใส่ราคาที่มีอยู่แล้วลงไปให้ และไม่มีรายการเลือก
+ * (dropdown) เพราะไฟล์นี้ไว้ "อ่านและตรวจ" เป็นหลัก
+ */
+export async function buildFuelRateExport(
+    rows: FuelRateRow[],
+    meta: { dieselPrice: number; effectiveDate?: string; sourceFile?: string; uploadedAt?: string },
+): Promise<ArrayBuffer> {
+    const ExcelJS = (await import('exceljs')).default;
+    const bands = collectBands(rows);
+    const lastCol = LABELS.length + bands.length;
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'ระบบจัดการรถร่วม';
+
+    const ws = wb.addWorksheet('เรทค่าขนส่ง');
+
+    // ── หัวไฟล์: โครงเดียวกับแบบฟอร์ม (แถว 1 กำกับ · 2-3 คำอธิบาย · 4 ว่าง · 5-6 ขอบช่วง · 7 หัวตาราง) ──
+    /*
+      ต้องขึ้นต้นด้วย TEMPLATE_MARKER เหมือนแบบฟอร์มเปล่า
+
+      ตอนอัปโหลด ระบบจะตรวจชื่อบริษัท/ประเภทรถ/สถานที่กับทะเบียน (checkAgainstMaster)
+      ก็ต่อเมื่อเจอข้อความกำกับนี้ในหัวไฟล์เท่านั้น · ถ้าไฟล์ที่ export ไปไม่มีคำนี้
+      คนแก้ไฟล์แล้วอัปกลับจะข้ามการตรวจชื่อไปเงียบ ๆ ชื่อที่พิมพ์ผิดจะหลุดเข้าระบบ
+      แล้วจับคู่กับงานจริงไม่ได้ — ซึ่งเป็นปัญหาเดิมที่แบบฟอร์มตั้งใจแก้ตั้งแต่ต้น
+    */
+    const marker = ws.addRow([
+        `${TEMPLATE_MARKER} (นีโอสยาม) ${TEMPLATE_VERSION} · ส่งออกจากระบบ ${new Date().toLocaleDateString('th-TH')}`,
+    ]);
+    ws.mergeCells(marker.number, 1, marker.number, lastCol);
+    marker.height = 26;
+    marker.getCell(1).font = { name: FONT, size: SIZE.title, bold: true, color: { argb: COLOR.headerText } };
+    marker.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.titleBg } };
+    marker.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+
+    for (const text of [
+        `${rows.length} เส้นทาง · ${bands.length} ช่วงราคาน้ำมัน · ไฟล์ต้นฉบับ: ${meta.sourceFile || '-'}`,
+        `ราคาดีเซลที่ระบบใช้คิดอยู่ ${meta.dieselPrice.toFixed(2)} บาท/ลิตร`
+            + `${meta.effectiveDate ? ` (มีผล ${meta.effectiveDate})` : ''}`
+            + ' · ช่องที่เว้นว่าง = ยังไม่ได้ตกลงราคาในช่วงนั้น ไม่ใช่ 0 บาท',
+    ]) {
+        const row = ws.addRow([text]);
+        ws.mergeCells(row.number, 1, row.number, lastCol);
+        row.height = 18;
+        row.getCell(1).font = { name: FONT, size: SIZE.subtitle, color: { argb: COLOR.subtitleText } };
+        row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.titleBg } };
+        row.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+    }
+
+    ws.addRow([]);
+
+    const edgeStyle = (row: import('exceljs').Row) => {
+        row.height = 20;
+        row.eachCell({ includeEmpty: true }, (cell, i) => {
+            if (i > lastCol) return;
+            cell.font = { name: FONT, size: SIZE.body, bold: i <= LABELS.length, color: { argb: COLOR.text } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.totalBg } };
+            cell.alignment = { vertical: 'middle', horizontal: i <= LABELS.length ? 'left' : 'center' };
+            if (i > LABELS.length) cell.numFmt = '0.00';
+        });
+    };
+    edgeStyle(ws.addRow(['ช่วงราคาน้ำมัน — ตั้งแต่ (บาท/ลิตร)', ...LABELS.slice(1).map(() => null), ...bands.map(b => b.from)]));
+    edgeStyle(ws.addRow(['ช่วงราคาน้ำมัน — ถึง (บาท/ลิตร)', ...LABELS.slice(1).map(() => null), ...bands.map(b => b.to)]));
+
+    const header = ws.addRow([...LABELS, ...bands.map(() => null)]);
+    header.height = 26;
+    header.eachCell({ includeEmpty: true }, (cell, i) => {
+        if (i > lastCol) return;
+        cell.font = { name: FONT, size: SIZE.header, bold: true, color: { argb: COLOR.headerText } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.headerBg } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    });
+
+    // ── ข้อมูลจริง ──
+    // ทำดัชนีราคาต่อแถวไว้ก่อน เพื่อไม่ต้องไล่หาในทุกช่อง
+    // 288 แถว × 33 ช่วง = 9,504 ช่อง ถ้าไล่เชิงเส้นทุกช่องจะช้าจนคนกดรู้สึกได้
+    const cellsOf = (r: FuelRateRow): (number | null)[] => {
+        const byKey = new Map<string, number>();
+        for (const b of r.bands) {
+            /*
+              ข้ามช่วงที่ยังไม่มีราคา ทั้ง null และ 0 — ปล่อยเป็นช่องว่าง
+
+              ไฟล์จริงของหน่วยงานใส่ 0 ในช่วงที่ยังไม่ได้ตกลงราคา (ไฟล์ล่าสุดมี 168 ช่อง)
+              ซึ่ง findRateAt ก็ถือว่า "ไม่มีเรท" อยู่แล้ว ถ้าเขียน 0 ลงไฟล์ที่ส่งออก
+              คนอ่านจะเห็นเป็น "ขนส่งฟรี" ซึ่งขัดกับหมายเหตุในหัวไฟล์เอง
+              และขัดกับที่ระบบตีความ · ต้องว่างให้เหมือนกันทั้งสองกรณี
+            */
+            if (b.price === null || b.price <= 0) continue;
+            const key = `${Math.round(b.fuelFrom * 100) / 100}-${Math.round(b.fuelTo * 100) / 100}`;
+            byKey.set(key, b.price);
+        }
+        return bands.map(b => byKey.get(`${b.from}-${b.to}`) ?? null);
+    };
+
+    /*
+      แถวข้อมูลแถวแรกต้องมีราคาอย่างน้อยหนึ่งช่อง ไม่งั้นไฟล์อัปกลับไม่ได้
+
+      ตัวอ่านไฟล์หาว่า "คอลัมน์ช่วงราคาเริ่มตรงไหน" โดยดูจากแถวข้อมูลแถวแรก
+      ถ้าแถวนั้นว่างทั้งแถว (เป็นเส้นทางที่ยังไม่ตกลงราคาสักช่วง) จะหาไม่เจอ
+      แล้วโยน "ไม่พบคอลัมน์ช่วงราคาน้ำมันในไฟล์" ทั้งที่แถวอื่นมีราคาครบ
+
+      จึงยกแถวที่มีราคาขึ้นมาไว้แถวแรก · ลำดับที่เหลือคงเดิม ไม่สลับข้อมูลของใคร
+      (คอลัมน์ "ลำดับ" นับใหม่ตามที่แสดง จึงยังเรียง 1, 2, 3 ต่อเนื่องเสมอ)
+
+      ข้อจำกัดที่เหลือ: ถ้าไม่มีราคาเลยสักแถวเดียวทั้งไฟล์ ก็ยังอัปกลับไม่ได้
+      กรณีนั้นไม่ใช่ไฟล์ที่ควรอัปกลับอยู่แล้ว (ไม่มีอะไรให้บันทึก) และคนที่อยากได้
+      ไฟล์เปล่าไว้กรอกควรกดปุ่ม "ดาวน์โหลดแบบฟอร์ม" ซึ่งมีรายการให้เลือกในตัว
+    */
+    const hasPrice = (r: FuelRateRow) => r.bands.some(b => b.price !== null && b.price > 0);
+    const firstPriced = rows.findIndex(hasPrice);
+    const ordered = firstPriced > 0
+        ? [rows[firstPriced], ...rows.filter((_, i) => i !== firstPriced)]
+        : rows;
+
+    ordered.forEach((r, i) => {
+        const row = ws.addRow([
+            i + 1,
+            r.company || '',
+            r.origin || '',
+            r.destination || '',
+            r.truckType || '',
+            // ตารางย่อยเป็นข้อมูลของระบบที่แบบฟอร์มเปล่าไม่มี — ต่อท้ายหมายเหตุไว้ไม่ให้หาย
+            [r.note, r.section].filter(Boolean).join(' · '),
+            ...cellsOf(r),
+        ]);
+        row.eachCell({ includeEmpty: true }, (cell, c) => {
+            if (c > lastCol) return;
+            cell.font = { name: FONT, size: SIZE.body, color: { argb: COLOR.text } };
+            cell.alignment = { vertical: 'middle', horizontal: c <= LABELS.length ? 'left' : 'right' };
+            if (c > LABELS.length) cell.numFmt = '#,##0.00';
+        });
+    });
+
+    ws.columns.forEach((col, i) => {
+        col.width = i < LABEL_WIDTH.length ? LABEL_WIDTH[i] : 13;
+    });
+    // ตรึงหัวตารางและคอลัมน์ชื่อ เหมือนแบบฟอร์ม — เลื่อนไปช่วงราคาไกล ๆ แล้วยังรู้ว่าแถวไหน
+    ws.views = [{ state: 'frozen', xSplit: LABELS.length, ySplit: FIRST_DATA_ROW - 1 }];
+    ws.autoFilter = {
+        from: { row: FIRST_DATA_ROW - 1, column: 1 },
+        to: { row: FIRST_DATA_ROW - 1 + rows.length, column: LABELS.length },
+    };
+
+    return await wb.xlsx.writeBuffer() as ArrayBuffer;
+}
+
+/**
  * สร้างไฟล์แบบฟอร์ม พร้อมทะเบียนชื่อ ตัวอย่างการกรอก และรายการให้เลือกในช่องชื่อ
  * คืนค่าเป็น ArrayBuffer เพื่อให้ฝั่งเว็บเอาไปสร้างลิงก์ดาวน์โหลดได้ทันที
  */

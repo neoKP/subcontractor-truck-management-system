@@ -285,7 +285,8 @@ const probe = async (base: string): Promise<boolean> => {
   try {
     const c = new AbortController();
     const timer = setTimeout(() => c.abort(), 2500);
-    const res = await fetch(`${base}/diag.php`, { method: 'GET', cache: 'no-store', signal: c.signal });
+    // ใช้ test.php เคาะประตู — diag.php ถูกถอดออกจาก webroot แล้ว (ไม่ตรวจคีย์ + คายรายชื่อไฟล์)
+    const res = await fetch(`${base}/test.php`, { method: 'GET', cache: 'no-store', signal: c.signal });
     clearTimeout(timer);
     return res.ok;
   } catch { return false; }
@@ -429,10 +430,14 @@ DSM → Control Panel → Task Scheduler
 | --- | --- |
 | Task | `NAS API Health Check` |
 | User | `root` |
-| Schedule | Every 5 minutes |
-| Script | `ENDPOINT="https://neosiam.dscloud.biz/api/diag.php" sh /volume1/scripts/healthcheck-nas.sh` |
+| Schedule | Every hour |
+| Script | `sh /volume1/scripts/healthcheck-nas.sh` |
 
-สคริปต์จะ curl ไปยัง `diag.php` ถ้าไม่ผ่าน จะพยายาม restart Web Station/Nginx อัตโนมัติ และถ้ากำหนด `CLOUDFLARED_CMD` จะสั่งรัน cloudflared ให้ด้วย
+สคริปต์จะ curl ไปยัง `test.php` (ค่าเริ่มต้นในตัวสคริปต์ ไม่ต้องส่ง `ENDPOINT` มาเอง) ถ้าไม่ผ่านสองครั้งติดกัน จะ restart Web Station/Nginx อัตโนมัติ และถ้ากำหนด `CLOUDFLARED_CMD` จะสั่งรัน cloudflared ให้ด้วย
+
+> **หมายเหตุ:** `diag.php` ถูกถอดออกจาก webroot ถาวรแล้ว (2026-08-25) เพราะไม่ตรวจคีย์และคายรายชื่อไฟล์ใน NAS ให้คนนอก
+> ห้ามใช้เป็น endpoint ตรวจสุขภาพอีก — จะได้ 404 ทุกครั้ง แล้วสคริปต์จะรีสตาร์ต Web Station ทิ้ง ๆ ขว้าง ๆ ทั้งที่ระบบปกติดี
+> ตัวสคริปต์ดักกรณีนี้ไว้แล้ว (เปลี่ยนไป `test.php` ให้เอง) แต่ควรแก้คำสั่งใน DSM ให้ถูกด้วย
 
 1. Triggered Task (Boot‑up): สตาร์ท Cloudflared อัตโนมัติเมื่อบูต
 

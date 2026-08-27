@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
     Table2, Search, Fuel, Loader2, FileDown, AlertTriangle, Info, Upload,
 } from 'lucide-react';
-import { exportExcelReport, thaiFileDate, type ReportSheet } from '../utils/excelReport';
+import { downloadWorkbook, thaiFileDate } from '../utils/excelReport';
+import { buildFuelRateExport } from '../utils/fuelRateTemplate';
 import { findRateAt, type FuelRateRow } from '../utils/fuelRateParser';
 import { watchActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
 import { useOilPrice } from '../utils/useOilPrice';
@@ -120,44 +121,20 @@ const FuelRateTableView: React.FC = () => {
         if (exporting) return;
         setExporting(true);
         try {
-        await exportExcelReport([{
-            name: 'เรทค่าขนส่ง',
-            title: 'ตารางเรทค่าขนส่งตามราคาน้ำมัน',
-            subtitle: `ราคาดีเซลที่ใช้คิด ${live.diesel.toFixed(2)} บาท/ลิตร · ${filtered.length} เส้นทาง`,
-            columns: [
-                { header: 'บริษัท', value: r => r.company || '-', type: 'text' },
-                { header: 'ตาราง', value: r => r.section ?? 'ตารางหลัก', type: 'text' },
-                { header: 'ต้นทาง', value: r => r.origin || '-', type: 'text' },
-                { header: 'ปลายทาง', value: r => r.destination || '-', type: 'text' },
-                { header: 'ประเภทรถ', value: r => r.truckType || '-', type: 'text' },
-                { header: 'หมายเหตุ', value: r => r.note || '', type: 'text' },
-                {
-                    header: 'ช่วงราคาน้ำมันที่ใช้',
-                    value: r => { const hit = findRateAt(r, live.diesel); return hit ? `${hit.fuelFrom}–${hit.fuelTo}` : '-'; },
-                    type: 'text',
-                },
-                {
-                    // ปล่อยว่างเมื่อไม่มีเรท ไม่ใส่ 0 — คนอ่านไฟล์ต้องแยกออกว่า "ไม่มีเรท" ไม่ใช่ "ฟรี"
-                    header: `ค่าขนส่งที่น้ำมัน ${live.diesel.toFixed(2)} บาท`,
-                    value: r => findRateAt(r, live.diesel)?.price ?? null,
-                    type: 'money',
-                },
-                {
-                    // ช่วยให้คนเปิดไฟล์กรองหาแถวที่ยังไม่มีราคาได้ทันที
-                    // ไม่ต้องไล่ดูช่องว่างทีละแถว
-                    header: 'สถานะ',
-                    value: r => (findRateAt(r, live.diesel) ? 'มีเรท' : 'ยังไม่มีเรท'),
-                    type: 'text',
-                    width: 12,
-                },
-            ],
-            rows: filtered,
-            footnotes: [
-                'ช่องค่าขนส่งที่เว้นว่าง = หน่วยงานยังไม่ได้กำหนดราคาในช่วงราคาน้ำมันนี้ ไม่ใช่ค่าขนส่ง 0 บาท',
-                `ราคาดีเซลที่ใช้เปิดตาราง ${live.diesel.toFixed(2)} บาท/ลิตร (มีผล ${live.effectiveDate || '-'})`,
-                `ไฟล์ต้นฉบับ: ${version?.fileName || '-'}`,
-            ],
-        }] as ReportSheet<FuelRateRow>[], `เรทค่าขนส่ง_ณ_${live.diesel.toFixed(2)}บาท_${thaiFileDate()}`);
+        /*
+          ส่งออกให้หน้าตาเหมือนแบบฟอร์มที่หน่วยงานกรอกมา (หนึ่งคอลัมน์ต่อหนึ่งช่วงราคา)
+
+          เดิมส่งออกเป็นราคาเดียว คือราคา ณ ราคาน้ำมันวันนี้ ซึ่งอ่านง่ายก็จริง
+          แต่เอาไปเทียบกับไฟล์ที่หน่วยงานส่งมาไม่ได้เลย เพราะคนละโครง
+          และเห็นราคาแค่ช่วงเดียวจาก 33 ช่วงที่มีอยู่ · ตอนนี้เห็นครบทุกช่วง
+          กรอกต่อแล้วอัปกลับเข้าระบบได้ทันที
+        */
+        const buf = await buildFuelRateExport(filtered, {
+            dieselPrice: live.diesel,
+            effectiveDate: live.effectiveDate,
+            sourceFile: version?.fileName,
+        });
+        downloadWorkbook(buf, `เรทค่าขนส่ง_${filtered.length}เส้นทาง_${thaiFileDate()}`);
         } catch (e) {
             console.error('[FuelRateTable] สร้างไฟล์ Excel ไม่สำเร็จ:', e);
             const Swal = (window as any).Swal;
