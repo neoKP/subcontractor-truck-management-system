@@ -2,6 +2,7 @@ import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Font, pdf, Image } from '@react-pdf/renderer';
 import { Job } from '../types';
 import { formatDate } from '../utils/format';
+import { downloadBlob } from '../utils/downloadFile';
 
 // Use a promise to ensure singleton initialization and wait for it
 let fontLoadingPromise: Promise<void> | null = null;
@@ -384,19 +385,12 @@ export const generateJobRequestPDF = async (job: Job): Promise<void> => {
     await initPDFResources();
 
     const blob = await pdf(<JobRequestPDFDocument job={job} />).toBlob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
 
     const now = new Date();
     const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
     const documentNumber = `JR-${yearMonth}-${job.id.split('-').pop() || job.id}`;
 
-    link.download = `Job_Request_${documentNumber}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `Job_Request_${documentNumber}.pdf`);
 };
 
 export default JobRequestPDFDocument;

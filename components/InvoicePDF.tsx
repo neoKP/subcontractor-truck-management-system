@@ -3,6 +3,7 @@ import { Document, Page, Text, View, StyleSheet, Font, pdf, Image } from '@react
 import { Job } from '../types';
 import { formatDate, formatThaiCurrency, roundHalfUp } from '../utils/format';
 import { initPDFResources } from './JobRequestPDF';
+import { downloadBlob } from '../utils/downloadFile';
 
 const FONT_FAMILY = 'Sarabun_Thai_Fixed';
 
@@ -384,14 +385,7 @@ export const generateInvoicePDFBlob = async (props: InvoicePDFProps): Promise<Bl
  */
 export const downloadInvoicePDF = async (props: InvoicePDFProps): Promise<void> => {
     const blob = await generateInvoicePDFBlob(props);
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Invoice_${props.documentNumber}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `Invoice_${props.documentNumber}.pdf`);
 };
 
 export default InvoicePDFDocument;

@@ -12,6 +12,7 @@ import { oilPriceAtDate } from '../utils/oilPriceAtDate';
 import { useOilPrice } from '../utils/useOilPrice';
 import { todayIsoLocal } from '../utils/oilRounds';
 import DispatcherActionModal from './DispatcherActionModal';
+import { downloadTextFile } from '../utils/downloadFile';
 
 
 interface ReviewConfirmDashboardProps {
@@ -189,13 +190,8 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
             ...csvData.map(row => headers.map(h => row[h as keyof typeof row]).join(','))
         ].join('\n');
 
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `review-confirm-${new Date().toISOString().split('T')[0]}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+        // downloadTextFile ใส่ BOM ให้เอง — เดิมไม่มี Excel เลยเปิดภาษาไทยเป็นตัวยึกยือ
+        downloadTextFile(csv, `review-confirm-${new Date().toISOString().split('T')[0]}.csv`);
     };
 
     return (

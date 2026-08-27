@@ -159,6 +159,23 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
             const buf = await buildFuelRateTemplate(MASTER_DATA, { bandSet });
             // ใส่ช่วงราคาไว้ในชื่อไฟล์ด้วย — คนที่มีทั้งสองไฟล์ต้องแยกออกจากชื่อได้
             downloadWorkbook(buf, `แบบฟอร์มเรทค่าขนส่ง_${BAND_SETS[bandSet].label}_${TEMPLATE_VERSION}`);
+        } catch (e) {
+            // เดิมมีแต่ finally — สร้างไฟล์ไม่สำเร็จแล้วปุ่มกลับมาปกติเหมือนไม่มีอะไรเกิดขึ้น
+            // คนกดจึงไม่รู้ว่าพลาดตรงไหน ต้องบอกให้เห็น
+            console.error('[FuelRateUpload] สร้างแบบฟอร์มไม่สำเร็จ:', e);
+            const Swal = (window as any).Swal;
+            const msg = e instanceof Error ? e.message : String(e);
+            if (Swal) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'สร้างแบบฟอร์มไม่สำเร็จ',
+                    text: msg,
+                    confirmButtonColor: '#ef4444',
+                    customClass: { popup: 'rounded-[1.5rem]' },
+                });
+            } else {
+                alert('สร้างแบบฟอร์มไม่สำเร็จ: ' + msg);
+            }
         } finally {
             setDownloading(null);
         }

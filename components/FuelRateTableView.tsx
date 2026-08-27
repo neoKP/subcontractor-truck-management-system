@@ -106,7 +106,20 @@ const FuelRateTableView: React.FC = () => {
         [rows, live.diesel]
     );
 
+    const [exporting, setExporting] = useState(false);
+
+    /*
+      ปุ่ม Export เคยล้มเหลวเงียบ ๆ — ไม่มี try/catch คนกดจึงไม่รู้ว่าเกิดอะไรขึ้น
+      ต่างจากที่อื่นตรงที่ตารางนี้มีได้ถึง 288 แถว × 33 ช่วงราคา การสร้างไฟล์
+      จึงใช้เวลาและหน่วยความจำมากกว่า มีโอกาสล้มได้จริง ไม่ใช่แค่ทฤษฎี
+
+      กันกดซ้ำระหว่างสร้างไฟล์ด้วย เพราะกดรัว ๆ จะสร้างหลายไฟล์พร้อมกัน
+      แล้วเบราว์เซอร์ค้าง
+    */
     const handleExport = async () => {
+        if (exporting) return;
+        setExporting(true);
+        try {
         await exportExcelReport([{
             name: 'เรทค่าขนส่ง',
             title: 'ตารางเรทค่าขนส่งตามราคาน้ำมัน',
@@ -129,12 +142,40 @@ const FuelRateTableView: React.FC = () => {
                     value: r => findRateAt(r, live.diesel)?.price ?? null,
                     type: 'money',
                 },
+                {
+                    // ช่วยให้คนเปิดไฟล์กรองหาแถวที่ยังไม่มีราคาได้ทันที
+                    // ไม่ต้องไล่ดูช่องว่างทีละแถว
+                    header: 'สถานะ',
+                    value: r => (findRateAt(r, live.diesel) ? 'มีเรท' : 'ยังไม่มีเรท'),
+                    type: 'text',
+                    width: 12,
+                },
             ],
             rows: filtered,
             footnotes: [
                 'ช่องค่าขนส่งที่เว้นว่าง = หน่วยงานยังไม่ได้กำหนดราคาในช่วงราคาน้ำมันนี้ ไม่ใช่ค่าขนส่ง 0 บาท',
+                `ราคาดีเซลที่ใช้เปิดตาราง ${live.diesel.toFixed(2)} บาท/ลิตร (มีผล ${live.effectiveDate || '-'})`,
+                `ไฟล์ต้นฉบับ: ${version?.fileName || '-'}`,
             ],
         }] as ReportSheet<FuelRateRow>[], `เรทค่าขนส่ง_ณ_${live.diesel.toFixed(2)}บาท_${thaiFileDate()}`);
+        } catch (e) {
+            console.error('[FuelRateTable] สร้างไฟล์ Excel ไม่สำเร็จ:', e);
+            const Swal = (window as any).Swal;
+            const msg = e instanceof Error ? e.message : String(e);
+            if (Swal) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'สร้างไฟล์ไม่สำเร็จ',
+                    text: msg,
+                    confirmButtonColor: '#ef4444',
+                    customClass: { popup: 'rounded-[1.5rem]' },
+                });
+            } else {
+                alert('สร้างไฟล์ไม่สำเร็จ: ' + msg);
+            }
+        } finally {
+            setExporting(false);
+        }
     };
 
     if (loading) {
@@ -205,10 +246,11 @@ const FuelRateTableView: React.FC = () => {
 
                 <button
                     onClick={handleExport}
+                    disabled={exporting}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-[1.5rem] flex items-center gap-3 text-xs font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-900/40 hover:scale-105 active:scale-95"
                 >
                     <FileDown size={18} />
-                    <span>Export</span>
+                    <span>{exporting ? 'กำลังสร้างไฟล์…' : 'Export'}</span>
                 </button>
             </div>
 

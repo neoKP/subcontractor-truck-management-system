@@ -15,6 +15,8 @@
  */
 
 /** สีที่ใช้ทั้งระบบ — ชุดเดียวกับหน้าเว็บ (Tailwind slate) */
+import { downloadBlob } from './downloadFile';
+
 export const COLOR = {
     titleBg: 'FF0F172A',      // slate-900 — แถบชื่อรายงาน
     headerBg: 'FF1E293B',     // slate-800 — หัวตาราง
@@ -258,12 +260,7 @@ export function downloadWorkbook(buffer: ArrayBuffer, fileName: string): void {
     const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`);
 }
 
 /** วันที่แบบไทยสำหรับตั้งชื่อไฟล์ เช่น 2569-08-21 */

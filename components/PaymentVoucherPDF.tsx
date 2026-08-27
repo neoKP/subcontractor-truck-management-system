@@ -3,6 +3,7 @@ import { Document, Page, Text, View, StyleSheet, Font, pdf, Image } from '@react
 import { Job } from '../types';
 import { formatDate, formatThaiCurrency } from '../utils/format';
 import { initPDFResources } from './JobRequestPDF';
+import { downloadBlob } from '../utils/downloadFile';
 
 const FONT_FAMILY = 'Sarabun_Thai_Fixed';
 
@@ -379,12 +380,7 @@ export const generatePaymentVoucherBlob = async ({ job, whtRate = 1 }: GenerateP
 
 export const downloadPaymentVoucher = async (options: GeneratePaymentVoucherOptions): Promise<void> => {
     const blob = await generatePaymentVoucherBlob(options);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `PaymentVoucher-${options.job.id}.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `PaymentVoucher-${options.job.id}.pdf`);
 };
 
 export default PaymentVoucherDocument;

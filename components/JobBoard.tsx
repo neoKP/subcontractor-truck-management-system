@@ -10,6 +10,7 @@ import JobPreviewModal from './JobPreviewModal';
 import BookingEditModal from './BookingEditModal';
 import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
 import PendingPricingModal from './PendingPricingModal';
+import { downloadTextFile } from '../utils/downloadFile';
 
 interface JobBoardProps {
   jobs: Job[];
@@ -259,16 +260,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
       ...rows.map(r => r.join(','))
     ].join('\n');
 
-    // Create a blob and download link
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `job_archive_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadTextFile(csvContent, `job_archive_${new Date().toISOString().split('T')[0]}.csv`);
 
     if (typeof (window as any).Swal !== 'undefined') {
       (window as any).Swal.fire({

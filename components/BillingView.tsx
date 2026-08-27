@@ -9,6 +9,7 @@ import BillingFinancialDashboard from './BillingFinancialDashboard';
 import { Download, CreditCard, FileText } from 'lucide-react';
 import { uploadFileToStorage } from '../utils/firebaseStorage';
 import { isPayableFromBilling, resolvePaymentTargets } from '../utils/invoiceMath';
+import { downloadTextFile } from '../utils/downloadFile';
 
 interface BillingViewProps {
   jobs: Job[];
@@ -451,15 +452,8 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
       j.accountingStatus || '-'
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `payment_report_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    downloadTextFile(csvContent, `payment_report_${new Date().toISOString().split('T')[0]}.csv`);
   };
 
   const getAccStatusBadge = (status?: AccountingStatus) => {
