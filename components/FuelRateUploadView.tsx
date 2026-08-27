@@ -27,10 +27,25 @@ const ISSUE_LABEL: Record<string, string> = {
     'duplicate-route': 'เส้นทางและประเภทรถซ้ำกัน',
     'no-bands': 'แถวที่ไม่มีค่าขนส่งเลย',
     'side-table-unreadable': 'เจอตารางย่อยแต่อ่านไม่ได้ (ยังไม่ได้นำเข้า)',
-    'unknown-subcontractor': 'ตรวจชื่อผู้รับจ้าง (คอลัมน์บริษัท)',
-    'unknown-truck-type': 'ตรวจชื่อประเภทรถ',
-    'unknown-location': 'ตรวจชื่อต้นทาง/ปลายทาง',
+    'unknown-subcontractor': 'ชื่อผู้รับจ้างที่ยังไม่มีในระบบ',
+    'unknown-truck-type': 'ชื่อประเภทรถที่ยังไม่มีในระบบ',
+    'unknown-location': 'ชื่อต้นทาง/ปลายทางที่ยังไม่มีในระบบ',
 };
+
+/*
+  แยกสองระดับ เพราะเดิมเตือนแรงเท่ากันหมดจนแยกไม่ออกว่าอันไหนสำคัญ
+
+  "ชื่อที่ยังไม่มีในระบบ" ไม่ใช่ข้อผิดพลาด — เส้นทางใหม่ย่อมมีชื่อใหม่เป็นเรื่องปกติ
+  ยกมาให้ดูเผื่อหน่วยงานพิมพ์ผิด (เช่น "กรุงเพท") ซึ่งจะทำให้ราคาไปผูกกับ
+  ปลายทางที่สะกดผิด แล้วงานจริงหาราคาไม่เจอ
+
+  ส่วนค่าขนส่งเป็น 0 หรือช่วงราคาขาด คือสิ่งที่ใช้คิดเงินไม่ได้จริง ต้องเตือนแรง
+*/
+const NAME_ONLY_ISSUES = new Set([
+    'unknown-subcontractor',
+    'unknown-truck-type',
+    'unknown-location',
+]);
 
 const formatDateTime = (iso: string): string => {
     if (!iso) return '-';
@@ -213,25 +228,33 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                 line.appendChild(document.createTextNode(iss.message));
                 container.appendChild(line);
             }
+            // ทุกข้อเป็นแค่ "ชื่อใหม่" หรือมีเรื่องราคาปนด้วย — เปลี่ยนน้ำเสียงตามนั้น
+            const nameOnly = preview.issues.every(i => NAME_ONLY_ISSUES.has(i.kind));
+
             const footer = document.createElement('div');
             footer.style.marginTop = '12px';
             const strong = document.createElement('b');
-            strong.textContent = 'ระบบจะบันทึกตัวเลขตามไฟล์ทุกช่อง ไม่แก้ให้';
+            strong.textContent = nameOnly
+                ? 'ไฟล์อ่านได้ครบทุกช่อง ราคาไม่มีปัญหา'
+                : 'ระบบจะบันทึกตัวเลขตามไฟล์ทุกช่อง ไม่แก้ให้';
             footer.appendChild(strong);
             footer.appendChild(document.createElement('br'));
             footer.appendChild(document.createTextNode(
-                'แนะนำให้สอบถามหน่วยงานก่อน หากยืนยันว่าถูกต้องแล้วจึงบันทึก'
+                nameOnly
+                    ? 'ชื่อเหล่านี้เป็นชื่อใหม่ที่ระบบยังไม่เคยเห็น ซึ่งเป็นเรื่องปกติของเส้นทางใหม่ ' +
+                      'ยกมาให้ดูเผื่อพิมพ์ผิดเท่านั้น — ถ้าชื่อถูกต้องแล้ว กดบันทึกได้เลย ไม่ต้องแก้ไฟล์'
+                    : 'แนะนำให้สอบถามหน่วยงานก่อน หากยืนยันว่าถูกต้องแล้วจึงบันทึก'
             ));
             container.appendChild(footer);
 
             const confirmed = await Swal.fire({
-                icon: 'warning',
-                title: 'ไฟล์นี้มีจุดที่ควรตรวจสอบ',
+                icon: nameOnly ? 'info' : 'warning',
+                title: nameOnly ? 'มีชื่อใหม่ที่ยังไม่มีในระบบ' : 'ไฟล์นี้มีจุดที่ควรตรวจสอบ',
                 html: container,
                 showCancelButton: true,
-                confirmButtonText: 'ยืนยัน บันทึกเลย',
+                confirmButtonText: nameOnly ? 'ชื่อถูกต้อง บันทึกเลย' : 'ยืนยัน บันทึกเลย',
                 cancelButtonText: 'ยกเลิก',
-                confirmButtonColor: '#d97706',
+                confirmButtonColor: nameOnly ? '#059669' : '#d97706',
                 cancelButtonColor: '#64748b',
                 width: 640,
             });
@@ -579,26 +602,44 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                             ))}
                         </div>
 
-                        {preview.issues.length > 0 && (
-                            <div className="rounded-[1.5rem] bg-amber-50 border border-amber-100 p-5 mb-6">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <AlertTriangle size={15} className="text-amber-600" />
-                                    <span className="text-[11px] font-black uppercase tracking-widest text-amber-700">
-                                        พบ {preview.issues.length} จุดที่ควรสอบถามหน่วยงาน
-                                    </span>
+                        {/*
+                          กล่องนี้เคยเป็นสีส้มทุกกรณี ทำให้ผู้ใช้ตกใจทั้งที่ส่วนใหญ่
+                          เป็นแค่ชื่อใหม่ที่ระบบยังไม่รู้จัก ซึ่งเป็นเรื่องปกติของเส้นทางใหม่
+                          จึงแยกเป็นสีฟ้า (แค่ให้ดู) กับสีส้ม (มีเรื่องราคาที่ต้องถาม)
+                        */}
+                        {preview.issues.length > 0 && (() => {
+                            const nameOnly = preview.issues.every(i => NAME_ONLY_ISSUES.has(i.kind));
+                            return (
+                                <div className={`rounded-[1.5rem] p-5 mb-6 border ${nameOnly
+                                    ? 'bg-blue-50 border-blue-100'
+                                    : 'bg-amber-50 border-amber-100'}`}>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        {nameOnly
+                                            ? <Info size={15} className="text-blue-600" />
+                                            : <AlertTriangle size={15} className="text-amber-600" />}
+                                        <span className={`text-[11px] font-black uppercase tracking-widest ${nameOnly ? 'text-blue-700' : 'text-amber-700'
+                                            }`}>
+                                            {nameOnly
+                                                ? `มี ${preview.issues.length} ชื่อที่ยังไม่มีในระบบ`
+                                                : `พบ ${preview.issues.length} จุดที่ควรสอบถามหน่วยงาน`}
+                                        </span>
+                                    </div>
+                                    <ul className="space-y-2">
+                                        {preview.issues.map((iss, i) => (
+                                            <li key={i} className="text-[11px] text-slate-700 leading-relaxed">
+                                                <b>{ISSUE_LABEL[iss.kind] || iss.kind}</b> — {iss.message}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    <p className={`text-[10px] font-bold mt-3 leading-relaxed ${nameOnly ? 'text-blue-700' : 'text-amber-700'
+                                        }`}>
+                                        {nameOnly
+                                            ? 'เส้นทางใหม่ย่อมมีชื่อใหม่เป็นเรื่องปกติ — ยกมาให้ดูเผื่อพิมพ์ผิดเท่านั้น ถ้าชื่อถูกต้องแล้วบันทึกได้เลย'
+                                            : 'ระบบจะบันทึกตามไฟล์ ไม่แก้ให้ · คัดลอกข้อความนี้ส่งถามหน่วยงานได้'}
+                                    </p>
                                 </div>
-                                <ul className="space-y-2">
-                                    {preview.issues.map((iss, i) => (
-                                        <li key={i} className="text-[11px] text-slate-700 leading-relaxed">
-                                            <b>{ISSUE_LABEL[iss.kind] || iss.kind}</b> — {iss.message}
-                                        </li>
-                                    ))}
-                                </ul>
-                                <p className="text-[10px] text-amber-700 font-bold mt-3">
-                                    ระบบจะบันทึกตามไฟล์ ไม่แก้ให้ · คัดลอกข้อความนี้ส่งถามหน่วยงานได้
-                                </p>
-                            </div>
-                        )}
+                            );
+                        })()}
 
                         <div className="overflow-x-auto mb-5">
                             <table className="w-full text-sm min-w-[720px]">
