@@ -158,6 +158,8 @@ $ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://192.168.1.82',
     'https://neosiam.dscloud.biz',
+    // โดเมนจริงที่ผู้ใช้งานเปิด — ตัวหลักตั้งแต่ 22 ก.ย. 2569
+    'https://subcontractor.neosiamcrm.com',
     'https://subcontractor-truck-management-syst.vercel.app',
     'https://subcontractor-truck-management-syst-eight.vercel.app',
     'https://subcontractor-truck-management-system-prats-projects-95416bd3.vercel.app',

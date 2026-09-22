@@ -182,8 +182,33 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ job, onClose, onC
       setIsSubmitting(false);
       onClose();
     } catch (error) {
+      /*
+        เดิมเขียนลง console อย่างเดียว คนกดปุ่มจึงเห็นแค่ "กดแล้วไม่มีอะไรเกิดขึ้น"
+        ไม่รู้ว่าต้องแก้อะไร และไม่รู้ด้วยซ้ำว่ามันล้มเหลว — นึกว่าจบงานไปแล้ว
+
+        งานนี้อัปโหลดรูป POD ขึ้น NAS ซึ่งล้มได้จากหลายสาเหตุ: เน็ตหลุดกลางคัน
+        NAS ไม่ตอบ ไฟล์ใหญ่เกิน 10MB หรือคีย์หาย · ต้องบอกให้ชัดว่าเกิดอะไร
+        เพราะแต่ละสาเหตุแก้คนละทาง
+      */
       console.error("Failed to process POD image:", error);
       setIsSubmitting(false);
+
+      const msg = error instanceof Error ? error.message : String(error);
+      if (typeof (window as any).Swal !== 'undefined') {
+        (window as any).Swal.fire({
+          title: 'จบงานไม่สำเร็จ (Failed to Complete)',
+          html: `<div style="text-align:left">
+            <p style="margin:0 0 8px">ระบบอัปโหลดรูปหลักฐานไม่สำเร็จ งานยังไม่ถูกปิด</p>
+            <p style="margin:0 0 8px;font-size:13px;color:#64748b">รายละเอียด: ${msg}</p>
+            <p style="margin:0;font-size:13px">ลองกดยืนยันอีกครั้ง — ถ้ายังไม่ได้ ให้ลดจำนวนรูปลงแล้วลองใหม่</p>
+          </div>`,
+          icon: 'error',
+          confirmButtonColor: '#e11d48',
+          customClass: { popup: 'rounded-[1.5rem]' }
+        });
+      } else {
+        alert('จบงานไม่สำเร็จ: ' + msg);
+      }
     }
   };
 
