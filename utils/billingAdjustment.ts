@@ -2,6 +2,7 @@ import { monthlyAverageDiesel, type MonthlyAverage } from './oilMonthlyAverage';
 import { findRateAt, type FuelRateRow } from './fuelRateParser';
 import { canonicalSubcontractor } from './subcontractorAliases';
 import { canonicalTruckType } from './truckTypeAliases';
+import { samePlace } from './placeAliases';
 import type { OilBands } from './oilRounds';
 import type { Job } from '../types';
 
@@ -96,8 +97,10 @@ function matchRow(rows: FuelRateRow[], job: Job): FuelRateRow | null {
     if (!wantTruck) return null;
 
     for (const row of rows) {
-        if (!eq(row.origin, job.origin || '')) continue;
-        if (!eq(row.destination, job.destination || '')) continue;
+        // ใช้ samePlace ไม่ใช่ eq ตรง ๆ เพราะชื่อสถานที่ในใบงานกับในตารางเรท
+        // เขียนคนละแบบ — ดู utils/placeAliases.ts
+        if (!samePlace(row.origin, job.origin || '')) continue;
+        if (!samePlace(row.destination, job.destination || '')) continue;
         if (!eq(canonicalTruckType(row.truckType), wantTruck)) continue;
         // ถ้าใบงานระบุผู้รับเหมาไว้ ต้องตรงด้วย — เส้นทางเดียวกันคนละเจ้าคนละราคา
         if (wantSub && !eq(canonicalSubcontractor(row.company), wantSub)) continue;

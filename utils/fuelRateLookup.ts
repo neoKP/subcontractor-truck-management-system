@@ -1,6 +1,7 @@
 import { findRateAt, type FuelRateRow } from './fuelRateParser';
 import { canonicalSubcontractor } from './subcontractorAliases';
 import { canonicalTruckType, truckTypeSpec } from './truckTypeAliases';
+import { samePlace } from './placeAliases';
 
 /**
  * หาเรทค่าขนส่งตามราคาน้ำมัน สำหรับเส้นทางที่กำลังสร้างใบงาน
@@ -63,8 +64,8 @@ export function findFuelRateOptions(
 
     const out: FuelRateOption[] = [];
     for (const row of rows) {
-        if (!eq(row.origin, query.origin)) continue;
-        if (!eq(row.destination, query.destination)) continue;
+        if (!samePlace(row.origin, query.origin)) continue;
+        if (!samePlace(row.destination, query.destination)) continue;
         if (!eq(canonicalTruckType(row.truckType), wantTruck)) continue;
 
         const band = findRateAt(row, fuelPrice);
@@ -109,7 +110,7 @@ export function matchSelectedFuelRate(
     if (!Number.isFinite(cost) || cost <= 0) return undefined;
 
     return findFuelRateOptions(rows, query, fuelPrice)
-        .find(o => o.subcontractor === sub && o.price === cost);
+        .find(o => o.subcontractor === canonicalSubcontractor(sub) && o.price === cost);
 }
 
 /**
@@ -124,8 +125,8 @@ export function hasFuelRateRoute(rows: FuelRateRow[], query: RouteQuery): boolea
     if (!rows?.length) return false;
     const wantTruck = canonicalTruckType(query.truckType);
     return rows.some(row =>
-        eq(row.origin, query.origin) &&
-        eq(row.destination, query.destination) &&
+        samePlace(row.origin, query.origin) &&
+        samePlace(row.destination, query.destination) &&
         eq(canonicalTruckType(row.truckType), wantTruck)
     );
 }

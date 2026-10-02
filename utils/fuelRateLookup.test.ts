@@ -550,3 +550,27 @@ describe('findRateAt — ช่องว่างระหว่างช่ว�
         expect(findRateAt(r, 38.005)).toBeNull();
     });
 });
+
+describe('ชื่อสถานที่และผู้รับเหมาที่สะกดต่างจากตารางเรท', () => {
+    /*
+      หน้าเปิดใบงานต้องใช้กติกาจับคู่เดียวกับหน้ายอดปรับรายเดือน
+      ไม่งั้นหน้าหนึ่งหาเรทเจอ อีกหน้าหาไม่เจอ ทั้งที่เป็นใบงานเดียวกัน
+    */
+    const row = realRow({ origin: 'มาม่าลำพูน', company: 'เบญจวรรณขนส่ง' });
+    const q = { ...query, origin: 'มาม่า ลำพูน' };
+
+    it('หาเรทเจอเมื่อชื่อสถานที่อยู่ในทะเบียน', () => {
+        expect(hasFuelRateRoute([row], q)).toBe(true);
+        expect(findFuelRateOptions([row], q, 38.39)).toHaveLength(1);
+    });
+
+    it('ยืนยันราคาที่เลือกได้ แม้บันทึกชื่อผู้รับเหมาตามตารางเรท', () => {
+        // ใบงานเก่าอาจเก็บชื่อแบบตารางเรทไว้ ต้องยังยืนยันได้
+        expect(matchSelectedFuelRate([row], q, 38.39, { subcontractor: 'เบญจวรรณขนส่ง', cost: 2040 })).toBeDefined();
+        expect(matchSelectedFuelRate([row], q, 38.39, { subcontractor: 'เบญจวรรณ ขนส่ง', cost: 2040 })).toBeDefined();
+    });
+
+    it('ชื่อที่แค่คล้ายกันยังต้องหาไม่เจอ', () => {
+        expect(hasFuelRateRoute([row], { ...query, origin: 'ลำพูน' })).toBe(false);
+    });
+});

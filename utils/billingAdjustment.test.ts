@@ -105,6 +105,19 @@ describe('adjustJob — ยอดที่ควรจ่ายของงา�
         expect(r.status).toBe('no-rate');
     });
 
+    it('ชื่อสถานที่สะกดต่างจากตารางเรท แต่อยู่ในทะเบียน ต้องหาเรทเจอ', () => {
+        // ใบงานเขียน "มาม่า ลำพูน" ตารางเรทเขียน "มาม่าลำพูน" — ที่เดียวกัน
+        const r = adjustJob(
+            job({ origin: 'มาม่า ลำพูน' }),
+            [rateRow({ origin: 'มาม่าลำพูน' })],
+            BANDS,
+            '2026-10-02'
+        );
+
+        expect(r.status).toBe('adjusted');
+        expect(r.adjustedCost).toBe(5940);
+    });
+
     it('ใบงานที่ข้อมูลไม่ครบ ต้องบอกว่า incomplete', () => {
         for (const miss of [{ dateOfService: '' }, { origin: '' }, { destination: '' }, { truckType: '' }]) {
             const r = adjustJob(job(miss), [rateRow()], BANDS, '2026-10-02');
