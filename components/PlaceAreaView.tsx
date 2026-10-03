@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { MapPinned, Loader2, Info, X, Save, Lightbulb, Search, AlertTriangle } from 'lucide-react';
 import { watchActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
 import { usePlaceAreas, savePlaceArea } from '../utils/placeAreaStore';
-import { buildPlaceStats, rateAreaNames, rankAreaNames, areaOwners, type PlaceStat } from '../utils/placeAreaSuggest';
+import { buildPlaceStats, rateAreaNames, rankAreaNames, areaOwners, placeClues, type PlaceStat, type PlaceClues } from '../utils/placeAreaSuggest';
+import { canonicalSubcontractor } from '../utils/subcontractorAliases';
 import { samePlace } from '../utils/placeAliases';
 import { pageCount, pageNumbers as buildPageNumbers, pageSlice, PAGE_SIZE } from '../utils/pagination';
 import type { Job, PriceMatrix } from '../types';
@@ -160,6 +161,18 @@ const PlaceAreaView: React.FC<Props> = ({ jobs, priceMatrix, userName }) => {
     const safePage = Math.min(page, Math.max(totalPages, 1));
     const shown: PlaceStat[] = pageSlice(filtered, safePage, PAGE_SIZE);
 
+    // เบาะแสคิดเฉพาะการ์ดในหน้านี้ (ทีละ 20) — คิดทั้ง 300 ที่ทุกครั้งจะหน่วงหน้าจอ
+    const rateSubs = useMemo(() => new Set(rows.map(r => canonicalSubcontractor(r.company))), [rows]);
+    // ผูกกับ "รายชื่อการ์ด" ไม่ใช่อาร์เรย์ shown — shown ถูกสร้างใหม่ทุก render
+    // ถ้าผูกกับ shown จะคิดใหม่ทุกครั้งที่พิมพ์ในช่องค้นหา (20 การ์ด × ~20ms ต่อแป้น)
+    const shownKey = shown.map(s => s.place).join('');
+    const clues = useMemo(() => {
+        const m = new Map<string, PlaceClues>();
+        for (const s of shown) m.set(s.place, placeClues(s.place, jobs, rows, stats));
+        return m;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [shownKey, jobs, rows, stats, placeAreas.version]);
+
     const counts = useMemo(() => ({
         todo: stats.filter(x => x.status === 'none' && x.hasRateSub).length,
         team: stats.filter(x => x.areas.some(a => a.source === 'team')).length,
@@ -282,10 +295,94 @@ const PlaceAreaView: React.FC<Props> = ({ jobs, priceMatrix, userName }) => {
                             </div>
 
                             {s.subs.length > 0 && (
-                                <p className="text-xs text-slate-500">
-                                    ผู้รับเหมาที่วิ่ง: {s.subs.slice(0, 4).map(x => `${x.name} (${x.count})`).join(', ')}
+                                <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                                    <span>ผู้รับเหมาที่วิ่ง:</span>
+                                    {s.subs.slice(0, 5).map(x => (
+                                        <span key={x.name} className="inline-flex items-center gap-1">
+                                            {x.name} ({x.count})
+                                            {!rateSubs.has(x.name) && (
+                                                <span className="px-1.5 rounded bg-slate-100 text-slate-500 text-[10px] font-bold">ไม่มีตารางเรท</span>
+                                            )}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+
+                            {s.subs.length > 0 && s.subs.every(x => !rateSubs.has(x.name)) && (
+                                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                    ผู้รับเหมาที่วิ่งร้านนี้ไม่มีตารางเรทเลย — จับคู่ไปก็ไม่มีผล จนกว่าหน่วยงานจะทำเรทให้เจ้าเหล่านี้
                                 </p>
                             )}
+
+                            {clues.get(s.place) && (() => {
+                                const c = clues.get(s.place)!;
+                                const empty = !c.routes.length && !c.candidates.length && !c.similar.length;
+                                if (empty) return null;
+                                return (
+                                    <details open={s.status === 'none'} className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-xs text-slate-600">
+                                        <summary className="cursor-pointer font-bold text-slate-700">เบาะแสประกอบการตัดสินใจ</summary>
+                                        <div className="mt-2 space-y-3">
+                                            {c.routes.length > 0 && (
+                                                <div>
+                                                    <p className="font-bold text-slate-500 mb-1">เส้นทางที่วิ่งบ่อย (ใบงาน)</p>
+                                                    <ul className="space-y-0.5">
+                                                        {c.routes.map((r, i) => (
+                                                            <li key={i} className="break-words">
+                                                                {r.side === 'origin' ? <>ร้านนี้ → <b>{r.other || '-'}</b></> : <><b>{r.other || '-'}</b> → ร้านนี้</>}
+                                                                {' · '}{r.truck || '-'} · {r.sub || '-'} · {r.count} ครั้ง
+                                                                {r.costs.length > 0 && <> · จ่าย {r.costs.map(x => x.toLocaleString('th-TH')).join(' / ')} บาท</>}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+
+                                            {c.candidates.length > 0 && (
+                                                <div>
+                                                    <p className="font-bold text-slate-500 mb-1">
+                                                        พื้นที่ที่เป็นไปได้ — แถวในตารางของเจ้าเดียวกันที่ปลายอีกด้านตรงกัน (กดเพื่อเพิ่ม)
+                                                    </p>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {c.candidates.map(x => (
+                                                            <button
+                                                                key={`${x.area}|${x.sub}`}
+                                                                onClick={() => addArea(s.place, x.area)}
+                                                                className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-left"
+                                                            >
+                                                                <b className="text-slate-800">{x.area}</b>
+                                                                <span className="text-slate-500">
+                                                                    {' · '}ตาราง {x.sub} · ราคาตรงพอดี {x.exactPrice}/{x.support} ใบ
+                                                                    {x.nearestDiff !== null && x.exactPrice < x.support && <> · ใกล้สุดต่าง {x.nearestDiff.toLocaleString('th-TH')} บาท</>}
+                                                                </span>
+                                                                {x.nameMatch && <span className="ml-1 font-bold text-emerald-600">ชื่อสอดคล้อง</span>}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {c.similar.length > 0 && (
+                                                <div>
+                                                    <p className="font-bold text-slate-500 mb-1">ชื่อคล้ายกัน</p>
+                                                    <ul className="space-y-0.5">
+                                                        {c.similar.map(x => (
+                                                            <li key={x.name} className="break-words">
+                                                                {x.inTable ? (
+                                                                    <button onClick={() => addArea(s.place, x.name)} className="font-bold text-indigo-700 hover:underline">
+                                                                        {x.name}
+                                                                    </button>
+                                                                ) : <b>{x.name}</b>}
+                                                                {x.inTable && <span className="text-slate-400"> (ชื่อในตารางเรท — กดเพื่อเพิ่ม)</span>}
+                                                                {x.areas.length > 0 && <span> → จับคู่ไว้กับ {x.areas.join(', ')}</span>}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </details>
+                                );
+                            })()}
 
                             {codeAreas.length > 0 && (
                                 <p className="text-xs text-slate-500">

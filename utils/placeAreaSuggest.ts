@@ -1,5 +1,5 @@
 import { samePlace } from './placeAliases';
-import { areasOf, rowOrigin } from './placeZones';
+import { areasOf, rowOrigin, inZone } from './placeZones';
 import { canonicalSubcontractor } from './subcontractorAliases';
 import { canonicalTruckType } from './truckTypeAliases';
 import type { FuelRateRow } from './fuelRateParser';
@@ -128,6 +128,116 @@ export function buildPlaceStats(jobs: Job[], priceMatrix: PriceMatrix[], rows: F
             .sort((a, b) => (b.fromPrice + b.fromJobs) - (a.fromPrice + a.fromJobs));
     }
     return [...stats.values()].sort((a, b) => b.trips - a.trips || b.priceRows - a.priceRows || a.place.localeCompare(b.place, 'th'));
+}
+
+// ---------- เบาะแสประกอบการตัดสินใจ (คำนวณเฉพาะการ์ดที่แสดงอยู่) ----------
+
+export interface PlaceClues {
+    /** ผู้รับเหมาที่วิ่ง + มีตารางเรทไหม — ไม่มีตาราง = จับคู่ไปก็ไม่มีผลกับเจ้านั้น */
+    subs: { name: string; count: number; hasTable: boolean }[];
+    /** เส้นทางที่วิ่งบ่อย (จากใบงาน) */
+    routes: { side: 'origin' | 'destination'; other: string; truck: string; sub: string; count: number; costs: number[] }[];
+    /**
+     * พื้นที่ที่เป็นไปได้: แถวในตารางของผู้รับเหมา+รถเดียวกัน ที่ "ปลายอีกด้าน" ตรงกับใบงาน
+     * exactPrice = จำนวนใบงานที่ค่าขนส่งเท่ากับราคาช่องใดช่องหนึ่งของแถวนั้นพอดี
+     * nearestDiff = ค่าขนส่งต่างจากราคาที่ใกล้ที่สุดในแถวนั้นกี่บาท
+     */
+    candidates: { area: string; sub: string; support: number; exactPrice: number; nearestDiff: number | null; nameMatch: boolean }[];
+    /** ชื่อที่มีคำซ้ำกัน ทั้งในตารางเรทและสถานที่ที่จับคู่ไว้แล้ว */
+    similar: { name: string; areas: string[]; inTable: boolean }[];
+}
+
+const STOP = new Set(['ร้าน', 'ศูนย์กระจายสินค้า', 'ศูนย์กระจาย', 'เมือง', 'จังหวัด', 'อำเภอ', 'สาขา', 'บจก', 'บริษัท', 'จำกัด', 'นีโอสยาม']);
+const tokens = (s: string): string[] =>
+    (s || '').toLowerCase().split(/[\s/\-()+.,]+/).map(t => t.replace(/^อ\./, '')).filter(t => t.length >= 3 && !STOP.has(t));
+
+/**
+ * เบาะแสของสถานที่หนึ่ง — ใช้ตอนระบบแนะนำจากราคาไม่ได้ (เช่นไม่มีราคาที่ตรงเส้นเดียว)
+ *
+ * @param mapped สถานที่ที่จับคู่ไว้แล้ว (จาก buildPlaceStats) — ใช้หา "ชื่อคล้ายกัน"
+ */
+export function placeClues(
+    place: string,
+    jobs: Job[],
+    rows: FuelRateRow[],
+    mapped: { place: string; areas: { area: string }[] }[] = []
+): PlaceClues {
+    const p = clean(place);
+    const rateSubs = new Set(rows.map(r => canonicalSubcontractor(r.company)));
+    const subCount = new Map<string, number>();
+    const routeMap = new Map<string, PlaceClues['routes'][number]>();
+    const candMap = new Map<string, PlaceClues['candidates'][number]>();
+    // ชื่อพื้นที่มีคำซ้ำกับชื่อสถานที่ไหม — ใช้แยกกรณีที่ราคาเท่ากันหลายพื้นที่
+    // (ตารางพรแม่ย่าตั้งราคาเชียงใหม่กับลำพูนเท่ากัน "แจ่มฟ้า ลำพูน" ต้องได้ลำพูนก่อน)
+    const mineTokens = tokens(p);
+    const shares = (name: string) => mineTokens.some(t => tokens(name).some(u => u.includes(t) || t.includes(u)));
+    const sameOrIn = (ratePlace: string, other: string) =>
+        clean(ratePlace) === ANY || samePlace(ratePlace, other) || inZone(ratePlace, other);
+
+    for (const j of jobs || []) {
+        const o = clean(j.origin), d = clean(j.destination);
+        const side: 'origin' | 'destination' | null = samePlace(o, p) ? 'origin' : samePlace(d, p) ? 'destination' : null;
+        if (!side) continue;
+        const sub = canonicalSubcontractor(j.subcontractor || '');
+        const other = side === 'origin' ? d : o;
+        const cost = Number(j.cost) || 0;
+        if (sub) subCount.set(sub, (subCount.get(sub) || 0) + 1);
+
+        const rk = `${side}|${other}|${tt(j.truckType || '')}|${sub}`;
+        if (!routeMap.has(rk)) routeMap.set(rk, { side, other, truck: j.truckType || '', sub, count: 0, costs: [] });
+        const rt = routeMap.get(rk)!;
+        rt.count++;
+        if (cost > 0 && !rt.costs.includes(cost)) rt.costs.push(cost);
+
+        // แถวของเจ้าเดียวกัน รถเดียวกัน ที่ปลายอีกด้านตรง — ปลายฝั่งนี้คือพื้นที่ที่เป็นไปได้
+        for (const r of rows) {
+            if (canonicalSubcontractor(r.company) !== sub || tt(r.truckType) !== tt(j.truckType || '')) continue;
+            const rOrigin = clean(rowOrigin(r).origin), rDest = clean(r.destination);
+            const otherOk = side === 'origin' ? sameOrIn(rDest, other) : sameOrIn(rOrigin, other);
+            if (!otherOk) continue;
+            const area = side === 'origin' ? rOrigin : rDest;
+            if (!area || area === ANY || samePlace(area, p)) continue;
+            const ck = `${area}|${sub}`;
+            if (!candMap.has(ck)) candMap.set(ck, { area, sub, support: 0, exactPrice: 0, nearestDiff: null, nameMatch: shares(area) });
+            const c = candMap.get(ck)!;
+            c.support++;
+            const prices = r.bands.filter(b => typeof b.price === 'number' && b.price > 0).map(b => b.price as number);
+            if (cost > 0 && prices.length) {
+                if (prices.some(x => cents(x) === cents(cost))) c.exactPrice++;
+                const diff = Math.min(...prices.map(x => Math.abs(x - cost)));
+                c.nearestDiff = c.nearestDiff === null ? diff : Math.min(c.nearestDiff, diff);
+            }
+        }
+    }
+
+    // ชื่อคล้ายกัน: นับคำที่ซ้ำกัน
+    const mine = mineTokens;
+    const pool = new Map<string, { name: string; areas: string[]; inTable: boolean }>();
+    for (const n of rateAreaNames(rows)) pool.set(n, { name: n, areas: [], inTable: true });
+    for (const m of mapped) {
+        if (!m.areas.length) continue;
+        const cur = pool.get(m.place);
+        pool.set(m.place, { name: m.place, areas: m.areas.map(a => a.area), inTable: cur?.inTable ?? false });
+    }
+    const similar = [...pool.values()]
+        .filter(x => !samePlace(x.name, p))
+        .map(x => ({ x, score: mine.filter(t => tokens(x.name).some(u => u.includes(t) || t.includes(u))).length }))
+        .filter(v => v.score > 0)
+        .sort((a, b) => b.score - a.score || a.x.name.localeCompare(b.x.name, 'th'))
+        .slice(0, 4)
+        .map(v => v.x);
+
+    return {
+        subs: [...subCount].map(([name, count]) => ({ name, count, hasTable: rateSubs.has(name) }))
+            .sort((a, b) => b.count - a.count),
+        routes: [...routeMap.values()].sort((a, b) => b.count - a.count).slice(0, 5)
+            .map(r => ({ ...r, costs: r.costs.sort((a, b) => a - b).slice(0, 3) })),
+        candidates: [...candMap.values()]
+            .sort((a, b) => b.exactPrice - a.exactPrice || Number(b.nameMatch) - Number(a.nameMatch)
+                || b.support - a.support || (a.nearestDiff ?? Infinity) - (b.nearestDiff ?? Infinity))
+            .slice(0, 4),
+        similar,
+    };
 }
 
 /** ตัดช่องว่างและตัวพิมพ์ — "เชียง ใหม่" กับ "เชียงใหม่" ค้นเจอเหมือนกัน */

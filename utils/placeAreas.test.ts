@@ -18,7 +18,7 @@ vi.mock('../firebaseConfig', () => ({
 
 import { parsePlaceAreas, savePlaceArea } from './placeAreaStore';
 import { setRuntimePlaceAreas, inZone, matchRoute, areasOf } from './placeZones';
-import { buildPlaceStats, rateAreaNames, rankAreaNames, areaOwners } from './placeAreaSuggest';
+import { buildPlaceStats, rateAreaNames, rankAreaNames, areaOwners, placeClues } from './placeAreaSuggest';
 import type { FuelRateRow } from './fuelRateParser';
 import type { Job, PriceMatrix } from '../types';
 
@@ -241,5 +241,44 @@ describe('เตือนเมื่อจับคู่แล้วจะไ�
             { name: 'พรมณี 24เอช ทรานสปอร์ต', count: 2 },
             { name: 'KNN', count: 1 },
         ]);
+    });
+});
+
+describe('placeClues — เบาะแสประกอบการตัดสินใจ', () => {
+    // ตารางพรแม่ย่าตั้งราคาเชียงใหม่กับลำพูนเท่ากัน (เหตุการณ์จริงของ "แจ่มฟ้า ลำพูน")
+    const rows = [
+        row({ company: 'พรแม่ย่า', origin: 'คลอง13 / กทม', destination: 'เชียงใหม่', truckType: '10W', bands: [{ fuelFrom: 29.01, fuelTo: 30, price: 13100 }] }),
+        row({ company: 'พรแม่ย่า', origin: 'คลอง13 / กทม', destination: 'ลำพูน', truckType: '10W', bands: [{ fuelFrom: 29.01, fuelTo: 30, price: 13100 }] }),
+        row({ company: 'พรแม่ย่า', origin: 'บางปะอิน (นมไทย)', destination: 'ลำปาง', truckType: '10W', bands: [{ fuelFrom: 29.01, fuelTo: 30, price: 9000 }] }),
+    ];
+    const j = (over: Partial<Job>): Job => ({ id: 'J', origin: 'นีโอคอร์ปอเรท คลอง13', destination: 'แจ่มฟ้า ลำพูน', subcontractor: 'รถร่วมพรแม่ย่า', truckType: '10w', cost: 13100, ...over } as Job);
+
+    it('พื้นที่ที่เป็นไปได้: ปลายอีกด้านต้องตรง และชื่อสอดคล้องขึ้นก่อนเมื่อราคาเท่ากัน', () => {
+        const c = placeClues('แจ่มฟ้า ลำพูน', [j({}), j({})], rows);
+        expect(c.candidates.map(x => x.area)).toEqual(['ลำพูน', 'เชียงใหม่']);
+        expect(c.candidates[0]).toMatchObject({ sub: 'รถร่วมพรแม่ย่า', support: 2, exactPrice: 2, nameMatch: true });
+        // ลำปางมีต้นทางบางปะอิน ไม่ตรงกับคลอง13 — ต้องไม่โผล่
+        expect(c.candidates.some(x => x.area === 'ลำปาง')).toBe(false);
+    });
+
+    it('ราคาไม่ตรงพอดี บอกว่าใกล้สุดต่างกี่บาท', () => {
+        const c = placeClues('แจ่มฟ้า ลำพูน', [j({ cost: 13000 })], rows);
+        expect(c.candidates[0]).toMatchObject({ exactPrice: 0, nearestDiff: 100 });
+    });
+
+    it('ผู้รับเหมาที่ไม่มีตารางเรท ติดป้ายไว้ และไม่มีพื้นที่ที่เป็นไปได้', () => {
+        const c = placeClues('อำพลฟู้ดส์ / เทพผดุงพร', [j({ origin: 'อำพลฟู้ดส์ / เทพผดุงพร', destination: 'นีโอสยาม สาย3', subcontractor: 'รถร่วม deliveree' })], rows);
+        expect(c.subs).toEqual([{ name: 'รถร่วม deliveree', count: 1, hasTable: false }]);
+        expect(c.candidates).toEqual([]);
+    });
+
+    it('เส้นทางที่วิ่งบ่อย รวมค่าขนส่งที่จ่ายจริงไม่ซ้ำ', () => {
+        const c = placeClues('แจ่มฟ้า ลำพูน', [j({ cost: 13300 }), j({ cost: 13100 }), j({ cost: 13100 })], rows);
+        expect(c.routes[0]).toMatchObject({ side: 'destination', other: 'นีโอคอร์ปอเรท คลอง13', count: 3, costs: [13100, 13300] });
+    });
+
+    it('ชื่อคล้ายกัน: เจอชื่อในตารางและสถานที่ที่จับคู่ไว้แล้ว', () => {
+        const c = placeClues('อำพลฟู้ดส์ / เทพผดุงพร', [], rows, [{ place: 'อำพลฟู้ดส์', areas: [{ area: 'กทม ปริมณฑล' }] }]);
+        expect(c.similar[0]).toEqual({ name: 'อำพลฟู้ดส์', areas: ['กทม ปริมณฑล'], inTable: false });
     });
 });
