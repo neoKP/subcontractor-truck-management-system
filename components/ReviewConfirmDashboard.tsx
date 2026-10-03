@@ -8,6 +8,7 @@ import ReviewConfirmModal from './ReviewConfirmModal';
 import { useJobFuelRate } from '../utils/useJobFuelRate';
 import { watchActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
 import { findFuelRateOptions } from '../utils/fuelRateLookup';
+import { usePlaceAreas } from '../utils/placeAreaStore';
 import { oilPriceAtDate } from '../utils/oilPriceAtDate';
 import { useOilPrice } from '../utils/useOilPrice';
 import { todayIsoLocal } from '../utils/oilRounds';
@@ -83,6 +84,8 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
     const [fuelVersion, setFuelVersion] = useState<FuelRateVersion | null>(null);
     useEffect(() => watchActiveFuelRates(v => setFuelVersion(v), () => setFuelVersion(null)), []);
     const liveOil = useOilPrice();
+    // เรียกเพื่อให้หน้านี้ render ใหม่เมื่อทีมบันทึกการจับคู่สถานที่
+    usePlaceAreas();
 
 
     /** ราคาในใบงานตรงกับเรทตามน้ำมันของวันที่ต้องการรถไหม */

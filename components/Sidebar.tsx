@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { UserRole, USER_ROLE_LABELS } from '../types';
-import { Calculator, LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users, TrendingUp, ChevronLeft, ChevronRight, LayoutPanelTop, BarChart3, FileSpreadsheet, CheckSquare, Banknote, Building2, Fuel, Table2, Upload } from 'lucide-react';
+import { Calculator, LayoutDashboard, PlusCircle, Receipt, ShieldCheck, Tag, Truck, User, X, PieChart, ClipboardCheck, Users, TrendingUp, ChevronLeft, ChevronRight, LayoutPanelTop, BarChart3, FileSpreadsheet, CheckSquare, Banknote, Building2, Fuel, Table2, Upload, MapPinned } from 'lucide-react';
 
 interface SidebarProps {
   currentRole: UserRole;
@@ -35,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, setActiveTab,
     { id: 'fuel-rates', label: 'Fuel Rates / ตารางเรทค่าขนส่ง', icon: Table2, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DISPATCHER] },
     { id: 'fuel-rate-upload', label: 'Upload Rates / อัปโหลดเรท', icon: Upload, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'billing-adjust', label: 'Monthly Adjustment / ยอดปรับรายเดือน', icon: Calculator, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
+    { id: 'place-areas', label: 'Place Mapping / จับคู่สถานที่', icon: MapPinned, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
     { id: 'users', label: 'Users Management / จัดการผู้ใช้', icon: Users, roles: [UserRole.ADMIN] },
     { id: 'logs', label: 'Audit Trail / ประวัติระบบ', icon: ShieldCheck, roles: [UserRole.ADMIN, UserRole.ACCOUNTANT] },
   ];

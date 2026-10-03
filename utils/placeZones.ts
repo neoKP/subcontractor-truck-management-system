@@ -164,6 +164,26 @@ const ORIGIN_WHEN_SAME_AS_DEST: Record<string, string> = {
     'พรมณี 24เอช ทรานสปอร์ต': 'สหพัฒน์ศรีราชา',
 };
 
+/**
+ * รายการที่ทีมบันทึกเองจากหน้า "จับคู่สถานที่" (เก็บที่ fuelRates/placeAreas)
+ *
+ * แยกจาก ZONE_MEMBERS เพราะ ZONE_MEMBERS ผ่านการตรวจหลักฐานและเทสต์มาแล้ว
+ * ส่วนนี้มาจากหน้าเว็บ — ทำได้แค่ "เพิ่ม" การจับคู่ ไม่ลบหรือเปลี่ยนของในโค้ด
+ * ถ้าลบข้อมูลใน RTDB ทิ้ง ระบบจะกลับไปใช้แค่ ZONE_MEMBERS เหมือนเดิม
+ *
+ * ตั้งค่าผ่าน utils/placeAreaStore.ts เท่านั้น
+ */
+export interface PlaceAreaEntry {
+    place: string;
+    areas: string[];
+}
+let runtimeEntries: PlaceAreaEntry[] = [];
+
+export function setRuntimePlaceAreas(entries: PlaceAreaEntry[]): void {
+    runtimeEntries = (entries || []).filter(e =>
+        e && typeof e.place === 'string' && e.place.trim() && Array.isArray(e.areas));
+}
+
 /** สถานที่นี้อยู่ในเขตที่ตารางเรียกว่า zone ไหม */
 export function inZone(zone: string, place: string): boolean {
     const p = (place || '').trim();
@@ -172,7 +192,29 @@ export function inZone(zone: string, place: string): boolean {
         if (!samePlace(name, zone)) continue;
         if (members.some(m => samePlace(m, p))) return true;
     }
-    return false;
+    return runtimeEntries.some(e =>
+        samePlace(e.place, p) && e.areas.some(a => samePlace(a, zone)));
+}
+
+/**
+ * พื้นที่ทั้งหมดที่สถานที่นี้อยู่ — ทั้งที่ยืนยันในโค้ด และที่ทีมบันทึกจากหน้าเว็บ
+ * ใช้แสดงในหน้า "จับคู่สถานที่" ว่าแต่ละที่จับคู่ไว้กับอะไรแล้ว
+ */
+export function areasOf(place: string): { area: string; source: 'code' | 'team' }[] {
+    const p = (place || '').trim();
+    if (!p) return [];
+    const out: { area: string; source: 'code' | 'team' }[] = [];
+    for (const [name, members] of Object.entries(ZONE_MEMBERS)) {
+        if (members.some(m => samePlace(m, p))) out.push({ area: name, source: 'code' });
+    }
+    for (const [name, members] of Object.entries(COMBINED_PLACES)) {
+        if (members.some(m => samePlace(m, p))) out.push({ area: name, source: 'code' });
+    }
+    for (const e of runtimeEntries) {
+        if (!samePlace(e.place, p)) continue;
+        for (const a of e.areas) if (!out.some(o => samePlace(o.area, a))) out.push({ area: a, source: 'team' });
+    }
+    return out;
 }
 
 /**

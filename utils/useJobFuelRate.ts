@@ -4,6 +4,7 @@ import { findFuelRateOptions, type FuelRateOption } from './fuelRateLookup';
 import { oilPriceAtDate, type OilAtDate } from './oilPriceAtDate';
 import { useOilPrice } from './useOilPrice';
 import { todayIsoLocal } from './oilRounds';
+import { usePlaceAreas } from './placeAreaStore';
 
 /**
  * เรทตามราคาน้ำมันของใบงานหนึ่ง ณ วันที่ต้องการรถ
@@ -31,6 +32,8 @@ export function useJobFuelRate(
 ): JobFuelRate {
     const [version, setVersion] = useState<FuelRateVersion | null>(null);
     const live = useOilPrice();
+    // การจับคู่สถานที่ที่ทีมบันทึก (มาถึงทีหลัง) — เปลี่ยนเมื่อไรต้องหาเรทใหม่
+    const placeAreas = usePlaceAreas();
 
     // เฝ้าดูรุ่นที่ใช้งานแทนโหลดครั้งเดียว — หน้าจอถูกเปิดค้างได้นาน
     // ถ้ามีคนอัปเรทรอบใหม่ระหว่างนั้น ต้องเห็นราคาใหม่ ไม่ใช่ตัดสินใจจากเรทเก่า
@@ -50,7 +53,8 @@ export function useJobFuelRate(
             { origin: route.origin || '', destination: route.destination || '', truckType: route.truckType || '' },
             diesel
         ),
-        [version, route.origin, route.destination, route.truckType, diesel]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [version, route.origin, route.destination, route.truckType, diesel, placeAreas.version]
     );
 
     return { options, diesel, oil, version };

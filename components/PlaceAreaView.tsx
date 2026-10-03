@@ -1,0 +1,305 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { MapPinned, Loader2, Info, Plus, X, Save, Lightbulb, Search } from 'lucide-react';
+import { watchActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
+import { usePlaceAreas, savePlaceArea } from '../utils/placeAreaStore';
+import { buildPlaceStats, rateAreaNames, type PlaceStat } from '../utils/placeAreaSuggest';
+import { samePlace } from '../utils/placeAliases';
+import { pageCount, pageNumbers as buildPageNumbers, pageSlice, PAGE_SIZE } from '../utils/pagination';
+import type { Job, PriceMatrix } from '../types';
+
+/*
+  หน้า "จับคู่สถานที่" — บอกระบบว่าสถานที่ในใบงาน/ราคากลาง อยู่พื้นที่ไหนในตารางเรท
+
+  ตารางเรทค่าขนส่ง (จากหน่วยงาน) เขียนต้นทาง/ปลายทางเป็นพื้นที่กว้าง เช่น "กทม ปริมณฑล"
+  แต่ใบงานและราคากลางเขียนชื่อร้าน · ถ้าไม่จับคู่ ระบบหาเรทไม่เจอ
+
+  สิ่งที่บันทึกที่นี่ "เพิ่ม" การจับคู่อย่างเดียว ไม่แตะรายการที่ยืนยันไว้ในโค้ด
+  (utils/placeZones.ts) และไม่แก้ใบงานหรือราคากลาง
+*/
+
+type Filter = 'todo' | 'team' | 'all';
+
+const STATUS_CHIP: Record<PlaceStat['status'], { label: string; cls: string }> = {
+    exact: { label: 'ชื่อตรงกับตาราง', cls: 'bg-emerald-100 text-emerald-700' },
+    area: { label: 'จับคู่พื้นที่แล้ว', cls: 'bg-indigo-100 text-indigo-700' },
+    none: { label: 'ยังไม่จับคู่', cls: 'bg-rose-100 text-rose-700' },
+};
+
+interface Props {
+    jobs: Job[];
+    priceMatrix: PriceMatrix[];
+    userName: string;
+}
+
+const PlaceAreaView: React.FC<Props> = ({ jobs, priceMatrix, userName }) => {
+    const [version, setVersion] = useState<FuelRateVersion | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [filter, setFilter] = useState<Filter>('todo');
+    const [q, setQ] = useState('');
+    const [page, setPage] = useState(1);
+    /** พื้นที่ที่กำลังแก้ ต่อสถานที่ — ยังไม่บันทึก */
+    const [drafts, setDrafts] = useState<Record<string, string[]>>({});
+    const [picks, setPicks] = useState<Record<string, string>>({});
+    const [saving, setSaving] = useState<string | null>(null);
+    const placeAreas = usePlaceAreas();
+
+    useEffect(() => watchActiveFuelRates(
+        v => { setVersion(v); setLoading(false); },
+        () => { setVersion(null); setLoading(false); },
+    ), []);
+
+    const rows = version?.rows ?? [];
+    const areaNames = useMemo(() => rateAreaNames(rows), [rows]);
+    const stats = useMemo(
+        () => buildPlaceStats(jobs, priceMatrix, rows, placeAreas.entries.map(e => e.place)),
+        // placeAreas.version: รายการของทีมมาถึงทีหลัง ต้องคำนวณสถานะใหม่
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [jobs, priceMatrix, rows, placeAreas.version]
+    );
+
+    const teamAreas = (place: string) => placeAreas.entries.find(e => samePlace(e.place, place))?.areas ?? [];
+
+    const filtered = useMemo(() => {
+        const s = q.trim().toLowerCase();
+        return stats.filter(x => {
+            if (s && !x.place.toLowerCase().includes(s)) return false;
+            if (filter === 'todo') return x.status === 'none' && x.hasRateSub;
+            if (filter === 'team') return x.areas.some(a => a.source === 'team');
+            return true;
+        });
+    }, [stats, filter, q]);
+
+    useEffect(() => { setPage(1); }, [filter, q]);
+    const totalPages = pageCount(filtered.length, PAGE_SIZE);
+    const safePage = Math.min(page, Math.max(totalPages, 1));
+    const shown: PlaceStat[] = pageSlice(filtered, safePage, PAGE_SIZE);
+
+    const counts = useMemo(() => ({
+        todo: stats.filter(x => x.status === 'none' && x.hasRateSub).length,
+        team: stats.filter(x => x.areas.some(a => a.source === 'team')).length,
+        all: stats.length,
+    }), [stats]);
+
+    const draftOf = (place: string) => drafts[place] ?? teamAreas(place);
+    const setDraft = (place: string, areas: string[]) => setDrafts(d => ({ ...d, [place]: areas }));
+    const addArea = (place: string, area: string) => {
+        if (!area) return;
+        const cur = draftOf(place);
+        if (cur.some(a => samePlace(a, area))) return;
+        setDraft(place, [...cur, area]);
+    };
+    const changed = (place: string) => {
+        const a = [...draftOf(place)].sort().join('|');
+        const b = [...teamAreas(place)].sort().join('|');
+        return a !== b;
+    };
+
+    const handleSave = async (place: string) => {
+        const areas = draftOf(place);
+        const Swal = (window as any).Swal;
+        const msg = areas.length
+            ? `ยืนยันว่า "${place}" อยู่ในพื้นที่: ${areas.join(', ')} — มีผลกับการหาเรทและยอดปรับทันที`
+            : `ลบการจับคู่ของ "${place}" ที่ทีมบันทึกไว้`;
+        if (Swal) {
+            const r = await Swal.fire({
+                icon: 'question', title: 'ยืนยันการจับคู่', text: msg,
+                showCancelButton: true, confirmButtonText: 'ยืนยัน', cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#4f46e5', customClass: { popup: 'rounded-[1.5rem]' },
+            });
+            if (!r.isConfirmed) return;
+        } else if (!window.confirm(msg)) return;
+
+        setSaving(place);
+        try {
+            await savePlaceArea(place, areas, userName);
+            setDrafts(d => { const n = { ...d }; delete n[place]; return n; });
+        } catch (e) {
+            console.error('[PlaceArea] บันทึกไม่สำเร็จ:', e);
+            const text = e instanceof Error ? e.message : String(e);
+            if (Swal) Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text, confirmButtonColor: '#ef4444' });
+            else alert('บันทึกไม่สำเร็จ: ' + text);
+        } finally {
+            setSaving(null);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-20 text-slate-400 gap-3">
+                <Loader2 className="animate-spin" size={20} />
+                <span className="text-sm font-bold">กำลังโหลดตารางเรท…</span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="bg-slate-900 rounded-[2rem] p-6 sm:p-8 text-white">
+                <div className="flex items-center gap-4">
+                    <div className="bg-white/10 rounded-2xl p-3"><MapPinned size={24} /></div>
+                    <div>
+                        <h1 className="text-2xl font-black">จับคู่สถานที่กับตารางเรท</h1>
+                        <p className="text-[11px] font-bold tracking-[0.2em] text-slate-400 uppercase">Place → Rate Area</p>
+                        <p className="text-sm text-slate-300 mt-1">
+                            ตารางเรทเขียนพื้นที่กว้าง (เช่น กทม ปริมณฑล) · ใบงานและราคากลางเขียนชื่อร้าน
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col sm:flex-row gap-3 sm:items-center">
+                <div className="flex flex-wrap gap-2">
+                    {([
+                        ['todo', `ยังไม่จับคู่ (${counts.todo})`],
+                        ['team', `ทีมจับคู่แล้ว (${counts.team})`],
+                        ['all', `ทั้งหมด (${counts.all})`],
+                    ] as [Filter, string][]).map(([k, label]) => (
+                        <button
+                            key={k}
+                            onClick={() => setFilter(k)}
+                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${filter === k ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+                <div className="relative sm:ml-auto sm:w-72">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                        value={q}
+                        onChange={e => setQ(e.target.value)}
+                        placeholder="ค้นหาชื่อสถานที่"
+                        className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500"
+                    />
+                </div>
+            </div>
+
+            {filter === 'todo' && (
+                <p className="text-xs text-slate-500 -mt-3 px-1">
+                    แสดงเฉพาะสถานที่ที่มีงานของผู้รับเหมาที่มีตารางเรท — สถานที่ของเจ้าที่ไม่มีเรท จับคู่ไปก็ไม่มีผล
+                </p>
+            )}
+
+            <div className="space-y-3">
+                {shown.map(s => {
+                    const draft = draftOf(s.place);
+                    const codeAreas = s.areas.filter(a => a.source === 'code');
+                    const chip = STATUS_CHIP[s.status];
+                    return (
+                        <div key={s.place} className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
+                            <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+                                <p className="font-black text-slate-900 break-words min-w-0">{s.place}</p>
+                                <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold ${chip.cls}`}>{chip.label}</span>
+                                <span className="text-xs text-slate-500 sm:ml-auto tabular-nums">
+                                    ใบงาน {s.trips.toLocaleString('th-TH')} ครั้ง · ราคากลาง {s.priceRows} เส้น
+                                </span>
+                            </div>
+
+                            {codeAreas.length > 0 && (
+                                <p className="text-xs text-slate-500">
+                                    ยืนยันในระบบแล้ว: {codeAreas.map(a => a.area).join(', ')}
+                                </p>
+                            )}
+
+                            {s.suggestions.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-xs font-bold text-amber-700 flex items-center gap-1">
+                                        <Lightbulb size={14} /> ระบบแนะนำ:
+                                    </span>
+                                    {s.suggestions.slice(0, 3).map(sg => {
+                                        // หลักฐานชิ้นเดียวมักเป็นราคาบังเอิญตรง (เช่น สมุทรสงคราม → เขตพิจิตร)
+                                        const weak = sg.fromPrice + sg.fromJobs < 2;
+                                        return (
+                                            <button
+                                                key={sg.area}
+                                                onClick={() => addArea(s.place, sg.area)}
+                                                className={`px-2.5 py-1 rounded-lg border text-xs ${weak
+                                                    ? 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
+                                                    : 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100'}`}
+                                                title="กดเพื่อเพิ่ม — ต้องกดบันทึกอีกครั้ง"
+                                            >
+                                                {sg.area} · ราคากลาง {sg.fromPrice} · ใบงาน {sg.fromJobs}
+                                                {weak && ' · หลักฐานน้อย'}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                {draft.map(a => (
+                                    <span key={a} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold">
+                                        {a}
+                                        <button onClick={() => setDraft(s.place, draft.filter(x => x !== a))} aria-label={`เอา ${a} ออก`}>
+                                            <X size={12} />
+                                        </button>
+                                    </span>
+                                ))}
+                                <select
+                                    value={picks[s.place] ?? ''}
+                                    onChange={e => setPicks(p => ({ ...p, [s.place]: e.target.value }))}
+                                    className="min-w-0 max-w-full sm:w-72 px-3 py-1.5 rounded-lg border border-slate-200 text-sm"
+                                    aria-label={`พื้นที่ในตารางเรทของ ${s.place}`}
+                                >
+                                    <option value="">— เลือกพื้นที่ในตารางเรท —</option>
+                                    {areaNames.map(n => <option key={n} value={n}>{n}</option>)}
+                                </select>
+                                <button
+                                    onClick={() => { addArea(s.place, picks[s.place] ?? ''); setPicks(p => ({ ...p, [s.place]: '' })); }}
+                                    disabled={!picks[s.place]}
+                                    className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-sm font-bold disabled:opacity-40 flex items-center gap-1"
+                                >
+                                    <Plus size={14} /> เพิ่ม
+                                </button>
+                                {changed(s.place) && (
+                                    <button
+                                        onClick={() => handleSave(s.place)}
+                                        disabled={saving === s.place}
+                                        className="ml-auto px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black flex items-center gap-1 disabled:bg-slate-400"
+                                    >
+                                        {saving === s.place ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                        บันทึก
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+                {!shown.length && (
+                    <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 text-sm font-bold">
+                        ไม่มีรายการ
+                    </div>
+                )}
+            </div>
+
+            {totalPages > 1 && (
+                <div className="flex flex-wrap items-center justify-center gap-1.5">
+                    {buildPageNumbers(totalPages, safePage).map((p, i) =>
+                        p === null ? (
+                            <span key={`gap-${i}`} className="px-2 text-slate-400">…</span>
+                        ) : (
+                            <button
+                                key={p}
+                                onClick={() => setPage(p as number)}
+                                className={`min-w-9 h-9 px-2 rounded-lg text-sm font-bold ${p === safePage ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                            >
+                                {p}
+                            </button>
+                        )
+                    )}
+                </div>
+            )}
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex gap-3">
+                <Info className="text-slate-400 shrink-0 mt-0.5" size={18} />
+                <div className="text-xs text-slate-600 space-y-1">
+                    <p><span className="font-bold">จับคู่เฉพาะที่มั่นใจ</span> — ถ้าจับคู่ผิด ระบบจะคิดค่าขนส่งด้วยเรทของพื้นที่อื่น</p>
+                    <p>คำแนะนำมาจากราคากลางและค่าขนส่งในใบงานที่ตรงกับราคาของเส้นทางเดียวในตาราง เป็นแค่ข้อมูลประกอบ</p>
+                    <p>ระบบใช้ชื่อตรงก่อนเสมอ การจับคู่พื้นที่ใช้เมื่อหาชื่อตรงไม่เจอ · หน้านี้ไม่แก้ใบงานและราคากลาง</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default PlaceAreaView;

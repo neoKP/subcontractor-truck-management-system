@@ -7,6 +7,7 @@ import { watchActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateSto
 import { useOilPrice } from '../utils/useOilPrice';
 import { todayIsoLocal } from '../utils/oilRounds';
 import { summarizeMonth, monthsWithJobs, type AdjustedJob } from '../utils/billingAdjustment';
+import { usePlaceAreas } from '../utils/placeAreaStore';
 import { pageCount, pageNumbers as buildPageNumbers, pageSlice, PAGE_SIZE } from '../utils/pagination';
 import type { Job } from '../types';
 
@@ -65,6 +66,7 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
     const [page, setPage] = useState(1);
     const [exporting, setExporting] = useState(false);
     const live = useOilPrice();
+    const placeAreas = usePlaceAreas();
 
     useEffect(() => watchActiveFuelRates(
         v => { setVersion(v); setLoading(false); },
@@ -84,7 +86,9 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
         () => (month
             ? summarizeMonth(jobs, month, version?.rows ?? [], live.byDate, todayIsoLocal())
             : null),
-        [jobs, month, version, live.byDate]
+        // placeAreas.version: การจับคู่สถานที่ของทีมมาถึงทีหลัง ต้องคำนวณยอดใหม่
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [jobs, month, version, live.byDate, placeAreas.version]
     );
 
     useEffect(() => { setPage(1); }, [month]);
