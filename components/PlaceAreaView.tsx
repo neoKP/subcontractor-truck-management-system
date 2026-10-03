@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MapPinned, Loader2, Info, Plus, X, Save, Lightbulb, Search } from 'lucide-react';
+import { MapPinned, Loader2, Info, X, Save, Lightbulb, Search } from 'lucide-react';
 import { watchActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
 import { usePlaceAreas, savePlaceArea } from '../utils/placeAreaStore';
-import { buildPlaceStats, rateAreaNames, type PlaceStat } from '../utils/placeAreaSuggest';
+import { buildPlaceStats, rateAreaNames, rankAreaNames, type PlaceStat } from '../utils/placeAreaSuggest';
 import { samePlace } from '../utils/placeAliases';
 import { pageCount, pageNumbers as buildPageNumbers, pageSlice, PAGE_SIZE } from '../utils/pagination';
 import type { Job, PriceMatrix } from '../types';
@@ -25,6 +25,78 @@ const STATUS_CHIP: Record<PlaceStat['status'], { label: string; cls: string }> =
     none: { label: 'ยังไม่จับคู่', cls: 'bg-rose-100 text-rose-700' },
 };
 
+/**
+ * ช่องพิมพ์ค้นหาพื้นที่ในตารางเรท — แบบเดียวกับช่องเลือกบริษัทในหน้าเปิดใบงาน
+ *
+ * พิมพ์แล้วกรอง+เรียง (ตรงทั้งคำ → ขึ้นต้น → มีอยู่ข้างใน) · ↑↓ เลื่อน · Enter เลือก · Esc ปิด
+ * เลือกแล้วเพิ่มทันที ไม่ต้องกดปุ่มเพิ่มอีกรอบ · รับได้เฉพาะชื่อที่มีในตาราง
+ */
+const AreaPicker: React.FC<{
+    names: string[];
+    exclude: string[];
+    label: string;
+    onPick: (area: string) => void;
+}> = ({ names, exclude, label, onPick }) => {
+    const [text, setText] = useState('');
+    const [open, setOpen] = useState(false);
+    const [active, setActive] = useState(0);
+    const options = useMemo(
+        () => rankAreaNames(names, text).filter(n => !exclude.some(e => samePlace(e, n))),
+        [names, text, exclude]
+    );
+    useEffect(() => { setActive(0); }, [text]);
+
+    const pick = (n: string | undefined) => {
+        if (!n) return;
+        onPick(n);
+        setText('');
+        setOpen(false);
+    };
+
+    return (
+        <div className="relative min-w-0 w-full sm:w-80">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+                type="text"
+                autoComplete="off"
+                value={text}
+                placeholder="พิมพ์ค้นหาพื้นที่ในตารางเรท…"
+                aria-label={label}
+                role="combobox"
+                aria-expanded={open}
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 text-sm outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500"
+                onFocus={() => setOpen(true)}
+                onChange={e => { setText(e.target.value); setOpen(true); }}
+                // หน่วงก่อนปิด ให้ onMouseDown ของตัวเลือกทำงานทัน
+                onBlur={() => setTimeout(() => setOpen(false), 150)}
+                onKeyDown={e => {
+                    if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setActive(i => Math.min(i + 1, options.length - 1)); }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(i => Math.max(i - 1, 0)); }
+                    else if (e.key === 'Enter') { e.preventDefault(); if (open) pick(options[active]); }
+                    else if (e.key === 'Escape') { setOpen(false); }
+                }}
+            />
+            {open && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto">
+                    {options.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-slate-400 font-bold">ไม่พบพื้นที่ที่ค้นหา</div>
+                    ) : options.map((n, i) => (
+                        <button
+                            key={n}
+                            type="button"
+                            onMouseDown={() => pick(n)}
+                            onMouseEnter={() => setActive(i)}
+                            className={`w-full text-left px-3 py-2 text-sm ${i === active ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-700'} ${i ? 'border-t border-slate-100' : ''}`}
+                        >
+                            {n}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 interface Props {
     jobs: Job[];
     priceMatrix: PriceMatrix[];
@@ -39,7 +111,6 @@ const PlaceAreaView: React.FC<Props> = ({ jobs, priceMatrix, userName }) => {
     const [page, setPage] = useState(1);
     /** พื้นที่ที่กำลังแก้ ต่อสถานที่ — ยังไม่บันทึก */
     const [drafts, setDrafts] = useState<Record<string, string[]>>({});
-    const [picks, setPicks] = useState<Record<string, string>>({});
     const [saving, setSaving] = useState<string | null>(null);
     const placeAreas = usePlaceAreas();
 
@@ -235,22 +306,12 @@ const PlaceAreaView: React.FC<Props> = ({ jobs, priceMatrix, userName }) => {
                                         </button>
                                     </span>
                                 ))}
-                                <select
-                                    value={picks[s.place] ?? ''}
-                                    onChange={e => setPicks(p => ({ ...p, [s.place]: e.target.value }))}
-                                    className="min-w-0 max-w-full sm:w-72 px-3 py-1.5 rounded-lg border border-slate-200 text-sm"
-                                    aria-label={`พื้นที่ในตารางเรทของ ${s.place}`}
-                                >
-                                    <option value="">— เลือกพื้นที่ในตารางเรท —</option>
-                                    {areaNames.map(n => <option key={n} value={n}>{n}</option>)}
-                                </select>
-                                <button
-                                    onClick={() => { addArea(s.place, picks[s.place] ?? ''); setPicks(p => ({ ...p, [s.place]: '' })); }}
-                                    disabled={!picks[s.place]}
-                                    className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-sm font-bold disabled:opacity-40 flex items-center gap-1"
-                                >
-                                    <Plus size={14} /> เพิ่ม
-                                </button>
+                                <AreaPicker
+                                    names={areaNames}
+                                    exclude={draft}
+                                    label={`พื้นที่ในตารางเรทของ ${s.place}`}
+                                    onPick={area => addArea(s.place, area)}
+                                />
                                 {changed(s.place) && (
                                     <button
                                         onClick={() => handleSave(s.place)}

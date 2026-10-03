@@ -18,7 +18,7 @@ vi.mock('../firebaseConfig', () => ({
 
 import { parsePlaceAreas, savePlaceArea } from './placeAreaStore';
 import { setRuntimePlaceAreas, inZone, matchRoute, areasOf } from './placeZones';
-import { buildPlaceStats, rateAreaNames } from './placeAreaSuggest';
+import { buildPlaceStats, rateAreaNames, rankAreaNames } from './placeAreaSuggest';
 import type { FuelRateRow } from './fuelRateParser';
 import type { Job, PriceMatrix } from '../types';
 
@@ -174,5 +174,35 @@ describe('buildPlaceStats — สถานะและคำแนะนำ', ()
         const names = rateAreaNames([...rows, row({ origin: 'งานย่อย', destination: 'นครสวรรค์' })]);
         expect(names).not.toContain('งานย่อย');
         expect(names.filter(n => n === 'นครสวรรค์')).toHaveLength(1);
+    });
+});
+
+describe('rankAreaNames — ช่องพิมพ์ค้นหาพื้นที่', () => {
+    const names = ['เชียงใหม่ พาเลทกลับ', 'ดอยสะเก็ด เชียงใหม่', 'เชียงใหม่', 'นครสวรรค์', 'เชียงราย', 'เมืองเชียงใหม่'];
+
+    it('ไม่พิมพ์อะไร = ทั้งหมด เรียงตามตัวอักษร', () => {
+        expect(rankAreaNames(names, '')).toEqual([...names].sort((a, b) => a.localeCompare(b, 'th')));
+    });
+
+    it('ตรงทั้งคำขึ้นก่อน แล้วขึ้นต้น แล้วมีอยู่ข้างใน', () => {
+        expect(rankAreaNames(names, 'เชียงใหม่')).toEqual([
+            'เชียงใหม่',              // ตรงทั้งคำ
+            'เชียงใหม่ พาเลทกลับ',     // ขึ้นต้น
+            'ดอยสะเก็ด เชียงใหม่',     // มีอยู่ข้างใน
+            'เมืองเชียงใหม่',
+        ]);
+    });
+
+    it('ชื่อที่ตรงกว่าต้องขึ้นก่อน แม้ตัวอักษรจะมาทีหลัง', () => {
+        // เรียงตามตัวอักษรอย่างเดียว "กรุงเทพ…" จะขึ้นก่อน — ผู้ใช้ต้องเลื่อนหาชื่อที่ตรง
+        expect(rankAreaNames(['กรุงเทพ เชียงใหม่', 'เชียงใหม่'], 'เชียงใหม่')).toEqual(['เชียงใหม่', 'กรุงเทพ เชียงใหม่']);
+    });
+
+    it('ไม่สนช่องว่าง — "เชียง ใหม่" ก็เจอ', () => {
+        expect(rankAreaNames(names, 'เชียง ใหม่')[0]).toBe('เชียงใหม่');
+    });
+
+    it('ไม่พบ = อาร์เรย์ว่าง', () => {
+        expect(rankAreaNames(names, 'ภูเก็ต')).toEqual([]);
     });
 });

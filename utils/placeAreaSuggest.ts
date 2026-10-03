@@ -123,6 +123,33 @@ export function buildPlaceStats(jobs: Job[], priceMatrix: PriceMatrix[], rows: F
     return [...stats.values()].sort((a, b) => b.trips - a.trips || b.priceRows - a.priceRows || a.place.localeCompare(b.place, 'th'));
 }
 
+/** ตัดช่องว่างและตัวพิมพ์ — "เชียง ใหม่" กับ "เชียงใหม่" ค้นเจอเหมือนกัน */
+const fold = (s: string) => (s || '').toLowerCase().replace(/\s+/g, '');
+
+/**
+ * กรองและเรียงชื่อพื้นที่ตามคำที่พิมพ์
+ *
+ * ลำดับ: ตรงทั้งคำ → ขึ้นต้นด้วยคำที่พิมพ์ → มีคำที่พิมพ์อยู่ข้างใน · กลุ่มเดียวกันเรียงตามตัวอักษร
+ * ไม่พิมพ์อะไร = คืนทั้งหมดเรียงตามตัวอักษร
+ */
+export function rankAreaNames(names: string[], query: string): string[] {
+    const q = fold(query);
+    const sorted = [...names].sort((a, b) => a.localeCompare(b, 'th'));
+    if (!q) return sorted;
+    const rank = (n: string): number => {
+        const f = fold(n);
+        if (f === q) return 0;
+        if (f.startsWith(q)) return 1;
+        if (f.includes(q)) return 2;
+        return -1;
+    };
+    return sorted
+        .map(n => ({ n, r: rank(n) }))
+        .filter(x => x.r >= 0)
+        .sort((a, b) => a.r - b.r || a.n.localeCompare(b.n, 'th'))
+        .map(x => x.n);
+}
+
 /** ชื่อต้นทาง/ปลายทางทั้งหมดในตารางเรท — ตัวเลือกของช่อง "พื้นที่ในตารางเรท" */
 export function rateAreaNames(rows: FuelRateRow[]): string[] {
     return [...new Set(rows.flatMap(r => [clean(r.origin), clean(r.destination)]).filter(n => n && n !== ANY))]
