@@ -600,6 +600,18 @@ export function parseFuelRateWorkbook(data: ArrayBuffer | Uint8Array): ParseResu
  */
 const BAND_EDGE_GAP = 0.01;
 
+/**
+ * ช่องนี้มีราคาให้ใช้จริงไหม — ต้องเป็นตัวเลขจริงและมากกว่า 0
+ *
+ * ต้องเช็คแบบ "ยืนยันว่ามี" ไม่ใช่ "ไม่ใช่ null" เพราะ RTDB ไม่เก็บค่า null
+ * ช่องว่างที่บันทึกลงไปจึงกลับมาเป็น undefined (ไม่มี key price เลย)
+ * และ undefined <= 0 ได้ false — ถ้าเขียน price === null || price <= 0
+ * ช่องว่างจะหลุดผ่านไปเป็น "มีราคา" แล้วหน้าตารางค่าขนส่งพังทั้งหน้า
+ * (เกิดจริง 3 ต.ค. 2569 · TypeError: reading 'toLocaleString')
+ */
+export const hasBandPrice = (b: { price?: number | null }): b is { price: number } =>
+    typeof b.price === 'number' && Number.isFinite(b.price) && b.price > 0;
+
 export function findRateAt(row: FuelRateRow, fuelPrice: number): RateBand | null {
     /*
       หาช่วงที่ "ครอบราคาน้ำมันนี้ และมีราคาจริง" — ไม่ใช่ช่วงแรกที่ครอบเฉย ๆ
@@ -640,7 +652,7 @@ export function findRateAt(row: FuelRateRow, fuelPrice: number): RateBand | null
     const gap = milli(BAND_EDGE_GAP);
 
     const hit = row.bands.find(b => {
-        if (b.price === null || b.price <= 0) return false;
+        if (!hasBandPrice(b)) return false;
         const from = milli(b.fuelFrom);
         const to = milli(b.fuelTo);
         // มีช่วงก่อนหน้าจบลงที่ from - gap พอดีไหม — ถ้ามี แปลว่ามีช่องว่างให้ปิด

@@ -1,4 +1,4 @@
-import { TEMPLATE_MARKER, type FuelRateRow, type ParseIssue } from './fuelRateParser';
+import { TEMPLATE_MARKER, hasBandPrice, type FuelRateRow, type ParseIssue } from './fuelRateParser';
 import { COLOR, FONT, SIZE } from './excelReport';
 
 /**
@@ -221,7 +221,7 @@ export async function buildFuelRateExport(
               คนอ่านจะเห็นเป็น "ขนส่งฟรี" ซึ่งขัดกับหมายเหตุในหัวไฟล์เอง
               และขัดกับที่ระบบตีความ · ต้องว่างให้เหมือนกันทั้งสองกรณี
             */
-            if (b.price === null || b.price <= 0) continue;
+            if (!hasBandPrice(b)) continue;
             const key = `${Math.round(b.fuelFrom * 100) / 100}-${Math.round(b.fuelTo * 100) / 100}`;
             byKey.set(key, b.price);
         }
@@ -242,7 +242,7 @@ export async function buildFuelRateExport(
       กรณีนั้นไม่ใช่ไฟล์ที่ควรอัปกลับอยู่แล้ว (ไม่มีอะไรให้บันทึก) และคนที่อยากได้
       ไฟล์เปล่าไว้กรอกควรกดปุ่ม "ดาวน์โหลดแบบฟอร์ม" ซึ่งมีรายการให้เลือกในตัว
     */
-    const hasPrice = (r: FuelRateRow) => r.bands.some(b => b.price !== null && b.price > 0);
+    const hasPrice = (r: FuelRateRow) => r.bands.some(hasBandPrice);
     const firstPriced = rows.findIndex(hasPrice);
     const ordered = firstPriced > 0
         ? [rows[firstPriced], ...rows.filter((_, i) => i !== firstPriced)]

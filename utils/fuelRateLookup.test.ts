@@ -574,3 +574,37 @@ describe('ชื่อสถานที่และผู้รับเหม�
         expect(hasFuelRateRoute([row], { ...query, origin: 'ลำพูน' })).toBe(false);
     });
 });
+
+describe('ช่องที่ไม่มีราคา แบบที่ได้กลับมาจาก RTDB', () => {
+    /*
+      RTDB ไม่เก็บค่า null — ช่องว่างที่บันทึกไปจะกลับมาเป็น { fuelFrom, fuelTo } ไม่มี price
+      เคยทำให้หน้าตารางค่าขนส่งพังทั้งหน้า (3 ต.ค. 2569) เพราะเช็คแค่ price === null
+    */
+    const fromRtdb = (): FuelRateRow => {
+        const row = realRow();
+        row.bands = [
+            { fuelFrom: 34.99, fuelTo: 36.98, price: 2000 },
+            { fuelFrom: 36.99, fuelTo: 38.98 } as unknown as FuelRateRow['bands'][number],
+        ];
+        return row;
+    };
+
+    it('ช่องที่ไม่มี key price ต้องถือว่าไม่มีเรท', () => {
+        expect(findRateAt(fromRtdb(), 38.39)).toBeNull();
+    });
+
+    it('ตัวเลือกเรทต้องไม่มีราคาที่ไม่ใช่ตัวเลข', () => {
+        const out = findFuelRateOptions([fromRtdb()], query, 38.39);
+        expect(out).toEqual([]);
+    });
+
+    it('ช่องที่มีราคายังหาเจอตามปกติ', () => {
+        expect(findRateAt(fromRtdb(), 36.00)?.price).toBe(2000);
+    });
+
+    it('ราคาที่ไม่ใช่ตัวเลขจริง (NaN) ต้องถือว่าไม่มีเรท', () => {
+        const row = realRow();
+        row.bands = [{ fuelFrom: 36.99, fuelTo: 38.98, price: NaN }];
+        expect(findRateAt(row, 38.39)).toBeNull();
+    });
+});
