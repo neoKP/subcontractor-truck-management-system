@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MapPinned, Loader2, Info, X, Save, Lightbulb, Search } from 'lucide-react';
+import { MapPinned, Loader2, Info, X, Save, Lightbulb, Search, AlertTriangle } from 'lucide-react';
 import { watchActiveFuelRates, type FuelRateVersion } from '../utils/fuelRateStore';
 import { usePlaceAreas, savePlaceArea } from '../utils/placeAreaStore';
-import { buildPlaceStats, rateAreaNames, rankAreaNames, type PlaceStat } from '../utils/placeAreaSuggest';
+import { buildPlaceStats, rateAreaNames, rankAreaNames, areaOwners, type PlaceStat } from '../utils/placeAreaSuggest';
 import { samePlace } from '../utils/placeAliases';
 import { pageCount, pageNumbers as buildPageNumbers, pageSlice, PAGE_SIZE } from '../utils/pagination';
 import type { Job, PriceMatrix } from '../types';
@@ -36,7 +36,11 @@ const AreaPicker: React.FC<{
     exclude: string[];
     label: string;
     onPick: (area: string) => void;
-}> = ({ names, exclude, label, onPick }) => {
+    /** พื้นที่นี้อยู่ในตารางของเจ้าไหน */
+    ownersOf: (area: string) => string[];
+    /** ผู้รับเหมาที่วิ่งสถานที่นี้ */
+    placeSubs: string[];
+}> = ({ names, exclude, label, onPick, ownersOf, placeSubs }) => {
     const [text, setText] = useState('');
     const [open, setOpen] = useState(false);
     const [active, setActive] = useState(0);
@@ -88,7 +92,17 @@ const AreaPicker: React.FC<{
                             onMouseEnter={() => setActive(i)}
                             className={`w-full text-left px-3 py-2 text-sm ${i === active ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-700'} ${i ? 'border-t border-slate-100' : ''}`}
                         >
-                            {n}
+                            <span className="block">{n}</span>
+                            {(() => {
+                                const owners = ownersOf(n);
+                                const fits = owners.some(o => placeSubs.includes(o));
+                                return (
+                                    <span className="block text-[11px] font-normal text-slate-400">
+                                        ตาราง: {owners.join(', ') || '-'}
+                                        {fits && <span className="ml-1 font-bold text-emerald-600">✓ ตรงกับเจ้าที่วิ่ง</span>}
+                                    </span>
+                                );
+                            })()}
                         </button>
                     ))}
                 </div>
@@ -121,6 +135,7 @@ const PlaceAreaView: React.FC<Props> = ({ jobs, priceMatrix, userName }) => {
 
     const rows = version?.rows ?? [];
     const areaNames = useMemo(() => rateAreaNames(rows), [rows]);
+    const ownersOf = useMemo(() => areaOwners(rows), [rows]);
     const stats = useMemo(
         () => buildPlaceStats(jobs, priceMatrix, rows, placeAreas.entries.map(e => e.place)),
         // placeAreas.version: รายการของทีมมาถึงทีหลัง ต้องคำนวณสถานะใหม่
@@ -266,6 +281,12 @@ const PlaceAreaView: React.FC<Props> = ({ jobs, priceMatrix, userName }) => {
                                 </span>
                             </div>
 
+                            {s.subs.length > 0 && (
+                                <p className="text-xs text-slate-500">
+                                    ผู้รับเหมาที่วิ่ง: {s.subs.slice(0, 4).map(x => `${x.name} (${x.count})`).join(', ')}
+                                </p>
+                            )}
+
                             {codeAreas.length > 0 && (
                                 <p className="text-xs text-slate-500">
                                     ยืนยันในระบบแล้ว: {codeAreas.map(a => a.area).join(', ')}
@@ -297,20 +318,44 @@ const PlaceAreaView: React.FC<Props> = ({ jobs, priceMatrix, userName }) => {
                                 </div>
                             )}
 
+                            {draft.length > 0 && (
+                                <div className="flex flex-wrap items-start gap-2">
+                                    {draft.map(a => {
+                                        // ระบบจับคู่เรทของผู้รับเหมาเจ้าเดียวกันเท่านั้น — พื้นที่ที่ไม่อยู่ในตาราง
+                                        // ของเจ้าที่วิ่งร้านนี้ จับคู่ไปก็หาเรทไม่เจอ
+                                        const owners = ownersOf(a);
+                                        const noEffect = s.subs.length > 0 && !owners.some(o => s.subs.some(x => x.name === o));
+                                        return (
+                                            <span
+                                                key={a}
+                                                className={`inline-flex flex-col px-2.5 py-1 rounded-lg text-xs font-bold ${noEffect ? 'bg-orange-50 text-orange-700 border border-orange-200' : 'bg-indigo-50 text-indigo-700'}`}
+                                            >
+                                                <span className="inline-flex items-center gap-1">
+                                                    {noEffect && <AlertTriangle size={12} />}
+                                                    {a}
+                                                    <button onClick={() => setDraft(s.place, draft.filter(x => x !== a))} aria-label={`เอา ${a} ออก`}>
+                                                        <X size={12} />
+                                                    </button>
+                                                </span>
+                                                {noEffect && (
+                                                    <span className="font-normal text-[11px]">
+                                                        จับคู่แล้วจะไม่มีผล — พื้นที่นี้อยู่ในตาราง {owners.join(', ') || '-'} แต่ร้านนี้วิ่งโดย {s.subs.slice(0, 3).map(x => x.name).join(', ')}
+                                                    </span>
+                                                )}
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
                             <div className="flex flex-wrap items-center gap-2">
-                                {draft.map(a => (
-                                    <span key={a} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold">
-                                        {a}
-                                        <button onClick={() => setDraft(s.place, draft.filter(x => x !== a))} aria-label={`เอา ${a} ออก`}>
-                                            <X size={12} />
-                                        </button>
-                                    </span>
-                                ))}
                                 <AreaPicker
                                     names={areaNames}
                                     exclude={draft}
                                     label={`พื้นที่ในตารางเรทของ ${s.place}`}
                                     onPick={area => addArea(s.place, area)}
+                                    ownersOf={ownersOf}
+                                    placeSubs={s.subs.map(x => x.name)}
                                 />
                                 {changed(s.place) && (
                                     <button

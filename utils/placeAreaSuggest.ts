@@ -38,6 +38,8 @@ export interface PlaceStat {
     suggestions: AreaSuggestion[];
     /** มีงานหรือราคากลางของผู้รับเหมาที่มีตารางเรทไหม — ไม่มี = จับคู่ไปก็ไม่มีผล */
     hasRateSub: boolean;
+    /** ผู้รับเหมาที่วิ่ง/มีราคากลางของสถานที่นี้ (ชื่อมาตรฐาน) เรียงจากมากไปน้อย */
+    subs: { name: string; count: number }[];
 }
 
 const tt = (s: string) => canonicalTruckType(s || '').toLowerCase().replace(/\s+/g, '');
@@ -64,7 +66,7 @@ export function buildPlaceStats(jobs: Job[], priceMatrix: PriceMatrix[], rows: F
     const stats = new Map<string, PlaceStat>();
     const votes = new Map<string, Map<string, AreaSuggestion>>();
     const stat = (place: string): PlaceStat => {
-        if (!stats.has(place)) stats.set(place, { place, trips: 0, priceRows: 0, status: 'none', areas: [], suggestions: [], hasRateSub: false });
+        if (!stats.has(place)) stats.set(place, { place, trips: 0, priceRows: 0, status: 'none', areas: [], suggestions: [], hasRateSub: false, subs: [] });
         return stats.get(place)!;
     };
     const vote = (place: string, area: string, kind: 'fromPrice' | 'fromJobs') => {
@@ -92,6 +94,10 @@ export function buildPlaceStats(jobs: Job[], priceMatrix: PriceMatrix[], rows: F
             const s = stat(p);
             if (kind === 'fromJobs') s.trips++; else s.priceRows++;
             if (hasRate) s.hasRateSub = true;
+            if (sub) {
+                const e = s.subs.find(x => x.name === sub);
+                if (e) e.count++; else s.subs.push({ name: sub, count: 1 });
+            }
         }
         if (!hasRate) return;
         const row = uniqueRow(sub, truck, price);
@@ -113,6 +119,7 @@ export function buildPlaceStats(jobs: Job[], priceMatrix: PriceMatrix[], rows: F
     }
 
     for (const s of stats.values()) {
+        s.subs.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'th'));
         s.areas = areasOf(s.place);
         if (rateNames.some(n => samePlace(n, s.place))) s.status = 'exact';
         else if (s.areas.length) s.status = 'area';
@@ -150,8 +157,33 @@ export function rankAreaNames(names: string[], query: string): string[] {
         .map(x => x.n);
 }
 
+/**
+ * พื้นที่แต่ละชื่ออยู่ในตารางของผู้รับเหมาเจ้าไหน (ชื่อมาตรฐาน)
+ *
+ * ใช้เตือนตอนจับคู่: พื้นที่ "นครปฐม" มีแค่ในตารางคุณบุ๋ม ถ้าจับคู่ร้านที่พรมณีวิ่ง
+ * เข้ากับพื้นที่นี้ จะไม่มีผลเลย เพราะระบบจับคู่เรทของผู้รับเหมาเจ้าเดียวกันเท่านั้น
+ */
+export function areaOwners(rows: FuelRateRow[]): (area: string) => string[] {
+    const map = new Map<string, Set<string>>();
+    for (const r of rows) {
+        // ใช้ต้นทางแบบเดียวกับตอนจับคู่ (rowOrigin) — ตารางพรมณีเขียนต้นทางซ้ำปลายทาง
+        // แต่ระบบจับคู่ด้วย "สหพัฒน์ศรีราชา" ถ้าใช้ต้นทางดิบ จะเตือนว่าไม่มีผลทั้งที่มีผล
+        for (const n of [clean(rowOrigin(r).origin), clean(r.destination)]) {
+            if (!n || n === ANY) continue;
+            if (!map.has(n)) map.set(n, new Set());
+            map.get(n)!.add(canonicalSubcontractor(r.company));
+        }
+    }
+    return (area: string) => {
+        const out = new Set<string>();
+        for (const [n, subs] of map) if (samePlace(n, area)) subs.forEach(s => out.add(s));
+        return [...out].sort((a, b) => a.localeCompare(b, 'th'));
+    };
+}
+
 /** ชื่อต้นทาง/ปลายทางทั้งหมดในตารางเรท — ตัวเลือกของช่อง "พื้นที่ในตารางเรท" */
 export function rateAreaNames(rows: FuelRateRow[]): string[] {
-    return [...new Set(rows.flatMap(r => [clean(r.origin), clean(r.destination)]).filter(n => n && n !== ANY))]
+    // ต้นทางที่ใช้จับคู่จริง (rowOrigin) — ให้เลือกได้เฉพาะชื่อที่มีผลกับการจับคู่
+    return [...new Set(rows.flatMap(r => [clean(rowOrigin(r).origin), clean(r.destination)]).filter(n => n && n !== ANY))]
         .sort((a, b) => a.localeCompare(b, 'th'));
 }

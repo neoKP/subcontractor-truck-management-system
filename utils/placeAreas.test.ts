@@ -18,7 +18,7 @@ vi.mock('../firebaseConfig', () => ({
 
 import { parsePlaceAreas, savePlaceArea } from './placeAreaStore';
 import { setRuntimePlaceAreas, inZone, matchRoute, areasOf } from './placeZones';
-import { buildPlaceStats, rateAreaNames, rankAreaNames } from './placeAreaSuggest';
+import { buildPlaceStats, rateAreaNames, rankAreaNames, areaOwners } from './placeAreaSuggest';
 import type { FuelRateRow } from './fuelRateParser';
 import type { Job, PriceMatrix } from '../types';
 
@@ -204,5 +204,42 @@ describe('rankAreaNames — ช่องพิมพ์ค้นหาพื้�
 
     it('ไม่พบ = อาร์เรย์ว่าง', () => {
         expect(rankAreaNames(names, 'ภูเก็ต')).toEqual([]);
+    });
+});
+
+describe('เตือนเมื่อจับคู่แล้วจะไม่มีผล', () => {
+    /*
+      เหตุการณ์จริง 3 ต.ค. 2569: จับคู่ "นครปฐมไพศาล → นครปฐม" แต่ "นครปฐม" มีแค่ในตาราง
+      คุณบุ๋ม ส่วนร้านนี้พรมณีวิ่ง — ระบบจับคู่เรทของเจ้าเดียวกันเท่านั้น จึงไม่มีผลเลย
+    */
+    const rows = [
+        row({ company: 'คุณบุ๋ม', origin: 'ล่ำสูง บางปู', destination: 'นครปฐม' }),
+        row({ company: 'พรมณี 24h', origin: 'แม็คโครเมืองนครปฐม', destination: 'แม็คโครเมืองนครปฐม' }),
+        row({ company: 'YSK TRANSPORT', origin: 'กทม ปริมณฑล', destination: 'นครปฐม' }),
+    ];
+
+    it('areaOwners บอกว่าพื้นที่อยู่ในตารางของเจ้าไหน (ชื่อมาตรฐาน ไม่ซ้ำ)', () => {
+        const owners = areaOwners(rows);
+        // เรียงแบบภาษาไทย: ชื่อไทยขึ้นก่อนชื่ออังกฤษ
+        expect(owners('นครปฐม')).toEqual(['คุณบุ๋ม', 'YSK']);
+        expect(owners('แม็คโครเมืองนครปฐม')).toEqual(['พรมณี 24เอช ทรานสปอร์ต']);
+        expect(owners('ไม่มีในตาราง')).toEqual([]);
+    });
+
+    it('ต้นทางที่ระบบแก้ (ตารางพรมณีเขียนต้นทางซ้ำปลายทาง) ต้องนับเป็นของพรมณี', () => {
+        // ระบบจับคู่แถวพรมณีด้วยต้นทาง "สหพัฒน์ศรีราชา" — ตัวเตือนต้องรู้เหมือนกัน
+        // ไม่งั้นจะเตือนว่า "ไม่มีผล" ทั้งที่จับคู่แล้วมีผล (codex P2)
+        expect(areaOwners(rows)('สหพัฒน์ศรีราชา')).toEqual(['พรมณี 24เอช ทรานสปอร์ต']);
+        expect(rateAreaNames(rows)).toContain('สหพัฒน์ศรีราชา');
+    });
+
+    it('buildPlaceStats บอกว่าใครวิ่งสถานที่นี้ เรียงจากมากไปน้อย', () => {
+        const j = (sub: string): Job => ({ id: 'J', origin: 'สหพัฒน์ศรีราชา', destination: 'นครปฐมไพศาล', subcontractor: sub, truckType: '10w', cost: 1 } as Job);
+        const s = buildPlaceStats([j('พรมณี 24h'), j('พรมณี 24เอช ทรานสปอร์ต'), j('KNN')], [], rows);
+        // "พรมณี 24h" กับชื่อเต็มเป็นเจ้าเดียวกัน ต้องนับรวม
+        expect(s.find(v => v.place === 'นครปฐมไพศาล')!.subs).toEqual([
+            { name: 'พรมณี 24เอช ทรานสปอร์ต', count: 2 },
+            { name: 'KNN', count: 1 },
+        ]);
     });
 });
