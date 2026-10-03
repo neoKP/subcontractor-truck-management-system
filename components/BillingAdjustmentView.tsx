@@ -39,8 +39,14 @@ const STATUS_LABEL: Record<AdjustedJob['status'], string> = {
     'month-not-over': 'เดือนยังไม่จบ',
     'no-average': 'ไม่มีข้อมูลราคา',
     'no-rate': 'ไม่พบเรท',
+    'no-daily-rate': 'ไม่มีราคาวันที่วิ่ง',
+    'cost-mismatch': 'ยอดไม่ได้มาจากตาราง',
     incomplete: 'ข้อมูลไม่ครบ',
 };
+
+/** ราคาน้ำมันกับช่วงที่ใช้ เช่น "40.257 (40.01–41)" — ว่างเมื่อไม่รู้ */
+const dieselNote = (diesel: number, band: string, digits: number): string =>
+    diesel > 0 ? `${diesel.toFixed(digits)}${band ? ` (${band})` : ''}` : '';
 
 interface Props {
     jobs: Job[];
@@ -102,18 +108,22 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
                     { header: 'ต้นทาง', value: r => r.origin || '-', type: 'text' },
                     { header: 'ปลายทาง', value: r => r.destination || '-', type: 'text' },
                     { header: 'ประเภทรถ', value: r => r.truckType || '-', type: 'text' },
-                    { header: 'ยอดตอนเปิดงาน', value: r => r.originalCost, type: 'money' },
+                    { header: 'ยอดในใบงาน', value: r => r.originalCost, type: 'money' },
+                    { header: 'ดีเซลวันที่วิ่ง (ช่วง)', value: r => dieselNote(r.dailyDiesel, r.dailyBand, 2) || '-', type: 'text' },
                     // ปล่อยว่างเมื่อคำนวณไม่ได้ ไม่ใส่ 0 — คนอ่านต้องแยกออกว่า
                     // "ยังไม่รู้ยอด" ไม่ใช่ "ยอดเป็นศูนย์"
-                    { header: 'ยอดหลังปรับ', value: r => r.adjustedCost, type: 'money' },
+                    { header: 'ราคาตามตารางวันที่วิ่ง', value: r => r.dailyCost, type: 'money' },
+                    { header: 'ช่วงค่าเฉลี่ย', value: r => r.band || '-', type: 'text' },
+                    { header: 'ราคาตามค่าเฉลี่ย', value: r => r.adjustedCost, type: 'money' },
                     { header: 'ส่วนต่าง', value: r => r.difference, type: 'money' },
-                    { header: 'ช่วงราคาที่ใช้', value: r => r.band || '-', type: 'text' },
-                    { header: 'สถานะ', value: r => STATUS_LABEL[r.status], type: 'text', width: 14 },
+                    { header: 'สถานะ', value: r => STATUS_LABEL[r.status], type: 'text', width: 18 },
                 ],
                 rows,
                 footnotes: [
-                    'ยอดตอนเปิดงานคำนวณจากราคาน้ำมัน ณ วันที่ต้องการรถ'
-                    + ' · ยอดหลังปรับคำนวณจากค่าเฉลี่ยทั้งเดือนตามที่ตกลงกับหน่วยงาน',
+                    'ส่วนต่าง = ราคาตามตารางที่ค่าเฉลี่ยทั้งเดือน − ราคาตามตารางที่ราคาน้ำมัน ณ วันที่วิ่ง'
+                    + ' (ตามที่ตกลงกับหน่วยงาน: เปิดงานด้วยราคารายวัน ปรับเป็นค่าเฉลี่ยตอนวางบิล)',
+                    'สถานะ "ยอดไม่ได้มาจากตาราง" = ยอดในใบงานไม่ตรงกับราคาในตารางเรท ณ วันที่วิ่ง'
+                    + ' เช่นราคาตกลงเองหรือ Spot Rate — ไม่นับรวมยอด ต้องตัดสินเองว่าจะปรับหรือไม่',
                     'ช่องที่เว้นว่าง = ยังคำนวณไม่ได้ ไม่ใช่ยอด 0 บาท — ดูสาเหตุที่คอลัมน์สถานะ',
                     `ตารางเรทที่ใช้: ${version?.fileName || '-'}`,
                 ],
@@ -231,12 +241,13 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
 
             {/* ── ตัวเลขสรุป ── */}
             {summary && (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     {[
                         { label: 'งานในเดือนนี้', value: String(summary.jobs.length), tone: 'text-slate-900' },
                         { label: 'ต้องปรับยอด', value: String(summary.adjustedCount), tone: 'text-amber-600' },
                         { label: 'ยอดเท่าเดิม', value: String(summary.unchangedCount), tone: 'text-emerald-600' },
-                        { label: 'ต้องตรวจเอง', value: String(summary.problemCount), tone: 'text-rose-600' },
+                        { label: 'ยอดไม่ได้มาจากตาราง', value: String(summary.mismatchCount), tone: 'text-orange-600' },
+                        { label: 'คำนวณไม่ได้', value: String(summary.problemCount - summary.mismatchCount), tone: 'text-rose-600' },
                     ].map(c => (
                         <div key={c.label} className="bg-white rounded-2xl border border-slate-200 p-5">
                             <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{c.label}</p>
@@ -248,12 +259,15 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
 
             {summary && summary.average.usable && (
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 grid sm:grid-cols-3 gap-4 text-sm">
+                    <p className="sm:col-span-3 text-xs text-slate-500">
+                        นับเฉพาะ {summary.adjustedCount + summary.unchangedCount} งานที่ยอดในใบงานมาจากตารางเรท
+                    </p>
                     <div>
-                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">ยอดรวมเดิม</p>
+                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">ยอดรวมตามราคาวันที่วิ่ง</p>
                         <p className="text-xl font-black text-slate-700 mt-1">฿{money(summary.totalOriginal)}</p>
                     </div>
                     <div>
-                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">ยอดรวมหลังปรับ</p>
+                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">ยอดรวมตามค่าเฉลี่ย</p>
                         <p className="text-xl font-black text-slate-900 mt-1">฿{money(summary.totalAdjusted)}</p>
                     </div>
                     <div>
@@ -265,12 +279,27 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
                 </div>
             )}
 
-            {summary && summary.problemCount > 0 && (
+            {summary && summary.mismatchCount > 0 && (
+                <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 flex gap-3">
+                    <AlertTriangle className="text-orange-600 shrink-0 mt-0.5" size={20} />
+                    <div className="text-sm text-orange-900">
+                        <p className="font-black mb-1">
+                            มี {summary.mismatchCount} งานที่ยอดในใบงานไม่ได้มาจากตารางเรท
+                        </p>
+                        <p>
+                            ยอดในใบงานไม่ตรงกับราคาในตาราง ณ ราคาน้ำมันวันที่วิ่ง เช่นราคาที่ตกลงกันเองหรือ Spot Rate ·
+                            ส่วนต่างที่แสดงคือผลของค่าเฉลี่ยตามตารางเท่านั้น ระบบไม่นับรวมยอด ต้องตัดสินเองว่าจะปรับหรือไม่
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {summary && summary.problemCount - summary.mismatchCount > 0 && (
                 <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 flex gap-3">
                     <AlertTriangle className="text-rose-600 shrink-0 mt-0.5" size={20} />
                     <div className="text-sm text-rose-900">
                         <p className="font-black mb-1">
-                            มี {summary.problemCount} งานที่คำนวณยอดใหม่ไม่ได้
+                            มี {summary.problemCount - summary.mismatchCount} งานที่คำนวณยอดใหม่ไม่ได้
                         </p>
                         <p>
                             ระบบไม่เดายอดให้ — ต้องตรวจเองว่าเป็นเพราะไม่พบเรทของเส้นทางนั้น
@@ -288,8 +317,9 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
                             <tr className="text-[11px] font-black text-slate-500 uppercase tracking-wider">
                                 <th className="px-4 py-3 text-left">วันที่วิ่ง</th>
                                 <th className="px-4 py-3 text-left">ผู้รับเหมา · เส้นทาง</th>
-                                <th className="px-4 py-3 text-right">ยอดเดิม</th>
-                                <th className="px-4 py-3 text-right">ยอดหลังปรับ</th>
+                                <th className="px-4 py-3 text-right">ยอดในใบงาน</th>
+                                <th className="px-4 py-3 text-right">ตามตาราง วันที่วิ่ง</th>
+                                <th className="px-4 py-3 text-right">ตามค่าเฉลี่ย</th>
                                 <th className="px-4 py-3 text-right">ส่วนต่าง</th>
                                 <th className="px-4 py-3 text-left">สถานะ</th>
                             </tr>
@@ -304,11 +334,18 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
                                             {r.origin || '-'} → {r.destination || '-'} · {r.truckType || '-'}
                                         </p>
                                     </td>
-                                    <td className="px-4 py-3 text-right text-slate-600 tabular-nums">
+                                    <td className={`px-4 py-3 text-right tabular-nums ${
+                                        r.status === 'cost-mismatch' ? 'text-orange-600 font-bold' : 'text-slate-600'
+                                    }`}>
                                         {money(r.originalCost)}
                                     </td>
+                                    <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                                        <p>{r.dailyCost === null ? '—' : money(r.dailyCost)}</p>
+                                        <p className="text-[11px] text-slate-400">{dieselNote(r.dailyDiesel, r.dailyBand, 2)}</p>
+                                    </td>
                                     <td className="px-4 py-3 text-right font-bold text-slate-900 tabular-nums">
-                                        {r.adjustedCost === null ? '—' : money(r.adjustedCost)}
+                                        <p>{r.adjustedCost === null ? '—' : money(r.adjustedCost)}</p>
+                                        <p className="text-[11px] font-normal text-slate-400">{dieselNote(r.avgDiesel, r.band, 3)}</p>
                                     </td>
                                     <td className={`px-4 py-3 text-right font-bold tabular-nums ${
                                         r.difference === null ? 'text-slate-300'
@@ -323,7 +360,8 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
                                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${
                                             r.status === 'adjusted' ? 'bg-amber-100 text-amber-700'
                                                 : r.status === 'unchanged' ? 'bg-emerald-100 text-emerald-700'
-                                                    : 'bg-rose-100 text-rose-700'
+                                                    : r.status === 'cost-mismatch' ? 'bg-orange-100 text-orange-700'
+                                                        : 'bg-rose-100 text-rose-700'
                                         }`}>
                                             {r.status === 'unchanged' && <CheckCircle2 size={12} />}
                                             {STATUS_LABEL[r.status]}
@@ -333,7 +371,7 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
                             ))}
                             {!shown.length && (
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-12 text-center text-slate-400 text-sm font-bold">
+                                    <td colSpan={7} className="px-4 py-12 text-center text-slate-400 text-sm font-bold">
                                         ไม่มีงานในเดือนที่เลือก
                                     </td>
                                 </tr>
@@ -373,8 +411,8 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
                         คำนวณให้ดูและ Export เป็น Excel เพื่อใช้ประกอบการวางบิลเท่านั้น
                     </p>
                     <p>
-                        ยอดตอนเปิดงานคำนวณจากราคาน้ำมัน ณ วันที่ต้องการรถ ·
-                        ยอดหลังปรับคำนวณจากค่าเฉลี่ยทั้งเดือน ตามที่ตกลงกับหน่วยงานอัตราจ้าง
+                        ส่วนต่าง = ราคาตามตารางที่ค่าเฉลี่ยทั้งเดือน − ราคาตามตารางที่ราคาน้ำมันวันที่วิ่ง
+                        ตามที่ตกลงกับหน่วยงานอัตราจ้าง · ใบงานที่ยอดไม่ตรงกับตารางจะไม่ถูกนับรวม
                     </p>
                 </div>
             </div>

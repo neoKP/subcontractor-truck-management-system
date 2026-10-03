@@ -17,8 +17,15 @@ import type { Job } from '../types';
 
 const pct = (diesel: number): number => Math.round((diesel - OIL_BASE) * 1e6) / 1e6;
 
-/** ราคาน้ำมันคงที่ 40.00 ทั้งเดือน ก.ย. — ค่าเฉลี่ยจึงเป็น 40.00 พอดี */
-const BANDS = { '2026-01-01': pct(40.00) };
+/**
+ * ก.ย. ครึ่งแรก 40.50 (วันที่ 1-15) ครึ่งหลัง 39.50 (16-30) — ค่าเฉลี่ย 40.00 พอดี
+ *
+ * ราคาวันที่วิ่งกับค่าเฉลี่ยต้องต่างกัน ไม่งั้นเทสต์แยกไม่ออกว่าส่วนต่างมาจาก
+ * ค่าเฉลี่ยจริง หรือมาจากการเอายอดในใบงานไปลบ (บั๊กของรุ่นแรก)
+ *   งานวันที่ 15 — วันนั้น 40.50 ช่วง 40.01-41 = 6,050 · ค่าเฉลี่ยช่วง 39.01-40 = 5,940
+ *   งานวันที่ 20 — วันนั้น 39.50 ช่วง 39.01-40 = 5,940 · เท่ากับค่าเฉลี่ย
+ */
+const BANDS = { '2026-01-01': pct(40.50), '2026-09-16': pct(39.50) };
 
 const rateRow = (over: Partial<FuelRateRow> = {}): FuelRateRow => ({
     seq: 1,
@@ -48,11 +55,14 @@ const job = (over: Partial<Job> = {}): Job => ({
 
 describe('adjustJob — ยอดที่ควรจ่ายของงานใบเดียว', () => {
     it('คิดจากค่าเฉลี่ยของเดือนที่วิ่งงาน ไม่ใช่ราคาวันที่วิ่ง', () => {
-        // งานเปิดไว้ 6,050 (ราคาวันนั้นอยู่ช่วง 40.01-41)
+        // งานเปิดไว้ 6,050 (ราคาวันนั้น 40.50 อยู่ช่วง 40.01-41)
         // ค่าเฉลี่ยทั้งเดือน 40.00 ซึ่งอยู่ช่วง 39.01-40 = 5,940
         const r = adjustJob(job(), [rateRow()], BANDS, '2026-10-02');
 
         expect(r.status).toBe('adjusted');
+        expect(r.dailyDiesel).toBe(40.5);
+        expect(r.dailyCost).toBe(6050);
+        expect(r.dailyBand).toBe('40.01–41');
         expect(r.adjustedCost).toBe(5940);
         expect(r.difference).toBe(-110);
         expect(r.avgDiesel).toBe(40);
@@ -61,7 +71,7 @@ describe('adjustJob — ยอดที่ควรจ่ายของงา�
 
     it('ยอดเท่าเดิมต้องบอกว่า unchanged ไม่ใช่ adjusted', () => {
         // คนอ่านรายงานต้องแยกออกว่าแถวไหนต้องแก้ แถวไหนปล่อยได้
-        const r = adjustJob(job({ cost: 5940 }), [rateRow()], BANDS, '2026-10-02');
+        const r = adjustJob(job({ dateOfService: '2026-09-20', cost: 5940 }), [rateRow()], BANDS, '2026-10-02');
 
         expect(r.status).toBe('unchanged');
         expect(r.difference).toBe(0);
@@ -116,6 +126,35 @@ describe('adjustJob — ยอดที่ควรจ่ายของงา�
 
         expect(r.status).toBe('adjusted');
         expect(r.adjustedCost).toBe(5940);
+    });
+
+    /*
+      บั๊กของรุ่นแรก (เจอกับข้อมูลจริง ก.ย. 2569)
+
+      ใบงานซีโน่ → แม่สอด เปิดด้วยราคาตกลง 23,500 ซึ่งไม่ตรงช่องไหนในตาราง
+      รุ่นแรกเอา 27,440 (ราคาตามค่าเฉลี่ย) ลบ 23,500 ได้ +3,940 ต่อใบ
+      ทั้งที่ผลของค่าเฉลี่ยจริงอยู่หลักสิบ · ยอดรวมทั้งเดือนจึงสูงเกินจริงหลายพัน
+    */
+    it('ยอดในใบงานไม่ตรงกับตาราง ต้องแยกเป็น cost-mismatch และส่วนต่างต้องไม่ลบด้วยยอดในใบงาน', () => {
+        const r = adjustJob(job({ cost: 23500 }), [rateRow()], BANDS, '2026-10-02');
+
+        expect(r.status).toBe('cost-mismatch');
+        expect(r.originalCost).toBe(23500);
+        expect(r.dailyCost).toBe(6050);
+        // ส่วนต่างคือผลของค่าเฉลี่ยตามตารางเท่านั้น
+        expect(r.difference).toBe(-110);
+    });
+
+    it('ไม่รู้ราคาตามตารางของวันที่วิ่ง ต้องบอกว่า no-daily-rate ไม่ใช่เดาตัวตั้ง', () => {
+        // วันที่ 1 ราคา 43 — ตารางมีถึง 41 เท่านั้น จึงไม่รู้ว่าวันนั้นควรเปิดงานที่เท่าไร
+        // ค่าเฉลี่ย (43 + 29×39.5)/30 = 39.617 ยังอยู่ในตาราง
+        const bands = { '2026-01-01': pct(43), '2026-09-02': pct(39.50) };
+        const r = adjustJob(job({ dateOfService: '2026-09-01' }), [rateRow()], bands, '2026-10-02');
+
+        expect(r.status).toBe('no-daily-rate');
+        expect(r.adjustedCost).toBe(5940);
+        expect(r.dailyCost).toBeNull();
+        expect(r.difference).toBeNull();
     });
 
     it('ใบงานที่ข้อมูลไม่ครบ ต้องบอกว่า incomplete', () => {
@@ -180,15 +219,31 @@ describe('summarizeMonth — สรุปทั้งเดือนสำหร
     it('นับแยกว่าแถวไหนต้องแก้ แถวไหนเท่าเดิม แถวไหนมีปัญหา', () => {
         const jobs = [
             job({ id: 'A', cost: 6050 }),                             // adjusted
-            job({ id: 'B', cost: 5940 }),                             // unchanged
+            job({ id: 'B', cost: 5940, dateOfService: '2026-09-20' }), // unchanged
             job({ id: 'C', cost: 6050, truckType: '' }),              // incomplete
+            job({ id: 'D', cost: 23500 }),                            // cost-mismatch
         ];
 
         const s = summarizeMonth(jobs, '2026-09', rows, BANDS, '2026-10-02');
 
         expect(s.adjustedCount).toBe(1);
         expect(s.unchangedCount).toBe(1);
-        expect(s.problemCount).toBe(1);
+        expect(s.mismatchCount).toBe(1);
+        expect(s.problemCount).toBe(2);
+    });
+
+    it('ใบงานที่ยอดไม่ได้มาจากตาราง ต้องไม่ถูกนับรวมยอด', () => {
+        // ถ้านับรวม ยอดรวมจะปนราคาตกลงเองเข้ามา — ตัวเลขที่ทำให้หน้าจอขึ้น +8,954
+        const jobs = [
+            job({ id: 'A', cost: 6050 }),     // 6,050 -> 5,940
+            job({ id: 'D', cost: 23500 }),    // ไม่นับ
+        ];
+
+        const s = summarizeMonth(jobs, '2026-09', rows, BANDS, '2026-10-02');
+
+        expect(s.totalOriginal).toBe(6050);
+        expect(s.totalAdjusted).toBe(5940);
+        expect(s.totalDifference).toBe(-110);
     });
 
     it('เดือนที่ยังไม่จบ ต้องไม่มียอดรวมออกมา', () => {

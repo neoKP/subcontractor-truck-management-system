@@ -1,5 +1,6 @@
 import { monthlyAverageDiesel, type MonthlyAverage } from './oilMonthlyAverage';
 import { findRateAt, type FuelRateRow } from './fuelRateParser';
+import { oilPriceAtDate } from './oilPriceAtDate';
 import { canonicalSubcontractor } from './subcontractorAliases';
 import { canonicalTruckType } from './truckTypeAliases';
 import { samePlace } from './placeAliases';
@@ -21,6 +22,15 @@ import type { Job } from '../types';
  *
  * หมายเหตุ: เดือนที่วิ่งงานมาจาก dateOfService ไม่ใช่เดือนที่ออกบิล —
  * งานวันที่ 28 ส.ค. ที่วางบิลเดือน ต.ค. ต้องใช้ค่าเฉลี่ยเดือนสิงหาคม
+ *
+ * ส่วนต่าง = ราคาตามตารางที่ค่าเฉลี่ย − ราคาตามตารางที่ราคาน้ำมันวันที่วิ่ง
+ * ไม่ใช่ลบด้วยยอดในใบงานตรง ๆ · รุ่นแรกลบด้วย job.cost แล้วได้ส่วนต่างเดือน ก.ย.
+ * ใบละราว 2,000 บาท ทั้งที่ผลของค่าเฉลี่ยจริงอยู่หลักสิบ เพราะใบงานพวกนั้น
+ * ไม่ได้เปิดด้วยตารางเรท (ราคาตกลงเอง 23,500 ไม่ตรงช่องไหนในตาราง)
+ * ส่วนต่างจึงปนเรื่อง "เปลี่ยนวิธีตั้งราคา" เข้ามา ซึ่งข้อตกลงไม่ได้พูดถึง
+ *
+ * ใบงานที่ยอดไม่ตรงกับราคาตามตารางวันที่วิ่ง จะถูกแยกออกเป็น cost-mismatch
+ * และไม่นับรวมยอด เพราะไม่รู้ว่าตกลงราคากันไว้แบบไหน — ให้คนตัดสินเอง
  */
 
 export type AdjustStatus =
@@ -34,6 +44,10 @@ export type AdjustStatus =
     | 'no-average'
     /** หาเรทของเส้นทางนี้ไม่เจอที่ค่าเฉลี่ยนั้น */
     | 'no-rate'
+    /** ไม่รู้ราคาน้ำมันของวันที่วิ่ง หรือตารางไม่มีราคาที่ระดับนั้น — เทียบไม่ได้ */
+    | 'no-daily-rate'
+    /** ยอดในใบงานไม่ตรงกับราคาตามตารางวันที่วิ่ง — ใบงานไม่ได้เปิดด้วยตารางเรท */
+    | 'cost-mismatch'
     /** ใบงานไม่มีข้อมูลพอ (ไม่มีวันที่ ต้นทาง ปลายทาง หรือประเภทรถ) */
     | 'incomplete';
 
@@ -49,9 +63,18 @@ export interface AdjustedJob {
     truckType: string;
     /** ยอดเดิมในใบงาน (บาท) */
     originalCost: number;
+    /** ราคาดีเซลของวันที่วิ่ง — 0 เมื่อไม่รู้ */
+    dailyDiesel: number;
+    /** ราคาตามตารางที่ราคาน้ำมันวันที่วิ่ง — ตัวตั้งของส่วนต่าง · null เมื่อหาไม่ได้ */
+    dailyCost: number | null;
+    /** ช่วงราคาน้ำมันของราคาวันที่วิ่ง เช่น "39.01–40" */
+    dailyBand: string;
     /** ยอดที่ควรเป็นเมื่อคิดจากค่าเฉลี่ย — null เมื่อคำนวณไม่ได้ */
     adjustedCost: number | null;
-    /** ส่วนต่าง (บวก = ต้องจ่ายเพิ่ม) — null เมื่อคำนวณไม่ได้ */
+    /**
+     * ผลของค่าเฉลี่ย = adjustedCost − dailyCost (บวก = ต้องจ่ายเพิ่ม)
+     * null เมื่อคำนวณไม่ได้ · มีค่าใน cost-mismatch ด้วยแต่ไม่นับรวมยอด
+     */
     difference: number | null;
     /** ค่าเฉลี่ยที่ใช้ — 0 เมื่อคำนวณไม่ได้ */
     avgDiesel: number;
@@ -68,9 +91,11 @@ export interface AdjustmentSummary {
     adjustedCount: number;
     /** จำนวนงานที่ยอดเท่าเดิม */
     unchangedCount: number;
-    /** จำนวนงานที่คำนวณไม่ได้ (ต้องดูเอง) */
+    /** จำนวนงานที่คำนวณไม่ได้ (ต้องดูเอง) — รวม mismatchCount ด้วย */
     problemCount: number;
-    /** ผลรวมยอดเดิมของงานที่คำนวณได้ */
+    /** จำนวนงานที่ยอดในใบงานไม่ได้มาจากตารางเรท */
+    mismatchCount: number;
+    /** ผลรวมราคาตามตารางวันที่วิ่ง ของงานที่นับรวมยอด */
     totalOriginal: number;
     /** ผลรวมยอดใหม่ของงานที่คำนวณได้ */
     totalAdjusted: number;
@@ -134,6 +159,9 @@ export function adjustJob(
         destination: job.destination || '',
         truckType: job.truckType || '',
         originalCost: job.cost || 0,
+        dailyDiesel: 0,
+        dailyCost: null,
+        dailyBand: '',
         adjustedCost: null,
         difference: null,
         avgDiesel: 0,
@@ -155,17 +183,45 @@ export function adjustJob(
     }
 
     const adjusted = money(hit.price);
-    const diff = money(adjusted - (job.cost || 0));
-
-    return {
+    const withAvg: AdjustedJob = {
         ...base,
         adjustedCost: adjusted,
-        difference: diff,
         avgDiesel: avg.diesel,
         band: `${hit.fuelFrom}–${hit.fuelTo}`,
-        status: diff === 0 ? 'unchanged' : 'adjusted',
     };
+
+    /*
+      ราคาตามตารางที่ราคาน้ำมันวันที่วิ่ง — ใช้ oilPriceAtDate ตัวเดียวกับหน้าเปิดใบงาน
+      ถ้าคิดราคารายวันคนละวิธีกับตอนเปิดงาน ใบงานที่เปิดถูกจะโดนตีว่าไม่ตรงตาราง
+    */
+    const daily = oilPriceAtDate(byDate, day, today);
+    const dailyHit = daily.usable && row ? findRateAt(row, daily.diesel) : null;
+    if (!dailyHit || dailyHit.price === null) {
+        return { ...withAvg, dailyDiesel: daily.usable ? daily.diesel : 0, status: 'no-daily-rate' };
+    }
+
+    const dailyCost = money(dailyHit.price);
+    const diff = money(adjusted - dailyCost);
+    const withDaily: AdjustedJob = {
+        ...withAvg,
+        dailyDiesel: daily.diesel,
+        dailyCost,
+        dailyBand: `${dailyHit.fuelFrom}–${dailyHit.fuelTo}`,
+        difference: diff,
+    };
+
+    // ราคาตามเรทน้ำมันคือราคาช่องตรง ๆ ไม่มีค่าจุดส่งบวก (ดู matchSelectedFuelRate)
+    // ยอดไม่ตรง = ใบงานนี้ไม่ได้เปิดด้วยตารางเรท
+    if (money(job.cost || 0) !== dailyCost) {
+        return { ...withDaily, status: 'cost-mismatch' };
+    }
+
+    return { ...withDaily, status: diff === 0 ? 'unchanged' : 'adjusted' };
 }
+
+/** งานที่นำมารวมยอดได้ — ยอดในใบงานมาจากตารางเรทและคำนวณครบ */
+const countable = (j: AdjustedJob): boolean =>
+    j.status === 'adjusted' || j.status === 'unchanged';
 
 /**
  * สรุปยอดปรับของงานทั้งเดือน สำหรับเอาไปวางบิล
@@ -186,9 +242,9 @@ export function summarizeMonth(
     let totalOriginal = 0;
     let totalAdjusted = 0;
     for (const j of jobs) {
-        if (j.adjustedCost === null) continue;
-        totalOriginal += j.originalCost;
-        totalAdjusted += j.adjustedCost;
+        if (!countable(j)) continue;
+        totalOriginal += j.dailyCost as number;
+        totalAdjusted += j.adjustedCost as number;
     }
 
     return {
@@ -197,7 +253,8 @@ export function summarizeMonth(
         jobs,
         adjustedCount: jobs.filter(j => j.status === 'adjusted').length,
         unchangedCount: jobs.filter(j => j.status === 'unchanged').length,
-        problemCount: jobs.filter(j => j.adjustedCost === null).length,
+        problemCount: jobs.filter(j => !countable(j)).length,
+        mismatchCount: jobs.filter(j => j.status === 'cost-mismatch').length,
         totalOriginal: money(totalOriginal),
         totalAdjusted: money(totalAdjusted),
         totalDifference: money(totalAdjusted - totalOriginal),
