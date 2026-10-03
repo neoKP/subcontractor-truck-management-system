@@ -68,7 +68,7 @@ describe('aliasesOf', () => {
     });
 
     it('ชื่อที่ไม่มีชื่อพ้องได้อาร์เรย์ว่าง', () => {
-        expect(aliasesOf('KNN')).toEqual([]);
+        expect(aliasesOf('PTK')).toEqual([]);
     });
 });
 
@@ -105,5 +105,36 @@ describe('เบญจวรรณ ขนส่ง — ตารางเรท�
 
     it('ชื่อในใบงานต้องคงเดิม ไม่ให้รายงานเปลี่ยนชื่อ', () => {
         expect(canonicalSubcontractor('เบญจวรรณ ขนส่ง')).toBe('เบญจวรรณ ขนส่ง');
+    });
+});
+
+describe('ชื่อในตารางเรทที่ผู้ใช้ยืนยันว่าเป็นเจ้าเดียวกับในใบงาน (3 ต.ค. 2569)', () => {
+    const PAIRS: [string, string][] = [
+        ['SHIPPER', 'บจก.ชิปเปอร์ เทคโนโลยี'],
+        ['KNN DYNAMIC', 'KNN'],
+        ['โอเคนะ แม่สอด', 'โอเคนะ'],
+        ['YSK TRANSPORT', 'YSK'],
+        ['พรแม่ย่า', 'รถร่วมพรแม่ย่า'],
+        ['พรมณี 24h', 'พรมณี 24เอช ทรานสปอร์ต'],
+    ];
+
+    it.each(PAIRS)('"%s" ในตารางเรท = "%s" ในใบงาน', (rate, job) => {
+        expect(isSameSubcontractor(rate, job)).toBe(true);
+    });
+
+    it.each(PAIRS)('ชื่อในใบงาน "%s" -> "%s" ต้องคงเดิม ไม่ให้รายงานเปลี่ยนชื่อ', (_rate, job) => {
+        expect(canonicalSubcontractor(job)).toBe(job);
+    });
+
+    it('ไม่ทำให้เจ้าอื่นกลายเป็นเจ้าเดียวกันไปด้วย', () => {
+        // KNN กับ YSK เป็นคนละเจ้า — การแปลงชื่อต้องไม่ลามข้ามคู่
+        expect(isSameSubcontractor('KNN DYNAMIC', 'YSK')).toBe(false);
+        expect(isSameSubcontractor('SHIPPER', 'โอเคนะ')).toBe(false);
+    });
+});
+
+describe('aliasesOf — หลังยืนยันชื่อจากตารางเรท', () => {
+    it('ค้นใบงานเก่าของ KNN ต้องเจอชื่อที่ตารางเรทใช้ด้วย', () => {
+        expect(aliasesOf('KNN')).toEqual(['KNN DYNAMIC']);
     });
 });
