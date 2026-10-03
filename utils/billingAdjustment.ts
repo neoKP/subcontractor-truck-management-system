@@ -3,7 +3,7 @@ import { findRateAt, type FuelRateRow } from './fuelRateParser';
 import { oilPriceAtDate } from './oilPriceAtDate';
 import { canonicalSubcontractor } from './subcontractorAliases';
 import { canonicalTruckType } from './truckTypeAliases';
-import { samePlace } from './placeAliases';
+import { matchRoute } from './placeZones';
 import type { OilBands } from './oilRounds';
 import type { Job } from '../types';
 
@@ -80,6 +80,10 @@ export interface AdjustedJob {
     avgDiesel: number;
     /** ช่วงราคาน้ำมันที่ยอดใหม่ตกอยู่ เช่น "40.01–41" — ว่างเมื่อคำนวณไม่ได้ */
     band: string;
+    /** เส้นทางตามที่เขียนในตารางเรท เช่น "กทม ปริมณฑล → นครสวรรค์" — ว่างเมื่อหาไม่เจอ */
+    rateRoute: string;
+    /** จับคู่ได้แบบไหน — inferred = ตามเขต หรือแก้ต้นทางที่ตารางเขียนผิด (ดู placeZones) */
+    matchedBy: 'exact' | 'inferred' | '';
     status: AdjustStatus;
 }
 
@@ -116,22 +120,25 @@ const money = (n: number): number => Math.round(n * 100) / 100;
  * เทียบชื่อผ่านทะเบียนมาตรฐานก่อน เพราะไฟล์จากหน่วยงานเขียนชื่อคนละแบบ
  * กับที่ระบบเก็บ ("รถร่วมคุณหนึ่ง" กับ "รถร่วมวสรรณ์" เป็นเจ้าเดียวกัน)
  */
-function matchRow(rows: FuelRateRow[], job: Job): FuelRateRow | null {
+function matchRow(rows: FuelRateRow[], job: Job): { row: FuelRateRow; how: 'exact' | 'inferred' } | null {
     const wantTruck = canonicalTruckType(job.truckType || '');
     const wantSub = canonicalSubcontractor(job.subcontractor || '');
     if (!wantTruck) return null;
 
+    // แถวชื่อตรงชนะแถวตามเขตเสมอ — ราคาเฉพาะร้านคือสิ่งที่หน่วยงานตั้งใจกำหนดไว้
+    const inferred: FuelRateRow[] = [];
     for (const row of rows) {
-        // ใช้ samePlace ไม่ใช่ eq ตรง ๆ เพราะชื่อสถานที่ในใบงานกับในตารางเรท
-        // เขียนคนละแบบ — ดู utils/placeAliases.ts
-        if (!samePlace(row.origin, job.origin || '')) continue;
-        if (!samePlace(row.destination, job.destination || '')) continue;
         if (!eq(canonicalTruckType(row.truckType), wantTruck)) continue;
         // ถ้าใบงานระบุผู้รับเหมาไว้ ต้องตรงด้วย — เส้นทางเดียวกันคนละเจ้าคนละราคา
         if (wantSub && !eq(canonicalSubcontractor(row.company), wantSub)) continue;
-        return row;
+        // ชื่อสถานที่ในใบงานกับในตารางเขียนคนละแบบ และบางตารางคิดตามเขต
+        // — ดู utils/placeAliases.ts และ utils/placeZones.ts
+        const how = matchRoute(row, job.origin || '', job.destination || '');
+        if (how === 'exact') return { row, how };
+        if (how === 'inferred') inferred.push(row);
     }
-    return null;
+    // ตามเขตแล้วเจอหลายแถว = ไม่รู้ว่าแถวไหนถูก · ไม่เลือกให้ ปล่อยเป็น "ไม่พบเรท"
+    return inferred.length === 1 ? { row: inferred[0], how: 'inferred' } : null;
 }
 
 /**
@@ -166,6 +173,8 @@ export function adjustJob(
         difference: null,
         avgDiesel: 0,
         band: '',
+        rateRoute: '',
+        matchedBy: '',
         status: 'incomplete',
     };
 
@@ -176,7 +185,8 @@ export function adjustJob(
         return { ...base, status: avg.status === 'month-not-over' ? 'month-not-over' : 'no-average' };
     }
 
-    const row = matchRow(rows, job);
+    const found = matchRow(rows, job);
+    const row = found?.row ?? null;
     const hit = row ? findRateAt(row, avg.diesel) : null;
     if (!hit || hit.price === null) {
         return { ...base, avgDiesel: avg.diesel, status: 'no-rate' };
@@ -188,6 +198,8 @@ export function adjustJob(
         adjustedCost: adjusted,
         avgDiesel: avg.diesel,
         band: `${hit.fuelFrom}–${hit.fuelTo}`,
+        rateRoute: `${(row as FuelRateRow).origin} → ${(row as FuelRateRow).destination}`,
+        matchedBy: (found as { how: 'exact' | 'inferred' }).how,
     };
 
     /*

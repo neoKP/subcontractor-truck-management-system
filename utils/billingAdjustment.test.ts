@@ -284,3 +284,55 @@ describe('monthsWithJobs — เดือนที่มีงานให้เ
         expect(monthsWithJobs(jobs)).toEqual(['2026-09']);
     });
 });
+
+describe('adjustJob — เรทตามเขต (utils/placeZones.ts)', () => {
+    // ใบงานจากคลอง13 ไปร้านในนครสวรรค์ — ตาราง YSK เขียนเป็นเขต
+    const zoneJob = (over: Partial<Job> = {}) => job({
+        origin: 'นีโอคอร์ปอเรท คลอง13',
+        destination: 'ร้านสล.โฮลเซลล์ นครสวรรค์',
+        truckType: '10W',
+        cost: 6050,
+        ...over,
+    });
+    const zoneRow = (over: Partial<FuelRateRow> = {}) => rateRow({
+        origin: 'กทม ปริมณฑล', destination: 'นครสวรรค์', truckType: '10W', ...over,
+    });
+
+    it('หาเรทเจอผ่านเขต และบอกว่าใช้แถวไหน', () => {
+        const r = adjustJob(zoneJob(), [zoneRow()], BANDS, '2026-10-02');
+
+        expect(r.status).toBe('adjusted');
+        expect(r.matchedBy).toBe('inferred');
+        expect(r.rateRoute).toBe('กทม ปริมณฑล → นครสวรรค์');
+    });
+
+    it('มีแถวชื่อตรง ต้องใช้แถวนั้น ไม่ใช่แถวเขต', () => {
+        const shop = zoneRow({
+            origin: 'นีโอคอร์ปอเรท คลอง13', destination: 'ร้านสล.โฮลเซลล์ นครสวรรค์',
+            bands: [
+                { fuelFrom: 39.01, fuelTo: 40.00, price: 5500 },
+                { fuelFrom: 40.01, fuelTo: 41.00, price: 5600 },
+            ],
+        });
+        // วางแถวเขตไว้ก่อน — ต้องยังเลือกแถวชื่อตรง
+        const r = adjustJob(zoneJob({ cost: 5600 }), [zoneRow(), shop], BANDS, '2026-10-02');
+
+        expect(r.matchedBy).toBe('exact');
+        expect(r.adjustedCost).toBe(5500);
+    });
+
+    it('ตามเขตแล้วเจอหลายแถว ต้องไม่เลือกให้', () => {
+        // ไม่รู้ว่าแถวไหนถูก — เลือกแถวแรกเงียบ ๆ คือการเดาราคา
+        const a = zoneRow({ seq: 1 });
+        const b = zoneRow({ seq: 2, origin: 'งานย่อย' });
+        const r = adjustJob(zoneJob(), [a, b], BANDS, '2026-10-02');
+
+        expect(r.status).toBe('no-rate');
+    });
+
+    it('ชื่อตรงอยู่แล้วต้องบอกว่า exact', () => {
+        const r = adjustJob(job(), [rateRow()], BANDS, '2026-10-02');
+        expect(r.matchedBy).toBe('exact');
+        expect(r.rateRoute).toBe('กทม ปริมณฑล → อุทัยธานี / ชัยนาท');
+    });
+});

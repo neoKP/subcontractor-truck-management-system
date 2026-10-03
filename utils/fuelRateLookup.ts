@@ -1,7 +1,7 @@
 import { findRateAt, type FuelRateRow } from './fuelRateParser';
 import { canonicalSubcontractor } from './subcontractorAliases';
 import { canonicalTruckType, truckTypeSpec } from './truckTypeAliases';
-import { samePlace } from './placeAliases';
+import { matchRoute, type RouteMatch } from './placeZones';
 
 /**
  * หาเรทค่าขนส่งตามราคาน้ำมัน สำหรับเส้นทางที่กำลังสร้างใบงาน
@@ -62,11 +62,26 @@ export function findFuelRateOptions(
     const wantTruck = canonicalTruckType(query.truckType);
     if (!query.origin?.trim() || !query.destination?.trim() || !wantTruck) return [];
 
-    const out: FuelRateOption[] = [];
+    /*
+      จับคู่ชื่อตรงก่อน แล้วค่อยตามเขต (ดู utils/placeZones.ts)
+
+      ผู้รับเหมาที่มีแถวชื่อตรงอยู่แล้ว ตัดแถวตามเขตของเจ้านั้นทิ้ง
+      ไม่งั้นเส้นทางเดียวกันจะมีสองราคาให้เลือก (ราคาร้านนี้ กับ ราคาเขต)
+      และราคาเฉพาะร้านคือสิ่งที่หน่วยงานตั้งใจกำหนดไว้มากกว่า
+    */
+    const matched: { row: FuelRateRow; how: RouteMatch }[] = [];
     for (const row of rows) {
-        if (!samePlace(row.origin, query.origin)) continue;
-        if (!samePlace(row.destination, query.destination)) continue;
         if (!eq(canonicalTruckType(row.truckType), wantTruck)) continue;
+        const how = matchRoute(row, query.origin, query.destination);
+        if (how) matched.push({ row, how });
+    }
+    const exactSubs = new Set(
+        matched.filter(m => m.how === 'exact').map(m => canonicalSubcontractor(m.row.company))
+    );
+
+    const out: FuelRateOption[] = [];
+    for (const { row, how } of matched) {
+        if (how !== 'exact' && exactSubs.has(canonicalSubcontractor(row.company))) continue;
 
         const band = findRateAt(row, fuelPrice);
         if (!band) continue;   // ไม่มีเรทในช่วงราคาน้ำมันนี้ — ไม่เดา ไม่ใส่ 0
@@ -125,8 +140,7 @@ export function hasFuelRateRoute(rows: FuelRateRow[], query: RouteQuery): boolea
     if (!rows?.length) return false;
     const wantTruck = canonicalTruckType(query.truckType);
     return rows.some(row =>
-        samePlace(row.origin, query.origin) &&
-        samePlace(row.destination, query.destination) &&
-        eq(canonicalTruckType(row.truckType), wantTruck)
+        eq(canonicalTruckType(row.truckType), wantTruck) &&
+        matchRoute(row, query.origin, query.destination) !== null
     );
 }

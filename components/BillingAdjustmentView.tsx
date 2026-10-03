@@ -44,6 +44,12 @@ const STATUS_LABEL: Record<AdjustedJob['status'], string> = {
     incomplete: 'ข้อมูลไม่ครบ',
 };
 
+const MATCH_LABEL: Record<AdjustedJob['matchedBy'], string> = {
+    exact: 'ชื่อตรง',
+    inferred: 'ตามเขต',
+    '': '-',
+};
+
 /** ราคาน้ำมันกับช่วงที่ใช้ เช่น "40.257 (40.01–41)" — ว่างเมื่อไม่รู้ */
 const dieselNote = (diesel: number, band: string, digits: number): string =>
     diesel > 0 ? `${diesel.toFixed(digits)}${band ? ` (${band})` : ''}` : '';
@@ -108,6 +114,8 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
                     { header: 'ต้นทาง', value: r => r.origin || '-', type: 'text' },
                     { header: 'ปลายทาง', value: r => r.destination || '-', type: 'text' },
                     { header: 'ประเภทรถ', value: r => r.truckType || '-', type: 'text' },
+                    { header: 'เส้นทางในตารางเรท', value: r => r.rateRoute || '-', type: 'text' },
+                    { header: 'จับคู่จาก', value: r => MATCH_LABEL[r.matchedBy], type: 'text', width: 12 },
                     { header: 'ยอดในใบงาน', value: r => r.originalCost, type: 'money' },
                     { header: 'ดีเซลวันที่วิ่ง (ช่วง)', value: r => dieselNote(r.dailyDiesel, r.dailyBand, 2) || '-', type: 'text' },
                     // ปล่อยว่างเมื่อคำนวณไม่ได้ ไม่ใส่ 0 — คนอ่านต้องแยกออกว่า
@@ -124,6 +132,8 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
                     + ' (ตามที่ตกลงกับหน่วยงาน: เปิดงานด้วยราคารายวัน ปรับเป็นค่าเฉลี่ยตอนวางบิล)',
                     'สถานะ "ยอดไม่ได้มาจากตาราง" = ยอดในใบงานไม่ตรงกับราคาในตารางเรท ณ วันที่วิ่ง'
                     + ' เช่นราคาตกลงเองหรือ Spot Rate — ไม่นับรวมยอด ต้องตัดสินเองว่าจะปรับหรือไม่',
+                    '"จับคู่จาก: ตามเขต" = ชื่อในใบงานไม่ตรงกับตาราง แต่สถานที่อยู่ในเขตราคาที่ตารางกำหนด'
+                    + ' (เช่น ร้านในนครสวรรค์ ใช้เรทเขต "นครสวรรค์") — ตรวจได้ที่คอลัมน์เส้นทางในตารางเรท',
                     'ช่องที่เว้นว่าง = ยังคำนวณไม่ได้ ไม่ใช่ยอด 0 บาท — ดูสาเหตุที่คอลัมน์สถานะ',
                     `ตารางเรทที่ใช้: ${version?.fileName || '-'}`,
                 ],
@@ -333,6 +343,11 @@ const BillingAdjustmentView: React.FC<Props> = ({ jobs }) => {
                                         <p className="text-xs text-slate-500">
                                             {r.origin || '-'} → {r.destination || '-'} · {r.truckType || '-'}
                                         </p>
+                                        {r.matchedBy === 'inferred' && (
+                                            <p className="text-[11px] text-indigo-600">
+                                                ใช้เรทตามเขต: {r.rateRoute}
+                                            </p>
+                                        )}
                                     </td>
                                     <td className={`px-4 py-3 text-right tabular-nums ${
                                         r.status === 'cost-mismatch' ? 'text-orange-600 font-bold' : 'text-slate-600'
