@@ -111,6 +111,21 @@ const ZONE_MEMBERS: Record<string, string[]> = {
 };
 
 /**
+ * ชื่อในตารางที่รวมหลายสถานที่ไว้ในช่องเดียว — ใบงานจากที่ใดที่หนึ่งใช้แถวนั้นได้
+ *
+ * ต่างจากเขต: ผู้ใช้ยืนยันชื่อแต่ละที่โดยตรง ไม่ได้อนุมานจากราคา จึงนับเป็น "ชื่อตรง"
+ * ตาราง KNN แถว 20 เขียนต้นทางว่า "ล่ำสูง บางปู / ไฮคิว สมุทรปราการ"
+ * — ผู้ใช้ยืนยัน 3 ต.ค. 2569: ล่ำสูง บางปู = ล่ำสูง(บางปู) · ไฮคิว สมุทรปราการ = ไฮคิวผลิตภัณฑ์อาหาร
+ */
+const COMBINED_PLACES: Record<string, string[]> = {
+    'ล่ำสูง บางปู / ไฮคิว สมุทรปราการ': ['ล่ำสูง(บางปู)', 'ไฮคิวผลิตภัณฑ์อาหาร'],
+};
+
+const inCombined = (ratePlace: string, place: string): boolean =>
+    Object.entries(COMBINED_PLACES).some(([name, members]) =>
+        samePlace(name, ratePlace) && members.some(m => samePlace(m, place)));
+
+/**
  * ต้นทางในตารางที่หมายถึง "ต้นทางไหนก็ได้"
  *
  * ตารางโอเคนะ แม่สอด แถว 160-162 เขียนต้นทางว่า "งานย่อย" · ราคากลางของโอเคนะ
@@ -155,6 +170,7 @@ export type RouteMatch = 'exact' | 'inferred' | null;
 
 const matchPlace = (ratePlace: string, jobPlace: string): RouteMatch => {
     if (samePlace(ratePlace, jobPlace)) return 'exact';
+    if (inCombined(ratePlace, jobPlace)) return 'exact';
     if (inZone(ratePlace, jobPlace)) return 'inferred';
     return null;
 };
