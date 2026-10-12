@@ -124,3 +124,42 @@ describe('ชื่อบริษัทที่หน่วยงานเข�
         expect(d.unchanged).toHaveLength(1);
     });
 });
+
+describe('ช่องราคาว่าง — รุ่นในระบบมาจาก RTDB ซึ่งไม่เก็บ null', () => {
+    /*
+      ไฟล์ที่เพิ่งอ่าน: ช่องว่าง = { price: null }
+      รุ่นในระบบ:      ช่องว่าง = ไม่มี key price เลย (RTDB ทิ้ง null)
+
+      เหตุการณ์จริง 12 ต.ค. 2569 — ไฟล์ 21.08(7) ขึ้นว่า "แก้ไข 68 แถว"
+      ทั้งที่ราคาเปลี่ยนจริงแถวเดียว ผู้ใช้จะตัดสินใจอัปโหลดจากตัวเลขที่ผิด
+    */
+    const fromFile = (): FuelRateRow => {
+        const r = mk({});
+        r.bands = [{ fuelFrom: 34.99, fuelTo: 36.98, price: 1000 }, { fuelFrom: 36.99, fuelTo: 38.98, price: null }];
+        return r;
+    };
+    const fromRtdb = (): FuelRateRow => {
+        const r = mk({});
+        r.bands = [{ fuelFrom: 34.99, fuelTo: 36.98, price: 1000 }, { fuelFrom: 36.99, fuelTo: 38.98 } as FuelRateRow['bands'][number]];
+        return r;
+    };
+
+    it('ช่องว่างเหมือนกัน ต้องนับเป็น "เหมือนเดิม" ไม่ใช่ "แก้ไข"', () => {
+        const d = diffFuelRates([fromFile()], [fromRtdb()], FUEL);
+        expect(d.unchanged.length).toBe(1);
+        expect(d.updated.length).toBe(0);
+    });
+
+    it('เติมราคาในช่องที่เคยว่าง ต้องยังนับเป็น "แก้ไข"', () => {
+        const filled = fromFile();
+        filled.bands[1].price = 2000;
+        const d = diffFuelRates([filled], [fromRtdb()], FUEL);
+        expect(d.updated.length).toBe(1);
+        expect(d.priceChangedCount).toBe(1);
+    });
+
+    it('ลบราคาออกจากช่องที่เคยมี ต้องยังนับเป็น "แก้ไข"', () => {
+        const d = diffFuelRates([fromFile()], [mk({})], FUEL);
+        expect(d.updated.length).toBe(1);
+    });
+});

@@ -50,9 +50,12 @@ const sameBands = (a: FuelRateRow, b: FuelRateRow): boolean => {
     if (a.bands.length !== b.bands.length) return false;
     return a.bands.every((band, i) => {
         const other = b.bands[i];
+        // ช่องว่างเทียบแบบ null = undefined — RTDB ไม่เก็บ null ช่องว่างของรุ่นในระบบจึง
+        // ไม่มี key price เลย ส่วนไฟล์ที่เพิ่งอ่านเป็น null · ถ้าเทียบ === ตรง ๆ ทุกแถวที่มี
+        // ช่องว่างจะขึ้นว่า "แก้ไข" (ไฟล์ 21.08(7): ขึ้น 68 แถว ทั้งที่ราคาเปลี่ยนจริงแถวเดียว)
         return band.fuelFrom === other.fuelFrom
             && band.fuelTo === other.fuelTo
-            && band.price === other.price;
+            && (band.price ?? null) === (other.price ?? null);
     });
 };
 
