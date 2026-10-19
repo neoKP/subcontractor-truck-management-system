@@ -1,4 +1,5 @@
 import { rowKey } from './fuelRateDiff';
+import { supersedes } from './placeZones';
 import type { FuelRateRow } from './fuelRateParser';
 
 /**
@@ -30,15 +31,20 @@ export function mergeFuelRateRows(current: FuelRateRow[], incoming: FuelRateRow[
 
     const used = new Set<string>();
 
-    const merged: FuelRateRow[] = current.map(row => {
+    const merged: FuelRateRow[] = [];
+    for (const row of current) {
         const k = rowKey(row);
         const replacement = incomingByKey.get(k);
         if (replacement) {
             used.add(k);
-            return replacement;
+            merged.push(replacement);
+            continue;
         }
-        return row;
-    });
+        // แถวเดิมที่ไฟล์ใหม่แทนด้วยต้นทางรวม — ตัดทิ้ง ไม่งั้นราคาเก่าค้างแข่งกับราคาใหม่
+        // (ตัวเปรียบเทียบแยกแถวพวกนี้เป็น superseded ให้ตัวเลขบนจอตรงกับที่บันทึก)
+        if (incoming.some(n => supersedes(n, row))) continue;
+        merged.push(row);
+    }
 
     /*
       ต่อท้ายเฉพาะเส้นทางที่ยังไม่เคยถูกใส่ — ทั้งที่ไม่ตรงกับของเดิม

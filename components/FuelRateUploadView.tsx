@@ -294,6 +294,7 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                 title: 'บันทึกเรียบร้อย',
                 text: mode === 'merge'
                     ? `รวม ${preview.rows.length} เส้นทางจากไฟล์เข้ากับรุ่นเดิมแล้ว — เส้นทางที่ไฟล์ไม่มียังอยู่ครบ`
+                      + (diff?.superseded.length ? ` (ยกเว้น ${diff.superseded.length} เส้นทางที่ถูกแทนด้วยต้นทางรวม)` : '')
                     : `บันทึก ${preview.rows.length} เส้นทาง (แทนที่ทั้งหมด) และตั้งเป็นรุ่นที่ใช้งานแล้ว`,
                 timer: 2200,
                 showConfirmButton: false,
@@ -522,6 +523,7 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                                         { label: 'แก้ไข', n: diff.updated.length, cls: 'bg-amber-100 text-amber-700' },
                                         { label: 'เหมือนเดิม', n: diff.unchanged.length, cls: 'bg-slate-100 text-slate-600' },
                                         { label: 'หายไป', n: diff.removed.length, cls: 'bg-red-100 text-red-700' },
+                                        { label: 'ถูกแทนด้วยต้นทางรวม', n: diff.superseded.length, cls: 'bg-violet-100 text-violet-700' },
                                     ].filter(x => x.n > 0).map((x, i) => (
                                         <span key={i} className={`px-3 py-1.5 rounded-xl text-[11px] font-black ${x.cls}`}>
                                             {x.label} {x.n}
@@ -532,6 +534,14 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                                 {diff.priceChangedCount > 0 && (
                                     <p className="text-[11px] text-slate-600 font-medium mt-3">
                                         มี <b>{diff.priceChangedCount} เส้นทาง</b>ที่ค่าขนส่ง ณ ราคาน้ำมัน {live.diesel.toFixed(2)} บาท เปลี่ยนไป
+                                    </p>
+                                )}
+
+                                {diff.superseded.length > 0 && (
+                                    <p className="text-[11px] text-violet-700 font-bold mt-3 leading-relaxed">
+                                        🔁 มี {diff.superseded.length} เส้นทางเดิมที่ไฟล์นี้เขียนต้นทางใหม่แบบรวมหลายที่ —
+                                        จะถูกแทนด้วยแถวใหม่ ไม่เก็บแถวเดิมไว้ (กันราคาเก่าค้าง)
+                                        <br />เช่น {diff.superseded.slice(0, 2).map(c => `${c.row.origin} → ${c.row.destination} (${c.row.truckType})`).join(' · ')}
                                     </p>
                                 )}
 
@@ -579,6 +589,7 @@ const FuelRateUploadView: React.FC<Props> = ({ currentUserName }) => {
                                             <span className="block text-[11px] text-slate-600 leading-relaxed mt-0.5">
                                                 เส้นทางใหม่จะถูกเพิ่ม · เส้นทางที่ซ้ำ (บริษัท ต้นทาง ปลายทาง ประเภทรถ ตรงกัน)
                                                 จะใช้ราคาจากไฟล์ใหม่ · <b>เส้นทางเดิมที่ไฟล์นี้ไม่มี ยังอยู่ครบ</b>
+                                                {' '}ยกเว้นเส้นทางที่ไฟล์เขียนต้นทางใหม่แบบรวมหลายที่ ซึ่งจะถูกแทนด้วยแถวใหม่
                                             </span>
                                         </span>
                                     </label>

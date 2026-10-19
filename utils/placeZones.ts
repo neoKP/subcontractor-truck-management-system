@@ -160,6 +160,58 @@ const inCombined = (ratePlace: string, place: string): boolean =>
         samePlace(name, ratePlace) && members.some(m => samePlace(m, place)));
 
 /**
+ * ชื่อในตารางที่รวม "หลายพื้นที่" ไว้ในช่องเดียว — ใบงานที่อยู่ในพื้นที่ใดพื้นที่หนึ่งใช้แถวนั้นได้
+ *
+ * ต่างจาก COMBINED_PLACES: แต่ละส่วนเป็นพื้นที่ (ใช้ร่วมกับ ZONE_MEMBERS) ไม่ใช่ชื่อร้าน
+ * ตารางพรแม่ย่า (ไฟล์ 19 ต.ค. 2569) เขียนต้นทางว่า "บางปะอิน (นมไทย) / คลอง13 / กทม"
+ * แทน "บางปะอิน (นมไทย)" เดิม — ผู้ใช้ยืนยัน 19 ต.ค. 2569 ว่าหมายถึงออกจากที่ไหนก็ได้ในสองที่
+ *
+ * ห้ามแยกด้วย "/" อัตโนมัติ: "คลอง13 / กทม" เองก็มี "/" อยู่ในชื่อ แยกแล้วจะได้ "กทม"
+ * ซึ่งไม่ใช่พื้นที่ในตาราง และชื่อแบบ "อุทัยธานี / ชัยนาท" ก็เป็นพื้นที่เดียว ไม่ใช่สองที่
+ */
+const COMBINED_AREAS: Record<string, string[]> = {
+    'บางปะอิน (นมไทย) / คลอง13 / กทม': ['บางปะอิน (นมไทย)', 'คลอง13 / กทม'],
+};
+
+/**
+ * แถวใหม่ (ต้นทางรวม) มาแทนแถวเก่าไหม
+ *
+ * ไฟล์ 19 ต.ค. 2569 เปลี่ยนต้นทาง "บางปะอิน (นมไทย)" เป็น "บางปะอิน (นมไทย) / คลอง13 / กทม"
+ * ถ้ารวมแบบเดิม แถวเก่ายังค้าง (กุญแจต่างกันที่ต้นทาง) — ใบงานจากบางปะอินจะเจอทั้งแถวเก่า
+ * และใหม่ แล้วหน้ายอดปรับหยิบราคาเก่า · ใบงานจากคลอง13 เจอสองแถวตามเขตแล้วหาเรทไม่ได้ (codex P1)
+ *
+ * แทนเมื่อ: เจ้าเดียวกัน · รถเดียวกัน · ปลายทางเดียวกัน · ต้นทางเก่าเป็นส่วนหนึ่งของต้นทางรวมใหม่
+ */
+export function supersedes(newRow: FuelRateRow, oldRow: FuelRateRow): boolean {
+    const parts = Object.entries(COMBINED_AREAS).find(([name]) => samePlace(name, newRow.origin))?.[1];
+    if (!parts) return false;
+    if (samePlace(newRow.origin, oldRow.origin)) return false;
+    const truck = (s: string) => (s || '').trim().toLowerCase().replace(/\s+/g, '');
+    // หมายเหตุ/ตารางย่อยต้องตรงด้วย — เส้นทางเดียวกันแยกแถวตามพิกัดน้ำหนักได้ (rowKey ก็นับ)
+    // ถ้าไม่เช็ค แถวใหม่แถวเดียวจะลบทุกแบบทิ้ง (codex P1)
+    const v = (s?: string) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    return canonicalSubcontractor(newRow.company) === canonicalSubcontractor(oldRow.company)
+        && v(newRow.note) === v(oldRow.note)
+        && v(newRow.section) === v(oldRow.section)
+        && truck(newRow.truckType) === truck(oldRow.truckType)
+        && samePlace(newRow.destination, oldRow.destination)
+        && parts.some(p => samePlace(p, oldRow.origin));
+}
+
+/** ชื่อตรงกับพื้นที่ย่อยข้อใดข้อหนึ่ง = exact · อยู่ในพื้นที่ย่อยตามเขต = inferred */
+const matchCombinedArea = (ratePlace: string, place: string): RouteMatch => {
+    let best: RouteMatch = null;
+    for (const [name, parts] of Object.entries(COMBINED_AREAS)) {
+        if (!samePlace(name, ratePlace)) continue;
+        for (const part of parts) {
+            if (samePlace(part, place)) return 'exact';
+            if (inZone(part, place)) best = 'inferred';
+        }
+    }
+    return best;
+};
+
+/**
  * ต้นทางในตารางที่หมายถึง "ต้นทางไหนก็ได้"
  *
  * ตารางโอเคนะ แม่สอด แถว 160-162 เขียนต้นทางว่า "งานย่อย" · ราคากลางของโอเคนะ
@@ -229,6 +281,11 @@ export function areasOf(place: string): { area: string; source: 'code' | 'team' 
     for (const [name, members] of Object.entries(COMBINED_PLACES)) {
         if (members.some(m => samePlace(m, p))) out.push({ area: name, source: 'code' });
     }
+    // ต้นทางรวมหลายพื้นที่ — ต้องตรงกับ matchCombinedArea ไม่งั้นหน้า "จับคู่สถานที่"
+    // จะบอกว่ายังไม่จับคู่ ทั้งที่ระบบหาเรทเจอแล้ว (codex P2)
+    for (const [name, parts] of Object.entries(COMBINED_AREAS)) {
+        if (parts.some(part => samePlace(part, p) || inZone(part, p))) out.push({ area: name, source: 'code' });
+    }
     for (const e of runtimeEntries) {
         if (!samePlace(e.place, p)) continue;
         for (const a of e.areas) if (!out.some(o => samePlace(o.area, a))) out.push({ area: a, source: 'team' });
@@ -244,9 +301,14 @@ export function areasOf(place: string): { area: string; source: 'code' | 'team' 
  */
 export type RouteMatch = 'exact' | 'inferred' | null;
 
-const matchPlace = (ratePlace: string, jobPlace: string): RouteMatch => {
+const matchPlace = (ratePlace: string, jobPlace: string, side: 'origin' | 'destination'): RouteMatch => {
     if (samePlace(ratePlace, jobPlace)) return 'exact';
     if (inCombined(ratePlace, jobPlace)) return 'exact';
+    // ผู้ใช้ยืนยันต้นทางรวมเฉพาะฝั่งต้นทาง — ปลายทางที่เขียนแบบเดียวกันยังไม่ได้ยืนยัน (codex P2)
+    if (side === 'origin') {
+        const combined = matchCombinedArea(ratePlace, jobPlace);
+        if (combined) return combined;
+    }
     if (inZone(ratePlace, jobPlace)) return 'inferred';
     return null;
 };
@@ -267,10 +329,10 @@ export function matchRoute(row: FuelRateRow, origin: string, destination: string
     const ro = rowOrigin(row);
     const o: RouteMatch = ANY_ORIGIN.has((ro.origin || '').trim())
         ? 'inferred'
-        : matchPlace(ro.origin, origin);
+        : matchPlace(ro.origin, origin, 'origin');
     if (!o) return null;
 
-    const d = matchPlace(row.destination, destination);
+    const d = matchPlace(row.destination, destination, 'destination');
     if (!d) return null;
 
     return o === 'exact' && d === 'exact' && !ro.fixed ? 'exact' : 'inferred';

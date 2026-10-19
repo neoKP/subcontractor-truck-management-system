@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { diffFuelRates } from './fuelRateDiff';
 import { mergeFuelRateRows } from './fuelRateMerge';
 import type { FuelRateRow } from './fuelRateParser';
 
@@ -140,5 +141,63 @@ describe('mergeFuelRateRows — ไฟล์มีเส้นทางซ้ำ
         const keys = merged.map(r => `${r.company}|${r.destination}|${r.truckType}`);
         expect(new Set(keys).size).toBe(keys.length);
         expect(merged).toHaveLength(3);
+    });
+});
+
+describe('แถวต้นทางรวม "แทน" แถวเดิม (ไฟล์ 19 ต.ค. 2569)', () => {
+    /*
+      ไฟล์ใหม่เปลี่ยนต้นทางพรแม่ย่าจาก "บางปะอิน (นมไทย)" เป็น "บางปะอิน (นมไทย) / คลอง13 / กทม"
+      รวมแบบเดิมแถวเก่าจะค้าง (กุญแจต่างที่ต้นทาง) แล้วราคาเก่าแข่งกับราคาใหม่ (codex P1)
+    */
+    const r = (origin: string, destination: string, truckType: string, price: number, company = 'พรแม่ย่า'): FuelRateRow => ({
+        seq: 1, company, origin, destination, truckType, note: '',
+        bands: [{ fuelFrom: 39.01, fuelTo: 40, price }],
+    });
+    const oldRow = r('บางปะอิน (นมไทย)', 'เมืองเชียงราย', '6W', 12000);
+    const newRow = r('บางปะอิน (นมไทย) / คลอง13 / กทม', 'เมืองเชียงราย', '6W', 11500);
+
+    it('รวมแล้วเหลือแถวใหม่แถวเดียว', () => {
+        const out = mergeFuelRateRows([oldRow], [newRow]);
+        expect(out).toHaveLength(1);
+        expect(out[0].origin).toBe('บางปะอิน (นมไทย) / คลอง13 / กทม');
+    });
+
+    it('ไม่แทนเมื่อปลายทาง รถ หรือผู้รับเหมาต่างกัน', () => {
+        const others = [
+            r('บางปะอิน (นมไทย)', 'แม่สาย เชียงราย', '6W', 1),
+            r('บางปะอิน (นมไทย)', 'เมืองเชียงราย', '10W', 1),
+            r('บางปะอิน (นมไทย)', 'เมืองเชียงราย', '6W', 1, 'YSK TRANSPORT'),
+        ];
+        expect(mergeFuelRateRows(others, [newRow])).toHaveLength(4);
+    });
+
+    it('ไม่แทนแถวที่หมายเหตุ (พิกัดน้ำหนัก) ต่างกัน — แทนเฉพาะแบบที่ตรง', () => {
+        const heavy = { ...oldRow, note: 'บรรทุก 3001-3500 กก.' };
+        const out = mergeFuelRateRows([oldRow, heavy], [newRow]);
+        expect(out.map(x => x.note).sort()).toEqual(['', 'บรรทุก 3001-3500 กก.'].sort());
+        expect(out.find(x => x.note === '')!.origin).toBe('บางปะอิน (นมไทย) / คลอง13 / กทม');
+    });
+
+    it('ไม่แทนต้นทางที่ไม่ได้อยู่ในชื่อรวม', () => {
+        const other = r('สมุทรปราการ', 'เมืองเชียงราย', '6W', 1);
+        expect(mergeFuelRateRows([other], [newRow])).toHaveLength(2);
+    });
+
+    it('แถวที่ถูกแทนและราคาต่างจากเดิม ต้องนับใน "ราคาเปลี่ยน"', () => {
+        // เดิม 12,000 แถวใหม่ 11,500 — ราคาที่ใช้จริงเปลี่ยน หน้าตัวอย่างต้องบอก
+        const d = diffFuelRates([newRow], [oldRow], 40);
+        expect(d.priceChangedCount).toBe(1);
+        expect(d.superseded[0]).toMatchObject({ oldPrice: 12000, newPrice: 11500 });
+    });
+
+    it('หน้าตัวอย่างนับแถวที่ถูกแทนแยกจาก "หายไป" — ตัวเลขบนจอต้องตรงกับที่บันทึก', () => {
+        const keep = r('สมุทรปราการ', 'ลำพูน', '6W', 1);
+        const d = diffFuelRates([newRow], [oldRow, keep], 40);
+        expect(d.superseded.map(c => c.row.origin)).toEqual(['บางปะอิน (นมไทย)']);
+        expect(d.removed.map(c => c.row.origin)).toEqual(['สมุทรปราการ']);
+        expect(d.added).toHaveLength(1);
+        // หลังบันทึก: แถวใหม่ + แถวที่หายไป (เก็บไว้) — แถวที่ถูกแทนไม่อยู่
+        expect(mergeFuelRateRows([oldRow, keep], [newRow]).map(x => x.origin).sort())
+            .toEqual(['บางปะอิน (นมไทย) / คลอง13 / กทม', 'สมุทรปราการ'].sort());
     });
 });

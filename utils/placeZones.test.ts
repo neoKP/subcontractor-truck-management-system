@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { inZone, matchRoute, rowOrigin } from './placeZones';
+import { inZone, matchRoute, rowOrigin, areasOf } from './placeZones';
 import { findFuelRateOptions, hasFuelRateRoute } from './fuelRateLookup';
 import type { FuelRateRow } from './fuelRateParser';
 
@@ -192,5 +192,46 @@ describe('ต้นทางพรแม่ย่า และพื้นที
     it('นครปฐมไพศาล ใช้แถวพรมณี "แม็คโครเมืองนครปฐม" ได้ (ต้นทางสหพัฒน์ศรีราชา)', () => {
         const pmn = row({ company: 'พรมณี 24h', origin: 'แม็คโครเมืองนครปฐม', destination: 'แม็คโครเมืองนครปฐม', truckType: '10W' });
         expect(matchRoute(pmn, 'สหพัฒน์ศรีราชา', 'นครปฐมไพศาล')).toBe('inferred');
+    });
+});
+
+describe('ต้นทางรวมของพรแม่ย่า "บางปะอิน (นมไทย) / คลอง13 / กทม" (19 ต.ค. 2569)', () => {
+    const pm = row({ company: 'พรแม่ย่า', origin: 'บางปะอิน (นมไทย) / คลอง13 / กทม', destination: 'เมืองเชียงราย', truckType: '6W' });
+
+    it('ใบงานจากบางปะอิน (นมไทย) ใช้แถวนี้ได้ = ชื่อตรง', () => {
+        expect(matchRoute(pm, 'บางปะอิน (นมไทย)', 'เมืองเชียงราย')).toBe('exact');
+    });
+
+    it('ใบงานที่เขียน "นมไทย(บางปะอิน)" (สลับคำ) ใช้แถวนี้ได้ = ชื่อตรง', () => {
+        expect(matchRoute(pm, 'นมไทย(บางปะอิน)', 'เมืองเชียงราย')).toBe('exact');
+    });
+
+    it('ใบงานจากร้านที่อยู่ในเขต "คลอง13 / กทม" ใช้แถวนี้ได้ = ตามเขต', () => {
+        expect(matchRoute(pm, 'นีโอคอร์ปอเรท คลอง13', 'เมืองเชียงราย')).toBe('inferred');
+        expect(matchRoute(pm, 'อำพลฟู้ดส์', 'เมืองเชียงราย')).toBe('inferred');
+    });
+
+    it('ชื่อรวมแบบนี้ที่อยู่ฝั่งปลายทาง ยังไม่ขยาย — ยืนยันไว้เฉพาะต้นทาง', () => {
+        const asDest = row({ company: 'พรแม่ย่า', origin: 'ลำปาง', destination: 'บางปะอิน (นมไทย) / คลอง13 / กทม', truckType: '6W' });
+        expect(matchRoute(asDest, 'ลำปาง', 'นีโอคอร์ปอเรท คลอง13')).toBeNull();
+        expect(matchRoute(asDest, 'ลำปาง', 'บางปะอิน (นมไทย)')).toBeNull();
+    });
+
+    it('ต้นทางอื่นใช้แถวนี้ไม่ได้ — ไม่แยกชื่อด้วย "/" เอง', () => {
+        // ถ้าแยกด้วย "/" จะได้ "กทม" ซึ่งไม่ใช่พื้นที่ในตาราง
+        expect(matchRoute(pm, 'กทม', 'เมืองเชียงราย')).toBeNull();
+        expect(matchRoute(pm, 'น้ำมันพืชไทย', 'เมืองเชียงราย')).toBeNull();
+    });
+
+    it('หน้า "จับคู่สถานที่" ต้องเห็นว่าจับคู่แล้ว (areasOf ตรงกับ matchRoute)', () => {
+        const name = 'บางปะอิน (นมไทย) / คลอง13 / กทม';
+        expect(areasOf('บางปะอิน (นมไทย)').map(a => a.area)).toContain(name);
+        expect(areasOf('นีโอคอร์ปอเรท คลอง13').map(a => a.area)).toContain(name);
+        expect(areasOf('น้ำมันพืชไทย').map(a => a.area)).not.toContain(name);
+    });
+
+    it('แถวที่เขียนแค่ "บางปะอิน (นมไทย)" ไม่ได้รับร้านในเขตคลอง13', () => {
+        const old = row({ company: 'พรแม่ย่า', origin: 'บางปะอิน (นมไทย)', destination: 'เมืองเชียงราย', truckType: '6W' });
+        expect(matchRoute(old, 'นีโอคอร์ปอเรท คลอง13', 'เมืองเชียงราย')).toBeNull();
     });
 });

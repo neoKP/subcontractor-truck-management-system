@@ -1,4 +1,5 @@
 import { findRateAt, type FuelRateRow } from './fuelRateParser';
+import { supersedes } from './placeZones';
 import { canonicalSubcontractor } from './subcontractorAliases';
 
 /**
@@ -27,6 +28,12 @@ export interface RateDiff {
     updated: RowChange[];
     unchanged: RowChange[];
     removed: RowChange[];
+    /**
+     * แถวเดิมที่ไฟล์นี้ "แทน" ด้วยแถวต้นทางรวม (ดู placeZones.supersedes)
+     * ไม่นับใน removed — โหมดรวมจะลบแถวพวกนี้ ไม่ได้เก็บไว้ ถ้านับรวม หน้าจอจะบอกว่า
+     * "เก็บไว้ตามเดิม" ทั้งที่จริงถูกแทน
+     */
+    superseded: RowChange[];
     /** จำนวนเส้นทางที่ราคา ณ ราคาน้ำมันปัจจุบันเปลี่ยนไป */
     priceChangedCount: number;
 }
@@ -77,6 +84,7 @@ export function diffFuelRates(
         updated: [],
         unchanged: [],
         removed: [],
+        superseded: [],
         priceChangedCount: 0,
     };
 
@@ -118,12 +126,20 @@ export function diffFuelRates(
         }
     }
 
-    const removed: RowChange[] = [...before.values()].map(row => ({
-        status: 'removed' as const,
-        row,
-        oldPrice: findRateAt(row, fuelPrice)?.price ?? null,
-        newPrice: null,
-    }));
+    const removed: RowChange[] = [];
+    const superseded: RowChange[] = [];
+    for (const row of before.values()) {
+        const oldPrice = findRateAt(row, fuelPrice)?.price ?? null;
+        const by = incoming.find(n => supersedes(n, row));
+        if (by) {
+            // ราคาที่ใช้จริงเปลี่ยนจากแถวเดิมเป็นแถวที่มาแทน — ต้องนับ ไม่งั้นหน้าตัวอย่างบอก 0 (codex P2)
+            const newPrice = findRateAt(by, fuelPrice)?.price ?? null;
+            superseded.push({ status: 'removed', row, oldPrice, newPrice });
+            if (oldPrice !== newPrice) priceChangedCount++;
+        } else {
+            removed.push({ status: 'removed', row, oldPrice, newPrice: null });
+        }
+    }
 
-    return { isFirstUpload: false, added, updated, unchanged, removed, priceChangedCount };
+    return { isFirstUpload: false, added, updated, unchanged, removed, superseded, priceChangedCount };
 }
