@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canonicalSubcontractor, isSameSubcontractor, aliasesOf } from './subcontractorAliases';
+import { canonicalSubcontractor, isSameSubcontractor, aliasesOf, reportSubcontractorName } from './subcontractorAliases';
 
 describe('canonicalSubcontractor', () => {
     it('แปลงชื่อที่หน่วยงานใช้ในไฟล์เรทเป็นชื่อในระบบ', () => {
@@ -143,5 +143,33 @@ describe('วสรรณ์ เนียมหมวด (ไฟล์ 19 ต.�
     it('เป็นเจ้าเดียวกับรถร่วมวสรรณ์', () => {
         expect(canonicalSubcontractor('วสรรณ์ เนียมหมวด')).toBe('รถร่วมวสรรณ์');
         expect(isSameSubcontractor('วสรรณ์ เนียมหมวด', 'รถร่วมคุณหนึ่ง')).toBe(true);
+    });
+});
+
+describe('reportSubcontractorName — ชื่อในรายงาน/ตัวกรอง (27 ต.ค. 2569)', () => {
+    /*
+      หน้ารายงานประจำวันแสดงเจ้าเดียวกันซ้ำหลายบรรทัด:
+      "พรแม่ย่า" กับ "รถร่วมพรแม่ย่า" · "รถร่วมคุณวสรรณ์" กับ "รถร่วมวสรรณ์"
+      · "เบญจวรรณ ขนส่ง" กับ "เบญจวรรณขนส่ง"
+    */
+    it.each([
+        ['พรแม่ย่า', 'รถร่วมพรแม่ย่า'],
+        ['รถร่วมคุณวสรรณ์', 'รถร่วมวสรรณ์'],
+        ['เบญจวรรณขนส่ง', 'เบญจวรรณ ขนส่ง'],
+    ])('"%s" กับ "%s" ต้องรวมเป็นบรรทัดเดียว', (a, b) => {
+        expect(reportSubcontractorName(a)).toBe(reportSubcontractorName(b));
+    });
+
+    it('ยังตัดคำว่า BO ท้ายชื่อเหมือนเดิม', () => {
+        expect(reportSubcontractorName('YSK BO')).toBe('YSK');
+        expect(reportSubcontractorName('KNN bo')).toBe('KNN');
+    });
+
+    it('เจ้าที่ต่างกันต้องไม่ถูกรวม', () => {
+        expect(reportSubcontractorName('KNN')).not.toBe(reportSubcontractorName('YSK'));
+    });
+
+    it('ชื่อว่างได้ค่าว่าง ไม่พัง', () => {
+        expect(reportSubcontractorName('')).toBe('');
     });
 });

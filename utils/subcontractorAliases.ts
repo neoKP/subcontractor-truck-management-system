@@ -85,6 +85,16 @@ export const canonicalSubcontractor = (name: string): string => {
     return ALIASES[clean] ?? clean;
 };
 
+/**
+ * ชื่อที่ใช้จัดกลุ่มในรายงาน/ตัวกรอง — ตัดคำว่า "BO" ท้ายชื่อ (ป้ายสาขาที่บางใบงานพิมพ์ติดมา)
+ * แล้วแปลงเป็นชื่อมาตรฐาน · ไม่งั้นเจ้าเดียวกันขึ้นหลายบรรทัด เช่น "พรแม่ย่า" กับ
+ * "รถร่วมพรแม่ย่า" (ผู้ใช้ขอรวม 27 ต.ค. 2569)
+ *
+ * ใช้เฉพาะการแสดงผลและกรอง — ไม่แก้ชื่อในใบงาน
+ */
+export const reportSubcontractorName = (name: string): string =>
+    canonicalSubcontractor((name || '').replace(/\s*BO$/i, '').trim());
+
 /** ชื่อสองชื่อนี้หมายถึงเจ้าเดียวกันไหม */
 export const isSameSubcontractor = (a: string, b: string): boolean =>
     canonicalSubcontractor(a) === canonicalSubcontractor(b);

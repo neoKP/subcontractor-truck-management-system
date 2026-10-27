@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Job, JobStatus, JOB_STATUS_LABELS, UserRole } from '../types';
 import { FileSpreadsheet, Search, Calendar, Truck, User, MapPin, CheckCircle2, Clock, AlertCircle, Users, Eye, Phone, Package } from 'lucide-react';
 import { formatDate } from '../utils/format';
+import { reportSubcontractorName } from '../utils/subcontractorAliases';
 import { exportExcelReport, type ReportColumn, type ReportSheet } from '../utils/excelReport';
 import JobPreviewModal from './JobPreviewModal';
 import { db, ref, get, query, orderByChild, startAt, endAt } from '../firebaseConfig';
@@ -11,7 +12,8 @@ interface DailyReportViewProps {
     currentUser: { id: string; name: string; role: UserRole };
 }
 
-const normalizeSub = (name: string) => name.replace(/\s*BO$/i, '').trim();
+// รวมชื่อผู้รับเหมาที่เป็นเจ้าเดียวกัน (ดู utils/subcontractorAliases.ts)
+const normalizeSub = (name: string) => reportSubcontractorName(name);
 const getExtraTotal = (job: Job): number => {
     const arr = job.extraCharges || [];
     if (arr.length > 0) return arr.filter(e => e.status !== 'REJECTED').reduce((s, e) => s + (e.amount || 0), 0);

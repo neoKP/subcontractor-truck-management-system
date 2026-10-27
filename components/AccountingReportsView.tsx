@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { reportSubcontractorName } from '../utils/subcontractorAliases';
 import { Job, AuditLog, JobStatus, JOB_STATUS_LABELS, UserRole } from '../types';
 import { db, ref, get, query, orderByChild, startAt, endAt } from '../firebaseConfig';
 import { exportExcelReport, thaiFileDate, type ReportColumn, type ReportSheet } from '../utils/excelReport';
@@ -201,8 +202,8 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
 
             // Cross-Filtering Logic (Clean names for robust matching)
             if (selectedSub) {
-                const subClean = (j.subcontractor || 'Waiting').replace(/\s*BO$/i, '').trim();
-                const targetClean = selectedSub.replace(/\s*BO$/i, '').trim();
+                const subClean = reportSubcontractorName(j.subcontractor || 'Waiting');
+                const targetClean = reportSubcontractorName(selectedSub);
                 if (subClean !== targetClean) return false;
             }
             if (selectedRoute) {
@@ -250,8 +251,8 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
             if (j.status === JobStatus.CANCELLED) return;
 
             if (selectedSub) {
-                const subClean = (j.subcontractor || 'Waiting').replace(/\s*BO$/i, '').trim();
-                const targetClean = selectedSub.replace(/\s*BO$/i, '').trim();
+                const subClean = reportSubcontractorName(j.subcontractor || 'Waiting');
+                const targetClean = reportSubcontractorName(selectedSub);
                 if (subClean !== targetClean) return;
             }
             if (selectedRoute) {
@@ -279,7 +280,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
     const subData = useMemo(() => {
         const dist: Record<string, number> = {};
         validJobs.forEach(j => {
-            const name = (j.subcontractor || 'Waiting').replace(/\s*BO$/i, '').trim();
+            const name = reportSubcontractorName(j.subcontractor || 'Waiting');
             dist[name] = (dist[name] || 0) + jobTotalCost(j);
         });
         return Object.entries(dist)
@@ -306,7 +307,7 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
         const groups: Record<string, { name: string; jobs: number; cost: number }> = {};
         validJobs.forEach(j => {
             const key = groupBy === 'sub'
-                ? (j.subcontractor || 'Waiting').replace(/\s*BO$/i, '').trim()
+                ? reportSubcontractorName(j.subcontractor || 'Waiting')
                 : `${j.origin} → ${j.destination}`;
 
             if (!groups[key]) groups[key] = { name: key, jobs: 0, cost: 0 };
@@ -324,13 +325,13 @@ const AccountingReportsView: React.FC<AccountingReportsViewProps> = ({ jobs, log
 
     const detailSubList = useMemo(() => {
         const names = new Set<string>();
-        validJobs.forEach(j => { if (j.subcontractor) names.add(j.subcontractor.trim()); });
+        validJobs.forEach(j => { if (j.subcontractor) names.add(reportSubcontractorName(j.subcontractor)); });
         return Array.from(names).sort();
     }, [validJobs]);
 
     const detailTableJobs = useMemo(() => {
         let list = [...validJobs];
-        if (detailSubFilter) list = list.filter(j => (j.subcontractor || '').trim() === detailSubFilter);
+        if (detailSubFilter) list = list.filter(j => reportSubcontractorName(j.subcontractor || '') === detailSubFilter);
         if (detailSearch) {
             const s = detailSearch.toLowerCase();
             list = list.filter(j =>
