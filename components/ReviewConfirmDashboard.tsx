@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { isSameSubcontractor } from '../utils/subcontractorAliases';
 import { Job, JobStatus, AccountingStatus, UserRole, AuditLog, PriceMatrix, SubcontractorMaster } from '../types';
 import { Search, Download, CheckCircle, Clock, TrendingUp, AlertCircle, User } from 'lucide-react';
 import { formatDate, formatThaiCurrency, generateUUID } from '../utils/format';
@@ -104,7 +105,7 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
             { origin: job.origin || '', destination: job.destination || '', truckType: job.truckType || '' },
             oilAt.diesel
         ).some(o =>
-            o.subcontractor === (job.subcontractor || '').trim()
+            isSameSubcontractor(o.subcontractor, job.subcontractor || '')
             && Math.abs(o.price - (job.cost || 0)) < 0.01
         );
     };
@@ -114,7 +115,7 @@ const ReviewConfirmDashboard: React.FC<ReviewConfirmDashboardProps> = ({
             (p.origin || '').trim() === (job.origin || '').trim() &&
             (p.destination || '').trim() === (job.destination || '').trim() &&
             (p.truckType || '').trim() === (job.truckType || '').trim() &&
-            (p.subcontractor || '').trim() === (job.subcontractor || '').trim()
+            isSameSubcontractor(p.subcontractor || '', job.subcontractor || '')
         );
     };
 

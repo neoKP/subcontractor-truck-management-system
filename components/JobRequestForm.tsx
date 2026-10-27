@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { isSameSubcontractor, canonicalSubcontractor, standardSubcontractorNames } from '../utils/subcontractorAliases';
 import { jobYearCode, formatJobId, reserveJobSeq, nextSeqFromJobs } from '../utils/jobId';
 import { Job, JobStatus, UserRole, PriceMatrix, SubcontractorMaster } from '../types';
 import { MASTER_DATA } from '../constants';
@@ -298,7 +299,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
         (p.origin || '').trim() === (formData.origin || '').trim() &&
         (p.destination || '').trim() === (formData.destination || '').trim() &&
         (p.truckType || '').trim() === (formData.truckType || '').trim() &&
-        (!selectedSub || (p.subcontractor || '').trim() === selectedSub)
+        (!selectedSub || isSameSubcontractor(p.subcontractor || '', selectedSub))
       )
       .sort((a: PriceMatrix, b: PriceMatrix) => (a.basePrice || 0) - (b.basePrice || 0));
 
@@ -527,7 +528,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
         (p.origin || '').trim() === (formData.origin || '').trim() &&
         (p.destination || '').trim() === (formData.destination || '').trim() &&
         (p.truckType || '').trim() === (formData.truckType || '').trim() &&
-        (p.subcontractor || '').trim() === (formData.subcontractor || '').trim()
+        isSameSubcontractor(p.subcontractor || '', formData.subcontractor || '')
       )
     : currentMatchedPricing;
 
@@ -998,12 +999,13 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                         {showSubDropdown && (
                           <div className="absolute z-50 w-full mt-1 bg-white border-2 border-orange-200 rounded-2xl shadow-xl max-h-60 overflow-y-auto">
                             {(() => {
-                              const registeredNames = new Set(subcontractorMasters.map(m => m.name));
-                              const allSubs = Array.from(new Set([
+                              // แนะนำเฉพาะชื่อมาตรฐาน — ไม่งั้นเจ้าเดียวกันถูกบันทึกหลายสะกด (ผู้ใช้ขอ 27 ต.ค. 2569)
+                              const registeredNames = new Set(subcontractorMasters.map(m => canonicalSubcontractor(m.name)));
+                              const allSubs = standardSubcontractorNames([
                                 ...subcontractorMasters.map(m => m.name),
                                 ...MASTER_DATA.subcontractors,
                                 ...priceMatrix.map(p => p.subcontractor).filter(Boolean),
-                              ])).sort();
+                              ]);
                               const filtered = allSubs.filter(s => !spotSubSearch || s.toLowerCase().includes(spotSubSearch.toLowerCase()));
                               if (filtered.length === 0) return <div className="px-4 py-3 text-sm text-slate-400 font-bold">ไม่พบบริษัทที่ค้นหา</div>;
                               return filtered.map((s, idx) => (
@@ -1013,7 +1015,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                                   onMouseDown={() => {
                                     // โหมด spot ไม่มีราคากลางให้ดึงวิธีจ่ายเงิน จึงเอาจากทะเบียนผู้รับเหมา
                                     // ไม่งั้นงานเงินสดจะบันทึกได้โดยไม่มีเลขบัญชี เพราะตัวกันเช็คจาก paymentType
-                                    const master = subcontractorMasters.find(m => m.name === s);
+                                    const master = subcontractorMasters.find(m => isSameSubcontractor(m.name, s));
                                     setFormData({
                                       ...formData,
                                       subcontractor: s,
@@ -1172,7 +1174,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                               // เทียบราคาด้วย ไม่ใช่แค่ชื่อผู้รับเหมา — รายเดียวกันมีได้หลายแถวราคา
                               // ถ้าเทียบแค่ชื่อ ทุกแถวของรายนั้นจะขึ้นว่าถูกเลือกพร้อมกัน
                               // และกดแถวอื่นจะกลายเป็นยกเลิกการเลือกแทนที่จะสลับแถว
-                              const isSelected = formData.subcontractor === p.subcontractor
+                              const isSelected = isSameSubcontractor(formData.subcontractor || '', p.subcontractor || '')
                                 && Number(formData.cost) === totalWithDrops
                                 && Number(formData.sellingPrice) === p.sellingBasePrice + dropFeeTotal;
                               const isCheapest = idx === 0;
@@ -1187,7 +1189,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                                     } else {
                                       setFormData(prev => ({
                                         ...prev,
-                                        subcontractor: p.subcontractor,
+                                        subcontractor: canonicalSubcontractor(p.subcontractor || ''),
                                         cost: totalWithDrops,
                                         sellingPrice: p.sellingBasePrice + dropFeeTotal,
                                         paymentType: p.paymentType || 'CREDIT',
@@ -1349,7 +1351,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                                 } else {
                                   // วิธีจ่ายเงินไม่ได้มากับไฟล์เรท จึงดึงจากทะเบียนผู้รับเหมา
                                   // ไม่งั้นงานเงินสดจะบันทึกได้โดยไม่มีเลขบัญชี เพราะตัวกันเช็คจาก paymentType
-                                  const master = subcontractorMasters.find(m => m.name === opt.subcontractor);
+                                  const master = subcontractorMasters.find(m => isSameSubcontractor(m.name, opt.subcontractor));
                                   setFormData(prev => ({
                                     ...prev,
                                     subcontractor: opt.subcontractor,
@@ -1453,7 +1455,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                                 p.origin === formData.origin &&
                                 p.destination === formData.destination &&
                                 p.truckType === formData.truckType &&
-                                p.subcontractor === sub
+                                isSameSubcontractor(p.subcontractor || '', sub)
                               )
                               .sort((a, b) => (a.basePrice || 0) - (b.basePrice || 0))[0];
                             const dropFeeTotal = billableDropCount * (match?.dropOffFee || 0);
@@ -1466,7 +1468,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                           }}
                         >
                           <option value="">Waiting Assignment / รอจัดสรร</option>
-                          {MASTER_DATA.subcontractors.map((s, idx) => (
+                          {standardSubcontractorNames(MASTER_DATA.subcontractors).map((s, idx) => (
                             <option key={`${s}-${idx}`} value={s}>{s}</option>
                           ))}
                         </select>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { isSameSubcontractor } from './utils/subcontractorAliases';
 import { UserRole, Job, JobStatus, AuditLog, PriceMatrix, AccountingStatus, SubcontractorInvoice, InvoiceStatus, SubcontractorMaster } from './types';
 import JobRequestForm from './components/JobRequestForm';
 import JobBoard from './components/JobBoard';
@@ -354,7 +355,7 @@ const App: React.FC = () => {
           p.origin === job.origin &&
           p.destination === job.destination &&
           p.truckType === job.truckType &&
-          (!assignedSub || (p.subcontractor || '').trim() === assignedSub)
+          (!assignedSub || isSameSubcontractor(p.subcontractor || '', assignedSub))
         )
         .sort((a: PriceMatrix, b: PriceMatrix) => (a.basePrice || 0) - (b.basePrice || 0))[0];
 

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { isSameSubcontractor, canonicalSubcontractor, standardSubcontractorNames } from '../utils/subcontractorAliases';
 import { Job, JobStatus, UserRole, AuditLog, PriceMatrix, AccountingStatus, SubcontractorMaster } from '../types';
 import { MASTER_DATA } from '../constants';
 import { AlertTriangle, Info, X, Lock, CheckCircle, User, Phone, Hash, CircleDot, DollarSign, Wallet, FileText, Clock, AlertCircle, Calendar, TrendingUp, ShieldCheck, MapPin, Upload, Camera, CheckCircle2, ClipboardCheck, CircleDollarSign } from 'lucide-react';
@@ -29,7 +30,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
       (p.origin || '').trim() === (job.origin || '').trim() &&
       (p.destination || '').trim() === (job.destination || '').trim() &&
       (p.truckType || '').trim() === (job.truckType || '').trim() &&
-      (p.subcontractor || '').trim() === (job.subcontractor || '').trim()
+      isSameSubcontractor(p.subcontractor || '', job.subcontractor || '')
     );
     if (match) {
       const dropCount = (job.drops || []).length;
@@ -128,7 +129,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
       const originMatch = (p.origin || '').trim() === (origin || '').trim();
       const destMatch = (p.destination || '').trim() === (destination || '').trim();
       const truckMatch = (p.truckType || '').trim() === (truckType || '').trim();
-      const subMatch = (p.subcontractor || '').trim() === (sub || '').trim();
+      const subMatch = isSameSubcontractor(p.subcontractor || '', sub || '');
       return originMatch && destMatch && truckMatch && subMatch;
     });
   };
@@ -349,7 +350,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
       paymentAccount: matchedMatrix?.paymentAccount ?? job.paymentAccount,
       ...(() => {
         const subName = (editData.subcontractor || '').trim();
-        const sm = subcontractorMasters.find(s => s.name === subName);
+        const sm = subcontractorMasters.find(s => isSameSubcontractor(s.name, subName));
         return {
           taxId: sm?.taxId ?? matchedMatrix?.taxId ?? job.taxId,
           bankName: sm?.bankName ?? matchedMatrix?.bankName ?? job.bankName,
@@ -743,7 +744,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
 
                     // Group by subcontractor and pick the lowest basePrice
                     .reduce((unique, item) => {
-                      const existing = unique.find(u => u.subcontractor === item.subcontractor);
+                      const existing = unique.find(u => isSameSubcontractor(u.subcontractor || '', item.subcontractor || ''));
                       if (!existing) {
                         unique.push(item);
                       } else if (item.basePrice < existing.basePrice) {
@@ -761,14 +762,14 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                         onClick={() => {
                           setEditData({
                             ...editData,
-                            subcontractor: rec.subcontractor,
+                            subcontractor: canonicalSubcontractor(rec.subcontractor || ''),
                             cost: rec.basePrice,
                             sellingPrice: rec.sellingBasePrice || editData.sellingPrice
                           });
                           setPriceCalculated(true);
                           setTimeout(() => setPriceCalculated(false), 2000);
                         }}
-                        className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all group ${editData.subcontractor === rec.subcontractor ? 'border-emerald-500 bg-emerald-50' : 'border-slate-50 bg-slate-50/50 hover:border-blue-200 hover:bg-white'}`}
+                        className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all group ${isSameSubcontractor(editData.subcontractor || '', rec.subcontractor || '') ? 'border-emerald-500 bg-emerald-50' : 'border-slate-50 bg-slate-50/50 hover:border-blue-200 hover:bg-white'}`}
                       >
                         <div className="flex items-center gap-3">
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-black ${index === 0 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'bg-slate-200 text-slate-500'}`}>
@@ -831,7 +832,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                       id="sub-dropdown"
                       className="hidden absolute z-[110] left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-64 overflow-y-auto scrollbar-thin animate-in fade-in slide-in-from-top-2 duration-200"
                     >
-                      {MASTER_DATA.subcontractors
+                      {standardSubcontractorNames(MASTER_DATA.subcontractors)
                         .filter(s => s.toLowerCase().includes((editData.subcontractor || '').toLowerCase()))
                         .map((s, idx) => {
                           const hasContract = findContractMatch(editData.origin, editData.destination, editData.truckType, s);
@@ -860,7 +861,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
                             </button>
                           );
                         })}
-                      {MASTER_DATA.subcontractors.filter(s => s.toLowerCase().includes((editData.subcontractor || '').toLowerCase())).length === 0 && (
+                      {standardSubcontractorNames(MASTER_DATA.subcontractors).filter(s => s.toLowerCase().includes((editData.subcontractor || '').toLowerCase())).length === 0 && (
                         <div className="p-5 text-center">
                           <p className="text-xs font-bold text-slate-400">ไม่พบข้อมูลบริษัท / No match found</p>
                           <button

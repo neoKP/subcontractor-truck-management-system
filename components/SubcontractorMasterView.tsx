@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { isSameSubcontractor, standardSubcontractorNames } from '../utils/subcontractorAliases';
 import { SubcontractorMaster, UserRole } from '../types';
 import { MASTER_DATA } from '../constants';
 import { Search, Plus, Edit3, Trash2, Save, X, Building2, CreditCard, Phone, User, FileText } from 'lucide-react';
@@ -47,8 +48,8 @@ const SubcontractorMasterView: React.FC<SubcontractorMasterViewProps> = ({
   });
 
   // All sub names from MASTER_DATA not yet in master list
-  const unregistered = MASTER_DATA.subcontractors.filter(
-    name => !subcontractorMasters.some(s => s.name === name)
+  const unregistered = standardSubcontractorNames(MASTER_DATA.subcontractors).filter(
+    name => !subcontractorMasters.some(s => isSameSubcontractor(s.name, name))
   );
 
   const handleEdit = (master: SubcontractorMaster) => {
@@ -265,7 +266,7 @@ const SubcontractorMasterView: React.FC<SubcontractorMasterViewProps> = ({
                       onChange={e => setFormData({ ...formData, name: e.target.value })}
                     />
                     <datalist id="sub-name-list">
-                      {MASTER_DATA.subcontractors.map(s => <option key={s} value={s} />)}
+                      {standardSubcontractorNames(MASTER_DATA.subcontractors).map(s => <option key={s} value={s} />)}
                     </datalist>
                   </div>
                 )}

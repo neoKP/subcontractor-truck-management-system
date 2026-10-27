@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { reportSubcontractorName } from '../utils/subcontractorAliases';
 import { Job, JobStatus, PriceMatrix } from '../types';
 import { X, Printer, CheckCircle, Receipt, Calendar, FileText, MapPin, Download, Loader2 } from 'lucide-react';
 import { generateInvoicePDFBlob, downloadInvoicePDF } from './InvoicePDF';
@@ -85,7 +86,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
             p.origin?.trim() === mainJob.origin?.trim() &&
             p.destination?.trim() === mainJob.destination?.trim() &&
             p.truckType?.trim() === mainJob.truckType?.trim() &&
-            p.subcontractor?.trim() === mainJob.subcontractor?.trim()
+            reportSubcontractorName(p.subcontractor || '') === reportSubcontractorName(mainJob.subcontractor || '')
         );
         
         return {
@@ -455,7 +456,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                                 <div className="grid grid-cols-2 gap-4 mb-6 text-[11px]">
                                     <div className="bg-slate-50 border border-slate-200 rounded p-3">
                                         <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Subcontractor</p>
-                                        <p className="text-sm font-black text-slate-900">{mainJob.subcontractor || '-'}</p>
+                                        <p className="text-sm font-black text-slate-900">{mainJob.subcontractor ? reportSubcontractorName(mainJob.subcontractor) : '-'}</p>
                                     </div>
                                     <div className="bg-slate-50 border border-slate-200 rounded p-3">
                                         <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Company Info</p>

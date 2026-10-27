@@ -95,6 +95,17 @@ export const canonicalSubcontractor = (name: string): string => {
 export const reportSubcontractorName = (name: string): string =>
     canonicalSubcontractor((name || '').replace(/\s*BO$/i, '').trim());
 
+/**
+ * รายชื่อสำหรับช่องเลือกบริษัท — แปลงเป็นชื่อมาตรฐาน ตัดซ้ำ เรียงตามตัวอักษร
+ *
+ * ช่องเลือกเดิมดึงจาก MASTER_DATA.subcontractors ซึ่งมีทั้งชื่อมาตรฐานและชื่อพ้องปนกัน
+ * (เช่น "YSK" กับ "YSK TRANSPORT") ผู้ใช้เลือกคนละชื่อ ใบงานของเจ้าเดียวกันจึงแตกหลายสะกด
+ * (ผู้ใช้ขอให้แนะนำเฉพาะชื่อมาตรฐาน 27 ต.ค. 2569)
+ */
+export const standardSubcontractorNames = (names: (string | undefined | null)[]): string[] =>
+    [...new Set((names || []).filter((n): n is string => !!n && !!n.trim()).map(n => canonicalSubcontractor(n)))]
+        .sort((a, b) => a.localeCompare(b, 'th'));
+
 /** ชื่อสองชื่อนี้หมายถึงเจ้าเดียวกันไหม */
 export const isSameSubcontractor = (a: string, b: string): boolean =>
     canonicalSubcontractor(a) === canonicalSubcontractor(b);

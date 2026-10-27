@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { isSameSubcontractor } from '../utils/subcontractorAliases';
 import { Job, UserRole } from '../types';
 import {
     X, CheckCircle, AlertTriangle, ShieldCheck, Truck,
@@ -70,7 +71,7 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
         (p.origin || '').trim() === (job.origin || '').trim() &&
         (p.destination || '').trim() === (job.destination || '').trim() &&
         (p.truckType || '').trim() === (editData.truckType || '').trim() &&
-        (p.subcontractor || '').trim() === (editData.subcontractor || '').trim()
+        isSameSubcontractor(p.subcontractor || '', editData.subcontractor || '')
     );
     const hasPriceMatch = !!matchedPricing;
     
@@ -99,7 +100,7 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
         && Math.abs(o.price - (editData.cost || 0)) < 0.01
     );
     /** มีเรทของผู้รับเหมารายนี้ แต่ราคาไม่ตรง = ราคาเปลี่ยนไปแล้ว */
-    const fuelExpected = fuelRateOptions.find(o => o.subcontractor === (editData.subcontractor || '').trim());
+    const fuelExpected = fuelRateOptions.find(o => isSameSubcontractor(o.subcontractor, editData.subcontractor || ''));
     const fuelPriceStale = !fuelMatch && !!fuelExpected;
 
     const priceMatchesMaster = !matchedPricing

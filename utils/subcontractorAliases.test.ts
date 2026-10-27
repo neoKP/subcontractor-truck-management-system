@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canonicalSubcontractor, isSameSubcontractor, aliasesOf, reportSubcontractorName } from './subcontractorAliases';
+import { canonicalSubcontractor, isSameSubcontractor, aliasesOf, reportSubcontractorName, standardSubcontractorNames } from './subcontractorAliases';
 
 describe('canonicalSubcontractor', () => {
     it('แปลงชื่อที่หน่วยงานใช้ในไฟล์เรทเป็นชื่อในระบบ', () => {
@@ -171,5 +171,24 @@ describe('reportSubcontractorName — ชื่อในรายงาน/ต�
 
     it('ชื่อว่างได้ค่าว่าง ไม่พัง', () => {
         expect(reportSubcontractorName('')).toBe('');
+    });
+});
+
+describe('standardSubcontractorNames — รายชื่อในช่องเลือกบริษัท (27 ต.ค. 2569)', () => {
+    it('ชื่อพ้องรวมเป็นชื่อมาตรฐานชื่อเดียว', () => {
+        const out = standardSubcontractorNames(['YSK', 'YSK TRANSPORT', 'พรแม่ย่า', 'รถร่วมพรแม่ย่า', 'รถร่วมคุณหนึ่ง', 'รถร่วมวสรรณ์']);
+        expect(out).toEqual(['YSK', 'รถร่วมพรแม่ย่า', 'รถร่วมวสรรณ์'].sort((a, b) => a.localeCompare(b, 'th')));
+    });
+
+    it('ไม่มีชื่อพ้องหลงเหลือในรายการหลักของระบบ', () => {
+        // ถ้ามี ผู้ใช้จะเลือกชื่อพ้อง แล้วใบงานแตกหลายสะกดอีก
+        const out = standardSubcontractorNames(['KNN DYNAMIC', 'SHIPPER', 'โอเคนะ แม่สอด', 'วสรรณ์ เนียมหมวด']);
+        expect(out).not.toContain('KNN DYNAMIC');
+        expect(out).not.toContain('SHIPPER');
+        expect(out).not.toContain('วสรรณ์ เนียมหมวด');
+    });
+
+    it('ตัดค่าว่างและช่องว่าง', () => {
+        expect(standardSubcontractorNames(['', '  ', null, undefined, ' KNN '])).toEqual(['KNN']);
     });
 });

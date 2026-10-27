@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
+import { reportSubcontractorName } from '../utils/subcontractorAliases';
 import {
   DollarSign, FileText, Calendar, Building2, Search, Filter,
   Plus, Eye, CheckCircle, AlertTriangle, Clock, X, Save,
@@ -59,7 +60,8 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
 
   // Get unique subcontractors from verified jobs
   const subcontractors = useMemo(() => {
-    const subs = [...new Set(verifiedJobs.map(j => j.subcontractor).filter(Boolean))];
+    // รวมเจ้าเดียวกันที่สะกดต่างกัน (ผู้ใช้ขอ 27 ต.ค. 2569) — ใบแจ้งหนี้ใหม่จะใช้ชื่อมาตรฐาน
+    const subs = [...new Set(verifiedJobs.map(j => j.subcontractor).filter(Boolean).map(s => reportSubcontractorName(s as string)))];
     return subs as string[];
   }, [verifiedJobs]);
 
@@ -101,7 +103,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
   const jobsForSubcontractor = useMemo(() => {
     if (!createForm.subcontractor) return [];
     return verifiedJobs.filter(job => 
-      job.subcontractor === createForm.subcontractor &&
+      reportSubcontractorName(job.subcontractor || '') === createForm.subcontractor &&
       // เทียบแบบวันล้วน — ถ้าเทียบสตริงตรง ๆ งานวันสุดท้ายของงวดที่มีเวลาติดมา
       // (`2026-08-31T08:30:00Z`) จะถูกมองว่าเกินปลายงวด แล้วหายจากใบเงียบ ๆ
       isWithinPeriod(job.dateOfService, createForm.periodStart, createForm.periodEnd)
@@ -118,7 +120,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
 
   // Get payment terms for subcontractor
   const getPaymentTerms = (subcontractor: string) => {
-    const match = priceMatrix.find(p => p.subcontractor === subcontractor);
+    const match = priceMatrix.find(p => reportSubcontractorName(p.subcontractor || '') === reportSubcontractorName(subcontractor));
     return {
       paymentType: match?.paymentType || 'CREDIT',
       creditDays: match?.creditDays || 30
@@ -259,7 +261,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
       const matchSearch = searchTerm === '' ||
         inv.invoiceNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         inv.subcontractor.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchSub = filterSubCon === '' || inv.subcontractor === filterSubCon;
+      const matchSub = filterSubCon === '' || reportSubcontractorName(inv.subcontractor || '') === filterSubCon;
       return matchSearch && matchSub;
     });
   }, [invoices, searchTerm, filterSubCon]);
@@ -345,7 +347,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
             <h2 className="text-lg font-black text-slate-800">📊 สรุปยอดค้างจ่ายแยกตามบริษัทรถร่วม</h2>
             <div className="grid gap-4">
               {subcontractors.map(sub => {
-                const subJobs = verifiedJobs.filter(j => j.subcontractor === sub);
+                const subJobs = verifiedJobs.filter(j => reportSubcontractorName(j.subcontractor || '') === sub);
                 const subTotal = subJobs.reduce((sum, j) => sum + (j.cost || 0), 0);
                 const terms = getPaymentTerms(sub);
                 return (
@@ -443,7 +445,7 @@ const PaymentDashboard: React.FC<PaymentDashboardProps> = ({
                 onChange={e => setFilterSubCon(e.target.value)}
               >
                 <option value="">ทุกบริษัท</option>
-                {[...new Set(invoices.map(inv => inv.subcontractor))].map(sub => (
+                {[...new Set(invoices.map(inv => reportSubcontractorName(inv.subcontractor || '')))].map(sub => (
                   <option key={sub} value={sub}>{sub}</option>
                 ))}
               </select>

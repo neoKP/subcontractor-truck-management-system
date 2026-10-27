@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { isSameSubcontractor } from '../utils/subcontractorAliases';
 import { Job, JobStatus, AccountingStatus, ExtraChargeDetail, UserRole, PriceMatrix } from '../types';
 import {
     CheckCircle, XCircle, AlertTriangle, FileText,
@@ -147,7 +148,7 @@ const AccountingVerificationView: React.FC<AccountingVerificationViewProps> = ({
             p.origin?.trim() === job.origin?.trim() &&
             p.destination?.trim() === job.destination?.trim() &&
             p.truckType?.trim() === job.truckType?.trim() &&
-            p.subcontractor?.trim() === job.subcontractor?.trim()
+            isSameSubcontractor(p.subcontractor || '', job.subcontractor || '')
         );
 
         const dropCount = job.drops?.length || 0;

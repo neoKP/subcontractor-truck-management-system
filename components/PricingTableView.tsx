@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { isSameSubcontractor, standardSubcontractorNames } from '../utils/subcontractorAliases';
 import Swal from 'sweetalert2';
 import { PriceMatrix, MasterData, UserRole } from '../types';
 import { formatThaiCurrency, roundHalfUp } from '../utils/format';
@@ -63,7 +64,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
       p.subcontractor.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.truckType.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesSubCon = filterSubCon === '' || p.subcontractor === filterSubCon;
+    const matchesSubCon = filterSubCon === '' || isSameSubcontractor(p.subcontractor || '', filterSubCon);
     const matchesTruckType = filterTruckType === '' || p.truckType === filterTruckType;
 
     return matchesSearch && matchesSubCon && matchesTruckType;
@@ -187,7 +188,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
       idx !== editingIndex &&
       p.origin === formData.origin &&
       p.destination === formData.destination &&
-      p.subcontractor === formData.subcontractor &&
+      isSameSubcontractor(p.subcontractor || '', formData.subcontractor || '') &&
       p.truckType === formData.truckType
     );
 
@@ -292,7 +293,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
               title="กรองตามบริษัทรถร่วม (Filter by Subcontractor)"
             >
               <option value="">ทุกบริษัท</option>
-              {MASTER_DATA.subcontractors.map((s, idx) => <option key={`${s}-${idx}`} value={s}>{s}</option>)}
+              {standardSubcontractorNames(MASTER_DATA.subcontractors).map((s, idx) => <option key={`${s}-${idx}`} value={s}>{s}</option>)}
             </select>
 
             <select
@@ -663,7 +664,7 @@ const PricingTableView: React.FC<PricingTableViewProps> = ({ priceMatrix, onUpda
                       autoComplete="off"
                     />
                     <datalist id="sub-list">
-                      {MASTER_DATA.subcontractors.map((s, idx) => <option key={`${s}-${idx}`} value={s} />)}
+                      {standardSubcontractorNames(MASTER_DATA.subcontractors).map((s, idx) => <option key={`${s}-${idx}`} value={s} />)}
                     </datalist>
                   </div>
                   <div className="space-y-1">

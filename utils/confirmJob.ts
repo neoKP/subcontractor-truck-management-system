@@ -1,4 +1,5 @@
 import type { Job } from '../types';
+import { isSameSubcontractor } from './subcontractorAliases';
 import { JobStatus, AccountingStatus } from '../types';
 
 /**
@@ -107,7 +108,7 @@ export function canConfirmJob(
             norm(p.origin) === norm(latest.origin) &&
             norm(p.destination) === norm(latest.destination) &&
             norm(p.truckType) === norm(latest.truckType) &&
-            norm(p.subcontractor) === norm(latest.subcontractor)
+            isSameSubcontractor(norm(p.subcontractor), norm(latest.subcontractor))
         );
         if (!hasPrice) {
             return {

@@ -1,5 +1,6 @@
 
 import React, { useState, useRef } from 'react';
+import { isSameSubcontractor, canonicalSubcontractor, standardSubcontractorNames } from '../utils/subcontractorAliases';
 import { Job, UserRole, AuditLog, PriceMatrix, AccountingStatus } from '../types';
 import { MASTER_DATA } from '../constants';
 import { X, Edit3, MapPin, Truck, ShieldAlert, BadgeCheck, Zap, ShieldCheck, Camera, Upload, Image as ImageIcon, FileText, Trash2, ChevronDown } from 'lucide-react';
@@ -718,7 +719,7 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                         <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
                                         <span>Waiting Assignment / รอจัดสรร</span>
                                     </button>
-                                    {MASTER_DATA.subcontractors
+                                    {standardSubcontractorNames(MASTER_DATA.subcontractors)
                                         .filter(s => s.toLowerCase().includes(subQuery.toLowerCase()))
                                         .map((s, i) => {
                                             const isSelected = editData.subcontractor === s;
@@ -726,7 +727,7 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                                 p.origin === editData.origin &&
                                                 p.destination === editData.destination &&
                                                 p.truckType === editData.truckType &&
-                                                p.subcontractor === s
+                                                isSameSubcontractor(p.subcontractor || '', s)
                                             );
 
                                             return (
@@ -762,7 +763,7 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                                 </button>
                                             );
                                         })}
-                                    {MASTER_DATA.subcontractors.filter(s => s.toLowerCase().includes(subQuery.toLowerCase())).length === 0 && (
+                                    {standardSubcontractorNames(MASTER_DATA.subcontractors).filter(s => s.toLowerCase().includes(subQuery.toLowerCase())).length === 0 && (
                                         <div className="p-4 text-center text-xs text-slate-400 font-bold italic">
                                             No matching companies found...
                                         </div>
@@ -883,7 +884,7 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                         </div>
                                         <div className="space-y-2">
                                             {allMatches.slice(0, 3).map((p, idx) => {
-                                                const isSelected = p.subcontractor === editData.subcontractor;
+                                                const isSelected = isSameSubcontractor(p.subcontractor || '', editData.subcontractor || '');
                                                 return (
                                                     <button
                                                         key={idx}
@@ -891,7 +892,7 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                                         onClick={() => {
                                                             setEditData(prev => ({
                                                                 ...prev,
-                                                                subcontractor: p.subcontractor,
+                                                                subcontractor: canonicalSubcontractor(p.subcontractor || ''),
                                                                 cost: p.basePrice,
                                                                 sellingPrice: p.sellingBasePrice || prev.sellingPrice
                                                             }));

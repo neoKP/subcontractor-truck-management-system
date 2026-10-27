@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
+import { reportSubcontractorName } from '../utils/subcontractorAliases';
 import { Job, JobStatus, AccountingStatus, UserRole, AuditLog, JOB_STATUS_LABELS, ACCOUNTING_STATUS_LABELS, PriceMatrix } from '../types';
 import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
 import { DollarSign, ExternalLink, FileCheck, Info, TrendingUp, CheckCircle, XCircle, Lock, AlertCircle, History, Receipt, Undo2 } from 'lucide-react';
@@ -42,7 +43,8 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
 
   const itemsPerPage = 10;
 
-  const uniqueSubs = useMemo(() => Array.from(new Set(jobs.map(j => j.subcontractor))).filter(Boolean).sort(), [jobs]);
+  // รวมเจ้าเดียวกันที่สะกดต่างกัน (ผู้ใช้ขอ 27 ต.ค. 2569) — ดู utils/subcontractorAliases.ts
+  const uniqueSubs = useMemo(() => Array.from(new Set(jobs.map(j => j.subcontractor).filter(Boolean).map(s => reportSubcontractorName(s as string)))).sort(), [jobs]);
 
 
   const filteredJobs = jobs.filter(j => {
@@ -64,7 +66,7 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
     if (filterDateEnd && jobDate > filterDateEnd) return false;
 
     // Subcontractor Filter
-    if (filterSub !== 'ALL' && j.subcontractor !== filterSub) return false;
+    if (filterSub !== 'ALL' && reportSubcontractorName(j.subcontractor || '') !== filterSub) return false;
 
     // --- NEW 4-TAB LOGIC ---
     if (viewTab === 'VERIFICATION') {
@@ -281,7 +283,8 @@ const BillingView: React.FC<BillingViewProps> = ({ jobs, user, onUpdateJob, pric
     }
 
     // Validation: Same Subcontractor
-    const subcontractors = new Set(selectedJobs.map(j => j.subcontractor));
+    // เจ้าเดียวกันที่สะกดต่างกัน (เช่น "พรแม่ย่า" กับ "รถร่วมพรแม่ย่า") ออกใบเดียวกันได้
+    const subcontractors = new Set(selectedJobs.map(j => reportSubcontractorName(j.subcontractor || '')));
     if (subcontractors.size > 1) {
       (window as any).Swal.fire({
         title: 'Multiple Subcontractors / เลือกผู้รับเหมาหลายราย',
