@@ -8,8 +8,8 @@
  *   - BillingView บล็อกไม่ให้วางบิลรวม (เช็ค subcontractor ต้องตรงกันเป๊ะ)
  *   - PaymentDashboard กรองงานด้วยชื่อตรง ๆ จึงเห็นงานไม่ครบ
  *
- * สคริปต์นี้รวมเฉพาะกลุ่มที่ "พิสูจน์แล้วว่าเป็นเจ้าเดียวกัน" ตามรายการ GROUPS
- * ด้านล่าง ไม่ใช่การเดาจากความคล้ายของชื่อ
+ * สคริปต์นี้รวมเฉพาะชื่อที่ "พิสูจน์แล้วว่าเป็นเจ้าเดียวกัน" ตามทะเบียนกลาง
+ * (utils/subcontractorAliases.ts) ไม่ใช่การเดาจากความคล้ายของชื่อ
  *
  * ที่ตั้งใจไม่รวม:
  *   - "นิวทำดี" / "นิวทำดี KTD" — เส้นทางเดียวกันแต่ราคาต่างกัน 420 บาท
@@ -26,11 +26,20 @@
  * ยังจับคู่ได้เองโดยไม่ต้องรันสคริปต์ซ้ำ
  *
  * DRY RUN เป็นค่าเริ่มต้น (แสดงอย่างเดียว ไม่เขียน DB)
- *   node scripts/mergeSubcontractorNames.mjs            # ดูว่าจะแก้อะไรบ้าง
- *   node scripts/mergeSubcontractorNames.mjs --apply    # เขียนจริง + Audit Log
+ *   npx vite-node scripts/mergeSubcontractorNames.mjs            # ดูว่าจะแก้อะไรบ้าง
+ *   npx vite-node scripts/mergeSubcontractorNames.mjs -- --apply # เขียนจริง + Audit Log
+ *
+ * ต้องรันด้วย vite-node (อ่านทะเบียนชื่อจาก utils/subcontractorAliases.ts)
+ *
+ * 28 ต.ค. 2569: เปลี่ยนจากรายการกลุ่มที่เขียนในสคริปต์ เป็นอ่านจากทะเบียนชื่อกลาง
+ * — ทุกคู่ที่ผู้ใช้ยืนยันแล้ว (YSK TRANSPORT, พรแม่ย่า, เบญจวรรณขนส่ง ฯลฯ) จะถูกรวม
+ * โดยไม่ต้องแก้สคริปต์ซ้ำ · ถ้าไม่มี FIREBASE_TOKEN จะขอ token แบบไม่ระบุตัวตน
+ * แบบเดียวกับที่หน้าเว็บใช้ (กฎ RTDB ปิดการเข้าถึงแบบไม่ล็อกอินแล้ว)
  */
 
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { canonicalSubcontractor } from '../utils/subcontractorAliases.ts';
 
 const DB_URL =
   process.env.RTDB_URL ||
@@ -42,8 +51,23 @@ const APPLY = process.argv.includes('--apply');
  * โทเคนสำหรับเรียก REST — ต้องใช้เมื่อกฎฐานข้อมูลบังคับ auth แล้ว
  * ไม่ใส่ค่านี้ในโค้ดเด็ดขาด — อ่านจาก environment เท่านั้น
  */
-const AUTH_TOKEN = process.env.FIREBASE_TOKEN || process.env.RTDB_AUTH || '';
-const authQuery = AUTH_TOKEN ? `?auth=${encodeURIComponent(AUTH_TOKEN)}` : '';
+let AUTH_TOKEN = process.env.FIREBASE_TOKEN || process.env.RTDB_AUTH || '';
+let authQuery = '';
+
+/** ขอ token แบบไม่ระบุตัวตน (เหมือนหน้าเว็บ) — apiKey อ่านจาก firebaseConfig.ts ไม่พิมพ์ออกจอ */
+async function ensureToken() {
+  if (!AUTH_TOKEN) {
+    const cfg = readFileSync(new URL('../firebaseConfig.ts', import.meta.url), 'utf8');
+    const key = cfg.match(/apiKey:\s*["']([^"']+)/)?.[1];
+    if (!key) throw new Error('หา apiKey ใน firebaseConfig.ts ไม่เจอ');
+    const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"returnSecureToken":true}',
+    });
+    AUTH_TOKEN = (await r.json()).idToken || '';
+    if (!AUTH_TOKEN) throw new Error('ขอ token ไม่สำเร็จ');
+  }
+  authQuery = `?auth=${encodeURIComponent(AUTH_TOKEN)}`;
+}
 
 /**
  * กลุ่มที่ยืนยันแล้วว่าเป็นเจ้าเดียวกัน
@@ -51,28 +75,19 @@ const authQuery = AUTH_TOKEN ? `?auth=${encodeURIComponent(AUTH_TOKEN)}` : '';
  * canonical = ชื่อที่จะใช้ต่อไป เลือกจากชื่อที่ใช้มากที่สุดเพื่อให้แก้น้อยที่สุด
  * aliases   = ชื่อที่จะถูกเปลี่ยนเป็น canonical
  */
-const GROUPS = [
-  {
-    // ผู้ใช้เลือก "รถร่วมวสรรณ์" เป็นชื่อมาตรฐาน (26 ส.ค. 2569)
-    // เดิมใช้ "รถร่วมคุณวสรรณ์" จึงต้องรวมชื่อนั้นเข้ามาด้วยในรอบนี้
-    canonical: 'รถร่วมวสรรณ์',
-    aliases: ['รถร่วมคุณวสรรณ์', 'รถร่วมนายวสรรณ์', 'รถร่วมคุณหนึ่ง', 'รถร่วม วสรรณ์', 'รถร่วม คุณวสรรณ์'],
-    why: 'แก่นชื่อเดียวกัน ผู้ใช้ยืนยันว่าทุกสะกดคือเจ้าเดียวกัน และเลือกใช้ "รถร่วมวสรรณ์"',
-  },
-  {
-    canonical: 'วิวัฒน์ทรานส์',
-    aliases: ['วิวัฒน์ทราน'],
-    why: 'เส้นทางเดียวกัน รถแบบเดียวกัน ราคาเท่ากันเป๊ะ (18,500) — พิมพ์ตก "ส์"',
-  },
-];
-
-/** ชื่อเดิม -> ชื่อใหม่ */
-const RENAME = new Map();
-for (const g of GROUPS) {
-  for (const a of g.aliases) RENAME.set(a, g.canonical);
-}
-
 const n = (s) => (s || '').trim();
+
+/**
+ * ชื่อเดิม -> ชื่อใหม่ — สร้างจากชื่อที่เจอจริงในใบงานและราคากลาง
+ * เฉพาะชื่อที่ทะเบียนกลางแปลงเป็นชื่ออื่น (ชื่อที่ไม่อยู่ในทะเบียนไม่ถูกแตะ)
+ */
+const RENAME = new Map();
+const addRename = (name) => {
+  const from = n(name);
+  if (!from) return;
+  const to = canonicalSubcontractor(from);
+  if (to && to !== from) RENAME.set(from, to);
+};
 
 async function getNode(path) {
   const res = await fetch(`${DB_URL}/${path}.json${authQuery}`);
@@ -117,17 +132,19 @@ async function writeLog(jobId, oldValue, newValue) {
 async function main() {
   console.log(`\n${APPLY ? 'APPLY MODE — จะเขียนข้อมูลจริง' : 'DRY RUN — แสดงอย่างเดียว ไม่เขียน DB'}`);
   console.log(`${DB_URL}`);
-  console.log(`โทเคน: ${AUTH_TOKEN ? 'มี (อ่านจาก environment)' : 'ไม่มี — ใช้ได้เฉพาะตอนที่กฎยังเปิดให้เขียนโดยไม่ต้องล็อกอิน'}`);
+  const fromEnv = Boolean(AUTH_TOKEN);
+  await ensureToken();
+  console.log(`โทเคน: ${fromEnv ? 'มี (อ่านจาก environment)' : 'ขอแบบไม่ระบุตัวตน (เหมือนหน้าเว็บ)'}`);
   console.log('');
 
   const [jobsObj, pmObj] = await Promise.all([getNode('jobs'), getNode('priceMatrix')]);
+  for (const job of Object.values(jobsObj)) addRename(job?.subcontractor);
+  for (const row of Object.values(pmObj)) addRename(row?.subcontractor);
 
   const line = '-'.repeat(78);
   console.log(line);
-  for (const g of GROUPS) {
-    console.log(`[${g.canonical}]  <-  ${g.aliases.join(', ')}`);
-    console.log(`   เหตุผล: ${g.why}`);
-  }
+  console.log('ชื่อพ้องที่เจอ (ตามทะเบียนกลาง utils/subcontractorAliases.ts):');
+  for (const [from, to] of RENAME) console.log(`   ${from}  ->  ${to}`);
   console.log(line);
 
   // ---- ใบงาน ----
