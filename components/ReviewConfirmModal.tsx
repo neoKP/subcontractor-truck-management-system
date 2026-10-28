@@ -96,7 +96,7 @@ const ReviewConfirmModal: React.FC<ReviewConfirmModalProps> = ({
      * ตัวเดียวกับตอนกรอก — ต้องตรวจซ้ำที่นี่ ไม่ใช่เชื่อราคาที่บันทึกไว้
      */
     const fuelMatch = fuelRateOptions.find(o =>
-        o.subcontractor === (editData.subcontractor || '').trim()
+        isSameSubcontractor(o.subcontractor, editData.subcontractor || '')
         && Math.abs(o.price - (editData.cost || 0)) < 0.01
     );
     /** มีเรทของผู้รับเหมารายนี้ แต่ราคาไม่ตรง = ราคาเปลี่ยนไปแล้ว */

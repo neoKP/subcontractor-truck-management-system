@@ -29,7 +29,8 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
 
 
         if (sub && sub !== '') {
-            return matches.find(m => m.subcontractor === sub) || null;
+            // ชื่อพ้องต้องหาเจอ — ไม่งั้นผู้เรียกจะถอยไปหยิบแถวแรกของเส้นทาง ซึ่งอาจเป็นราคาของเจ้าอื่น (codex P1)
+            return matches.find(m => isSameSubcontractor(m.subcontractor || '', sub)) || null;
         }
 
         // Return first available match if no subcontractor is specified
@@ -722,7 +723,7 @@ const BookingEditModal: React.FC<BookingEditModalProps> = ({ job, onClose, onSav
                                     {standardSubcontractorNames(MASTER_DATA.subcontractors)
                                         .filter(s => s.toLowerCase().includes(subQuery.toLowerCase()))
                                         .map((s, i) => {
-                                            const isSelected = editData.subcontractor === s;
+                                            const isSelected = isSameSubcontractor(editData.subcontractor || '', s);
                                             const hasContractForRoute = priceMatrix.some(p =>
                                                 p.origin === editData.origin &&
                                                 p.destination === editData.destination &&

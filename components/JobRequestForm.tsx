@@ -226,7 +226,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
     const cost = Number(formData.cost);
     if (!sub || !Number.isFinite(cost) || cost <= 0) return;
 
-    const stillValid = fuelOptions.some(o => o.subcontractor === sub && o.price === cost);
+    const stillValid = fuelOptions.some(o => isSameSubcontractor(o.subcontractor, sub) && o.price === cost);
     if (!stillValid) {
       setFormData(prev => ({ ...prev, subcontractor: '', cost: 0, sellingPrice: 0, paymentType: '', paymentAccount: '' }));
     }
@@ -1025,7 +1025,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                                     setSpotSubSearch('');
                                     setShowSubDropdown(false);
                                   }}
-                                  className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors hover:bg-orange-50 hover:text-orange-700 flex items-center justify-between ${formData.subcontractor === s ? 'bg-orange-100 text-orange-800' : 'text-slate-700'} ${idx !== 0 ? 'border-t border-slate-100' : ''}`}
+                                  className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors hover:bg-orange-50 hover:text-orange-700 flex items-center justify-between ${isSameSubcontractor(formData.subcontractor || '', s) ? 'bg-orange-100 text-orange-800' : 'text-slate-700'} ${idx !== 0 ? 'border-t border-slate-100' : ''}`}
                                 >
                                   <span>{s}</span>
                                   {registeredNames.has(s) && <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full shrink-0">✓ ลงทะเบียน</span>}
@@ -1339,7 +1339,7 @@ const JobRequestForm: React.FC<JobRequestFormProps> = ({ onSubmit, existingJobs,
                         {fuelOptions.map((opt, idx) => {
                           const dropFeeTotal = 0;   // เรทของหน่วยงานรวมค่าจุดส่งไว้แล้ว ไม่บวกซ้ำ
                           const isSelected =
-                            formData.subcontractor === opt.subcontractor && formData.cost === opt.price;
+                            isSameSubcontractor(formData.subcontractor || '', opt.subcontractor) && formData.cost === opt.price;
 
                           return (
                             <button

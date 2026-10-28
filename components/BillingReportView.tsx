@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { reportSubcontractorName } from '../utils/subcontractorAliases';
 import { Job, JobStatus, AccountingStatus } from '../types';
 import { Calendar, CheckCircle, Clock, AlertCircle, TrendingUp, Filter, FileText, ChevronRight, DollarSign, Wallet, Search, X, Download } from 'lucide-react';
 import { formatThaiCurrency, roundHalfUp, formatDate } from '../utils/format';
@@ -23,7 +24,7 @@ const BillingReportView: React.FC<BillingReportViewProps> = ({ jobs }) => {
         const subMap: Record<string, { count: number; amount: number }> = {};
 
         pendingJobs.forEach(j => {
-            const sub = j.subcontractor || 'Unknown';
+            const sub = j.subcontractor ? reportSubcontractorName(j.subcontractor) : 'Unknown';
             if (!subMap[sub]) subMap[sub] = { count: 0, amount: 0 };
             subMap[sub].count++;
             subMap[sub].amount = roundHalfUp(subMap[sub].amount + (j.cost || 0) + (j.extraCharge || 0));
@@ -48,7 +49,7 @@ const BillingReportView: React.FC<BillingReportViewProps> = ({ jobs }) => {
         });
 
         const amount = roundHalfUp(periodJobs.reduce((sum, j) => sum + (j.cost || 0) + (j.extraCharge || 0), 0));
-        const uniqueSubs = new Set(periodJobs.map(j => j.subcontractor)).size;
+        const uniqueSubs = new Set(periodJobs.map(j => reportSubcontractorName(j.subcontractor || ''))).size;
         const docs = new Set(periodJobs.map(j => j.billingDocNo)).size;
 
         return { count: periodJobs.length, amount, uniqueSubs, docs };
@@ -314,7 +315,7 @@ const BillingReportView: React.FC<BillingReportViewProps> = ({ jobs }) => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
-                                    {pendingJobs.filter(j => j.subcontractor === selectedPendingSub).map(job => (
+                                    {pendingJobs.filter(j => reportSubcontractorName(j.subcontractor || '') === selectedPendingSub).map(job => (
                                         <tr key={job.id} className="hover:bg-blue-50/30 transition-colors">
                                             <td className="py-4 pl-6 font-bold text-slate-700 text-sm">#{job.id}</td>
                                             <td className="py-4 text-right pr-6 font-black text-slate-900">฿{formatThaiCurrency((job.cost || 0) + (job.extraCharge || 0))}</td>
@@ -326,7 +327,7 @@ const BillingReportView: React.FC<BillingReportViewProps> = ({ jobs }) => {
                         <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
                             <div className="text-right">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Pending</p>
-                                <p className="text-2xl font-black text-amber-600">฿{formatThaiCurrency(pendingJobs.filter(j => j.subcontractor === selectedPendingSub).reduce((a, b) => a + (b.cost || 0) + (b.extraCharge || 0), 0))}</p>
+                                <p className="text-2xl font-black text-amber-600">฿{formatThaiCurrency(pendingJobs.filter(j => reportSubcontractorName(j.subcontractor || '') === selectedPendingSub).reduce((a, b) => a + (b.cost || 0) + (b.extraCharge || 0), 0))}</p>
                             </div>
                         </div>
                     </div>

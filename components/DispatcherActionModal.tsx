@@ -217,7 +217,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
     // วันที่ต้องการรถ เดิมตรวจแต่ราคากลาง ทำให้ 32 เส้นทางที่หน่วยงานให้เรทมา
     // (ซึ่งไม่มีในราคากลางเลยสักเส้น) ไปต่อไม่ได้ตั้งแต่ขั้นนี้
     const fuelPriceValid = jobFuel.options.some(o =>
-      o.subcontractor === (editData.subcontractor || '').trim()
+      isSameSubcontractor(o.subcontractor, editData.subcontractor || '')
       && Math.abs(o.price - (editData.cost || 0)) < 0.01
     );
     const priceValid = fuelPriceValid
@@ -323,7 +323,7 @@ const DispatcherActionModal: React.FC<DispatcherActionModalProps> = ({ job, onCl
      * ตรงกับเรทปัจจุบัน = บันทึกที่มาใหม่ · ไม่ตรง = ล้างทิ้ง (ราคานี้ไม่ได้มาจากเรท)
      */
     const fuelNow = jobFuel.options.find(o =>
-      o.subcontractor === (editData.subcontractor || '').trim()
+      isSameSubcontractor(o.subcontractor, editData.subcontractor || '')
       && Math.abs(o.price - (editData.cost || 0)) < 0.01
     );
     const fuelProvenance = fuelNow && jobFuel.version?.id
